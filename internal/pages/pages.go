@@ -5,6 +5,7 @@
 package pages
 
 import (
+	"cmp"
 	"fmt"
 	"io/fs"
 	"path"
@@ -54,17 +55,25 @@ func Index(reg *registry.Registry) string {
 	out.WriteString("Generated from the registry; do not edit. Regenerate it with\n")
 	out.WriteString("`go test . -run TestTheIdentifierIndexIsCurrent -update`.\n\n")
 
-	rules := reg.All()
-	if len(rules) == 0 {
+	type row struct{ id, summary, page string }
+	var rows []row
+	for _, rule := range reg.All() {
+		rows = append(rows, row{rule.ID, rule.Summary, rule.ID})
+	}
+	for _, family := range reg.Families() {
+		rows = append(rows, row{family.Name, family.Summary, family.Page})
+	}
+	if len(rows) == 0 {
 		out.WriteString("No rules are registered yet.\n")
 
 		return out.String()
 	}
+	slices.SortFunc(rows, func(a, b row) int { return cmp.Compare(a.id, b.id) })
 
 	out.WriteString("| Identifier | Standing instruction | Page |\n")
 	out.WriteString("| --- | --- | --- |\n")
-	for _, rule := range rules {
-		fmt.Fprintf(&out, "| `%s` | %s | [page](%s.md) |\n", rule.ID, strings.ReplaceAll(rule.Summary, "|", `\|`), rule.ID)
+	for _, r := range rows {
+		fmt.Fprintf(&out, "| `%s` | %s | [page](%s.md) |\n", r.id, strings.ReplaceAll(r.summary, "|", `\|`), r.page)
 	}
 
 	return out.String()
@@ -88,20 +97,26 @@ func Audit(reg *registry.Registry, fsys fs.FS) []string {
 
 	var problems []string
 	registered := map[string]bool{}
-	for _, rule := range reg.All() {
-		registered[rule.ID] = true
+	check := func(name, stem string) {
+		registered[stem] = true
 
-		if !onDisk[rule.ID] {
-			problems = append(problems, fmt.Sprintf("%s has no page at %s", rule.ID, registry.DocPath(rule.ID)))
+		if !onDisk[stem] {
+			problems = append(problems, fmt.Sprintf("%s has no page at %s", name, pagePath(stem)))
 
-			continue
+			return
 		}
-		problems = append(problems, sectionProblems(fsys, rule.ID)...)
+		problems = append(problems, sectionProblems(fsys, stem)...)
+	}
+	for _, rule := range reg.All() {
+		check(rule.ID, rule.ID)
+	}
+	for _, family := range reg.Families() {
+		check(family.Name, family.Page)
 	}
 
 	for name := range onDisk {
 		if !registered[name] {
-			problems = append(problems, fmt.Sprintf("%s is a page for no registered rule", registry.DocPath(name)))
+			problems = append(problems, fmt.Sprintf("%s is a page for no registered rule", pagePath(name)))
 		}
 	}
 
@@ -110,17 +125,22 @@ func Audit(reg *registry.Registry, fsys fs.FS) []string {
 	return problems
 }
 
-func sectionProblems(fsys fs.FS, id string) []string {
-	content, err := Page(fsys, id)
-	if err != nil {
-		return []string{err.Error()}
-	}
+func pagePath(stem string) string {
+	return Directory + "/" + stem + ".md"
+}
 
-	sections, closed := parseSections(content)
+func sectionProblems(fsys fs.FS, stem string) []string {
+	data, err := fs.ReadFile(fsys, pagePath(stem))
+	if err != nil {
+		return []string{fmt.Sprintf("page %s: %v", stem, err)}
+	}
+	where := pagePath(stem)
+
+	sections, closed := parseSections(string(data))
 	if !closed {
 		// Everything after the open fence reads as code, so the sections it hides would
 		// be reported missing; say what is actually wrong instead.
-		return []string{registry.DocPath(id) + " has a code fence that is never closed"}
+		return []string{where + " has a code fence that is never closed"}
 	}
 
 	var problems []string
@@ -130,9 +150,9 @@ func sectionProblems(fsys fs.FS, id string) []string {
 		found := slices.IndexFunc(sections[next:], func(s section) bool { return s.heading == required })
 		if found < 0 {
 			if slices.ContainsFunc(sections, func(s section) bool { return s.heading == required }) {
-				problems = append(problems, fmt.Sprintf("%s has the section %q out of order", registry.DocPath(id), required))
+				problems = append(problems, fmt.Sprintf("%s has the section %q out of order", where, required))
 			} else {
-				problems = append(problems, fmt.Sprintf("%s lacks the section %q", registry.DocPath(id), required))
+				problems = append(problems, fmt.Sprintf("%s lacks the section %q", where, required))
 			}
 
 			continue
@@ -141,7 +161,7 @@ func sectionProblems(fsys fs.FS, id string) []string {
 		found += next
 		next = found + 1
 		if strings.TrimSpace(sections[found].body) == "" {
-			problems = append(problems, fmt.Sprintf("%s has an empty section %q", registry.DocPath(id), required))
+			problems = append(problems, fmt.Sprintf("%s has an empty section %q", where, required))
 		}
 	}
 

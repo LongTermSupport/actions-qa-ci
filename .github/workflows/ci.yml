@@ -37,5 +37,8 @@ jobs:
       - name: Vet
         run: go vet ./...
 
+      - name: Fetch the pinned third-party binaries
+        run: go run ./cmd/actions-qa-dev fetch bin
+
       - name: Test
         run: go test ./...

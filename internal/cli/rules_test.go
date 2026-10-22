@@ -233,6 +233,15 @@ func TestTheProgramRunsAgainstTheRulesAndPagesItShips(t *testing.T) {
 
 	stdout.Reset()
 	stderr.Reset()
+	if code := cli.Run([]string{"rule-doc", "actionsqaci.shellcheck.SC2115"}, &stdout, &stderr); code != cli.ExitOK {
+		t.Fatalf("exit %d for a ShellCheck code; stderr: %s", code, stderr.String())
+	}
+	if !strings.HasPrefix(stdout.String(), "# actionsqaci.shellcheck.SC<nnnn>\n") {
+		t.Errorf("rule-doc printed for a ShellCheck code:\n%s", stdout.String())
+	}
+
+	stdout.Reset()
+	stderr.Reset()
 	if code := cli.Run([]string{"rule-doc", templateDrift}, &stdout, &stderr); code != cli.ExitUsage {
 		t.Errorf("exit %d for a rule that does not ship, want %d", code, cli.ExitUsage)
 	}

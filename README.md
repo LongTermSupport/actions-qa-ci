@@ -8,9 +8,9 @@ identifier and a page stating the correct construction.
 This repository is being built in phases. What exists today is the core: the Go module, the
 conformance declaration, the finding model and identifier scheme, the rule registry, the output
 formats, the `version`, `rules`, `rule-doc` and `rule` commands, and the repository's own CI.
-The first backend is compiled in: actionlint, as sixteen rules. The remaining backends and the
-first-party checks arrive in later phases, and there is no `check` command yet, so the rules are
-reachable through `rule <id> <path>`.
+The first backend is compiled in: actionlint, as sixteen rules, with ShellCheck running on the
+shell in `run:` steps. The remaining backends and the first-party checks arrive in later phases,
+and there is no `check` command yet, so the rules are reachable through `rule <id> <path>`.
 
 ## Requirements
 
@@ -41,8 +41,17 @@ fails the lane.) Suppression belongs in the project record, which this build doe
 a finding is fixed. The lane must be run from the repository root, which holds `.git` and
 `.github/workflows`, and refuses to run anywhere else: actionlint resolves local actions and
 reusable workflows from the project it finds, and from a directory without both it would find a
-different one. ShellCheck and pyflakes
-integration inside actionlint are not enabled; ShellCheck arrives as its own backend.
+different one.
+
+The lane also runs ShellCheck (v0.11.0) over the `bash` and `sh` scripts in `run:` steps, through
+actionlint's integration, and reports each finding as `actionsqaci.shellcheck.SC<nnnn>`; all
+codes share the page `docs/rules/actionsqaci.shellcheck.md`. Only `error` and `warning` findings
+are reported by default. The ShellCheck binary is the one pinned in `internal/toolchain/manifest.json`
+by sha256, looked for beside the program (or in the directory named by `ACTIONS_QA_CI_TOOLS_DIR`)
+and verified before every run; one that is missing or differs fails the lane with exit 3, and a
+ShellCheck on `PATH` is never used. In a development checkout, `go run ./cmd/actions-qa-dev fetch
+bin` downloads it, and `ACTIONS_QA_CI_TOOLS_DIR=$PWD/bin` points the program at it. pyflakes
+integration is not enabled.
 
 ### Exit codes
 

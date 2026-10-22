@@ -5,7 +5,9 @@ package registry
 
 import (
 	"cmp"
+	"errors"
 	"fmt"
+	"path"
 	"slices"
 	"strings"
 
@@ -25,15 +27,47 @@ type Rule struct {
 	Check func(path string) ([]finding.Finding, error)
 }
 
-// Registry is an immutable set of rules.
+// Family is a set of rules too many to list one by one, such as ShellCheck's codes. They share
+// one statement, one page and one way of running, and a member is any identifier Member accepts.
+type Family struct {
+	// Name is how the family is listed, with a placeholder for the part that varies.
+	Name string
+	// Page is the stem of the page the members share, under docs/rules.
+	Page string
+	// Summary is the standing instruction every member states.
+	Summary string
+	// Upstream names the tool and version the members come from.
+	Upstream string
+	// Member says whether an identifier belongs to the family.
+	Member func(id string) bool
+	// Check returns the check for one member, given its identifier.
+	Check func(id string) func(path string) ([]finding.Finding, error)
+}
+
+// Registry is an immutable set of rules and families of rules.
 type Registry struct {
-	rules []Rule
-	byID  map[string]Rule
+	rules    []Rule
+	byID     map[string]Rule
+	families []Family
 }
 
 // New builds a registry, refusing a rule that is malformed or that repeats an identifier.
 func New(rules ...Rule) (*Registry, error) {
+	return NewWithFamilies(nil, rules...)
+}
+
+// NewWithFamilies builds a registry of individual rules and of families, refusing anything
+// malformed or repeated. A family's members are not individually registered.
+func NewWithFamilies(families []Family, rules ...Rule) (*Registry, error) {
 	reg := &Registry{rules: make([]Rule, 0, len(rules)), byID: make(map[string]Rule, len(rules))}
+
+	for _, family := range families {
+		if err := validateFamily(family, reg.families); err != nil {
+			return nil, err
+		}
+		reg.families = append(reg.families, family)
+	}
+	slices.SortFunc(reg.families, func(a, b Family) int { return cmp.Compare(a.Name, b.Name) })
 
 	for _, rule := range rules {
 		if err := validate(rule); err != nil {
@@ -51,9 +85,38 @@ func New(rules ...Rule) (*Registry, error) {
 	return reg, nil
 }
 
+func validateFamily(family Family, earlier []Family) error {
+	switch {
+	case strings.TrimSpace(family.Name) == "":
+		return errors.New("a family has no name")
+	case strings.TrimSpace(family.Page) == "" || family.Page != path.Base(family.Page) || strings.Contains(family.Page, "\\"):
+		return fmt.Errorf("family %s has no page stem, or one that is a path", family.Name)
+	case strings.TrimSpace(family.Summary) == "":
+		return fmt.Errorf("family %s has no summary", family.Name)
+	case strings.ContainsFunc(family.Summary, finding.IsControlOrSeparator):
+		return fmt.Errorf("family %s has a summary with a control character or line break; it must print on one line", family.Name)
+	case family.Member == nil:
+		return fmt.Errorf("family %s cannot say which identifiers belong to it", family.Name)
+	case family.Check == nil:
+		return fmt.Errorf("family %s cannot run", family.Name)
+	}
+
+	for _, other := range earlier {
+		if other.Name == family.Name || other.Page == family.Page {
+			return fmt.Errorf("family %s repeats the name or page of family %s", family.Name, other.Name)
+		}
+	}
+
+	return nil
+}
+
 func validate(rule Rule) error {
-	if _, err := finding.ClassifyIdentifier(rule.ID); err != nil {
+	kind, err := finding.ClassifyIdentifier(rule.ID)
+	if err != nil {
 		return err
+	}
+	if kind == finding.KindShellcheck {
+		return fmt.Errorf("rule %s is a ShellCheck code; register the family, not the code", rule.ID)
 	}
 	if strings.TrimSpace(rule.Summary) == "" {
 		return fmt.Errorf("rule %s has no summary", rule.ID)
@@ -70,11 +133,28 @@ func (r *Registry) All() []Rule {
 	return slices.Clone(r.rules)
 }
 
-// Lookup returns the rule with this identifier, if there is one.
-func (r *Registry) Lookup(id string) (Rule, bool) {
-	rule, ok := r.byID[id]
+// Families returns every family in name order.
+func (r *Registry) Families() []Family {
+	return slices.Clone(r.families)
+}
 
-	return rule, ok
+// Lookup returns the rule with this identifier, if there is one. A member of a family is
+// returned as a rule carrying the family's statement and a check for that member.
+func (r *Registry) Lookup(id string) (Rule, bool) {
+	if rule, ok := r.byID[id]; ok {
+		return rule, true
+	}
+
+	if _, err := finding.ClassifyIdentifier(id); err != nil {
+		return Rule{}, false
+	}
+	for _, family := range r.families {
+		if family.Member(id) {
+			return Rule{ID: id, Summary: family.Summary, Upstream: family.Upstream, Check: family.Check(id)}, true
+		}
+	}
+
+	return Rule{}, false
 }
 
 // Nearest returns up to limit registered identifiers that resemble id, closest first. It
@@ -111,8 +191,13 @@ func (r *Registry) Nearest(id string, limit int) []string {
 	return suggestions
 }
 
-// DocPath is where the page for an identifier lives in the repository.
+// DocPath is where the page for an identifier lives in the repository. Every ShellCheck code
+// shares the page of the family.
 func DocPath(id string) string {
+	if kind, err := finding.ClassifyIdentifier(id); err == nil && kind == finding.KindShellcheck {
+		return "docs/rules/" + finding.ToolPrefix + ".shellcheck.md"
+	}
+
 	return "docs/rules/" + id + ".md"
 }
 
