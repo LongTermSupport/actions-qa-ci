@@ -79,6 +79,11 @@ func runChild(name, path string, command Command, limits Limits) ([]finding.Find
 		return nil, fmt.Errorf("cannot start the lane process: %w", err)
 	}
 	waitErr := cmd.Wait()
+	// Nothing the lane process started outlives it, whatever way it ended. The group is gone
+	// already when the process left nothing behind.
+	if err := syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL); err != nil && !errors.Is(err, syscall.ESRCH) {
+		return nil, fmt.Errorf("cannot end what the lane process started: %w", err)
+	}
 
 	switch {
 	case errors.Is(ctx.Err(), context.DeadlineExceeded):
@@ -114,6 +119,9 @@ func decode(written []byte) ([]finding.Finding, error) {
 	var found []finding.Finding
 	if err := decoder.Decode(&found); err != nil {
 		return nil, fmt.Errorf("the lane process wrote output that is not findings: %s", finding.Escape(err.Error()))
+	}
+	if found == nil {
+		return nil, errors.New("the lane process wrote no list of findings")
 	}
 	if decoder.More() {
 		return nil, errors.New("the lane process wrote more than its findings")

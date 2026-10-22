@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -16,8 +18,9 @@ import (
 )
 
 const (
-	childEnvironment = "CHECK_TEST_CHILD_MODE"
-	hereAndNow       = ".github/workflows/ci.yml"
+	childEnvironment   = "CHECK_TEST_CHILD_MODE"
+	pidFileEnvironment = "CHECK_TEST_PID_FILE"
+	hereAndNow         = ".github/workflows/ci.yml"
 )
 
 func someFinding(path string) finding.Finding {
@@ -70,6 +73,19 @@ func childMain(mode string) int {
 		fmt.Fprint(os.Stdout, strings.Repeat("x", 1<<16))
 	case "garbage":
 		fmt.Fprint(os.Stdout, "this is not json")
+	case "null":
+		fmt.Fprint(os.Stdout, "null")
+	case "grandchild":
+		// A process of its own that keeps the pipes open and outlives this one.
+		grandchild := exec.Command("sleep", "60")
+		grandchild.Stdout, grandchild.Stderr = os.Stdout, os.Stderr
+		if err := grandchild.Start(); err != nil {
+			return 98
+		}
+		if err := os.WriteFile(os.Getenv(pidFileEnvironment), []byte(strconv.Itoa(grandchild.Process.Pid)), 0o600); err != nil {
+			return 97
+		}
+		fmt.Fprint(os.Stdout, "[]")
 	case "unknown-field":
 		fmt.Fprint(os.Stdout, `[{"id":"actionsqaci.actionlint.glob","surprise":1}]`)
 	case "invalid-finding":
@@ -173,13 +189,57 @@ func TestWhatTheChildWroteToStandardErrorIsKeptShortAndOnOneLine(t *testing.T) {
 }
 
 func TestAChildThatBreaksTheProtocolIsAFaultOfTheToolchain(t *testing.T) {
-	for _, mode := range []string{"garbage", "unknown-field", "invalid-finding"} {
+	for _, mode := range []string{"garbage", "unknown-field", "invalid-finding", "null"} {
 		got, err := isolated(mode, generous).Run(hereAndNow)
 
 		var noVerdict *check.NoVerdictError
 		if err == nil || got != nil || errors.As(err, &noVerdict) {
 			t.Errorf("%s: findings %+v, error %v; output a lane cannot have written is a fault", mode, got, err)
 		}
+	}
+}
+
+// gone says whether no live process has this id: it is not there, or it is a zombie that only
+// waits to be reaped.
+func gone(t *testing.T, pid int) bool {
+	t.Helper()
+
+	stat, err := os.ReadFile("/proc/" + strconv.Itoa(pid) + "/stat")
+	if errors.Is(err, os.ErrNotExist) {
+		return true
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The state is the field after the command name, which is in parentheses.
+	afterName := string(stat[strings.LastIndex(string(stat), ")")+2:])
+
+	return strings.HasPrefix(afterName, "Z")
+}
+
+func TestAProcessTheLaneProcessLeftBehindDiesWithIt(t *testing.T) {
+	pidFile := filepath.Join(t.TempDir(), "grandchild.pid")
+	t.Setenv(pidFileEnvironment, pidFile)
+
+	_, runErr := isolated("grandchild", generous).Run(hereAndNow)
+
+	written, err := os.ReadFile(pidFile)
+	if err != nil {
+		t.Fatalf("the lane process did not start its own process (run error: %v): %v", runErr, err)
+	}
+	pid, err := strconv.Atoi(string(written))
+	if err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(10 * time.Second)
+	for !gone(t, pid) && time.Now().Before(deadline) {
+		time.Sleep(50 * time.Millisecond)
+	}
+	if !gone(t, pid) {
+		if killErr := syscall.Kill(pid, syscall.SIGKILL); killErr != nil {
+			t.Error(killErr)
+		}
+		t.Errorf("process %d, started by the lane process, is still running after the lane ended", pid)
 	}
 }
 
