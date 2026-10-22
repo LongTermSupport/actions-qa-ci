@@ -43,6 +43,10 @@ func Rules(known func(id string) bool) []registry.Rule {
 		ID:      NativeSuppressionConfig,
 		Summary: "No tool's own configuration file suppresses a finding: zizmor's file, an actionlint ignore, a pinact ignore_actions",
 		Check:   CheckNativeSuppressionConfig,
+	}, {
+		ID:      RequiredChecks,
+		Summary: "Every status check the project record requires is the name of a job in a workflow triggered on pull_request",
+		Check:   CheckRequiredChecks(known),
 	}}
 }
 

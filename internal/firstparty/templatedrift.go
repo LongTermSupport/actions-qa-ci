@@ -33,13 +33,9 @@ func CheckTemplateDrift(known func(id string) bool) func(path string) ([]finding
 			return nil, err
 		}
 
-		working, err := os.Getwd()
+		root, err := workingRoot()
 		if err != nil {
-			return nil, fmt.Errorf("cannot find the working directory: %w", err)
-		}
-		root, err := filepath.EvalSymlinks(working)
-		if err != nil {
-			return nil, fmt.Errorf("cannot resolve the working directory: %w", err)
+			return nil, err
 		}
 
 		var found []finding.Finding
@@ -86,6 +82,21 @@ func CheckTemplateDrift(known func(id string) bool) func(path string) ([]finding
 
 		return found, nil
 	}
+}
+
+// workingRoot is the working directory with its links resolved: the repository root every
+// path a check reads is judged against.
+func workingRoot() (string, error) {
+	working, err := os.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("cannot find the working directory: %w", err)
+	}
+	root, err := filepath.EvalSymlinks(working)
+	if err != nil {
+		return "", fmt.Errorf("cannot resolve the working directory: %w", err)
+	}
+
+	return root, nil
 }
 
 // readTemplateFile reads a file to compare. The second result says why a file cannot be
