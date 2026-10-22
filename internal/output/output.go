@@ -46,6 +46,16 @@ func ParseFormat(name string) (Format, error) {
 	return "", fmt.Errorf("unknown format %q; the formats are %s", name, knownFormats())
 }
 
+// FormatNames lists the names of the formats, in the order they are documented.
+func FormatNames() []string {
+	names := make([]string, 0, len(formats))
+	for _, format := range formats {
+		names = append(names, string(format))
+	}
+
+	return names
+}
+
 func knownFormats() string {
 	known := make([]string, 0, len(formats))
 	for _, format := range formats {

@@ -36,18 +36,18 @@ const (
 	ExitNoVerdict      = 4 // the analysis could not reach a verdict
 )
 
-const usage = `usage: actions-qa <command> [flags]
+var usage = strings.NewReplacer("FORMATS", strings.Join(output.FormatNames(), "|")).Replace(`usage: actions-qa <command> [flags]
 
 commands:
   version [--json]   print the specification versions this build is audited against
   rules [--json]     list every active rule without running it
   rule-doc <id>      print the page for a rule identifier, offline
-  check [-t lane[,lane…]] [--format text|agent|json] [--] [path…]
+  check [-t lane[,lane…]] [--format FORMATS] [--] [path…]
                      run the lanes over the project's files, or over the files named
-  rule [--format text|agent|json] <id> <path>
+  rule [--format FORMATS] <id> <path>
                      run one rule on one file and print only its findings
   help               print this text
-`
+`)
 
 // Env is what the commands read from outside themselves: the rules that exist, the lanes that
 // run them and the pages that describe them. The program passes the real ones; a test passes
