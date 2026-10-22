@@ -70,6 +70,9 @@
   project record narrows, into a generated region of `CLAUDE.md` or `AGENTS.md` (between
   `<!-- actions-qa-ci:begin -->` and `<!-- actions-qa-ci:end -->`), keeping the rest of the file
   byte for byte. A file whose markers do not form one region is refused and left alone.
+- The files `--sarif` and `--write-agent-summary` write are now replaced whole (written beside the
+  file and moved into place, permissions kept) instead of truncated and rewritten, so a write
+  that fails leaves the old file, and another name hard-linked to it keeps the old content.
 - The record's `analyse.include` section: patterns of tracked `.yml` or `.yaml` files outside the
   default set that the project wants analysed (a shipped template, say). An included workflow is
   linted by actionlint and guarded against inline suppression; an included `action.yml` is

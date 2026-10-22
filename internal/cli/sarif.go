@@ -7,7 +7,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"syscall"
 
 	"github.com/LongTermSupport/actions-qa-ci/internal/finding"
 	"github.com/LongTermSupport/actions-qa-ci/internal/output"
@@ -84,24 +83,46 @@ func writeOutputFile(typed string, data []byte) error {
 	}
 
 	target := filepath.Join(directory, filepath.Base(absolute))
-	file, err := os.OpenFile(target, os.O_WRONLY|os.O_CREATE|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0o644)
-	switch {
-	case errors.Is(err, syscall.ELOOP):
+	mode := os.FileMode(0o644)
+	switch existing, err := os.Lstat(target); {
+	case err == nil && existing.Mode()&os.ModeSymlink != 0:
 		return fmt.Errorf("cannot write %s: it is a symbolic link", finding.DisplayPath(typed))
-	case err != nil:
+	case err == nil && !existing.Mode().IsRegular():
+		return fmt.Errorf("cannot write %s: it is not a regular file", finding.DisplayPath(typed))
+	case err == nil:
+		mode = existing.Mode().Perm()
+	case !errors.Is(err, os.ErrNotExist):
 		return fmt.Errorf("cannot write %s: %w", finding.DisplayPath(typed), err)
 	}
 
-	info, err := file.Stat()
-	if err != nil || !info.Mode().IsRegular() {
-		return errors.Join(fmt.Errorf("cannot write %s: it is not a regular file", finding.DisplayPath(typed)), file.Close())
-	}
-	if err := file.Truncate(0); err != nil {
-		return errors.Join(fmt.Errorf("cannot write %s: %w", finding.DisplayPath(typed), err), file.Close())
-	}
-	if _, err := file.Write(data); err != nil {
-		return errors.Join(fmt.Errorf("cannot write %s: %w", finding.DisplayPath(typed), err), file.Close())
+	return replaceFile(directory, target, data, mode, typed)
+}
+
+// replaceFile writes the data to a new file beside the target and moves it over the target, so
+// the target is either as it was or whole: a write that fails half way cannot leave it cut short.
+// The new file never follows a link at the target, because the move replaces the name.
+func replaceFile(directory, target string, data []byte, mode os.FileMode, typed string) error {
+	temporary, err := os.CreateTemp(directory, ".actions-qa-*")
+	if err != nil {
+		return fmt.Errorf("cannot write %s: %w", finding.DisplayPath(typed), err)
 	}
 
-	return file.Close()
+	written := errors.Join(chmodAndWrite(temporary, data, mode), temporary.Close())
+	if written == nil {
+		written = os.Rename(temporary.Name(), target)
+	}
+	if written != nil {
+		return errors.Join(fmt.Errorf("cannot write %s: %w", finding.DisplayPath(typed), written), os.Remove(temporary.Name()))
+	}
+
+	return nil
+}
+
+func chmodAndWrite(file *os.File, data []byte, mode os.FileMode) error {
+	if err := file.Chmod(mode); err != nil {
+		return err
+	}
+	_, err := file.Write(data)
+
+	return err
 }

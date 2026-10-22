@@ -65,6 +65,36 @@ func TestRulesKeepsTheRestOfTheFileAndASecondRunChangesNothing(t *testing.T) {
 	}
 }
 
+func TestRulesReplacesTheFileInsteadOfRewritingItInPlace(t *testing.T) {
+	repository(t, map[string]string{"CLAUDE.md": "# Mine\n\nKeep this.\n"})
+	if err := os.Chmod("CLAUDE.md", 0o640); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Link("CLAUDE.md", "elsewhere.md"); err != nil {
+		t.Fatal(err)
+	}
+
+	got := runWith(t, familyEnv(t, twoRules()...), "rules", "--write-agent-summary=CLAUDE.md")
+
+	if got.code != cli.ExitOK {
+		t.Fatalf("exit %d, stderr %q", got.code, got.stderr)
+	}
+	// A file that is written to in place can be cut short by a failure half way; one that is
+	// replaced is whole before it is in place, so the other name for the old one still has all
+	// of the old text.
+	if readFile(t, "elsewhere.md") != "# Mine\n\nKeep this.\n" {
+		t.Errorf("the file was rewritten in place: %q", readFile(t, "elsewhere.md"))
+	}
+	info, err := os.Stat("CLAUDE.md")
+	if err != nil || info.Mode().Perm() != 0o640 {
+		t.Errorf("mode = %v, err = %v; the file keeps the permissions it had", info.Mode().Perm(), err)
+	}
+	left, err := filepath.Glob(".*")
+	if err != nil || len(left) != 1 || left[0] != ".git" {
+		t.Errorf("files beginning with a dot after the write: %v, %v; a temporary file was left", left, err)
+	}
+}
+
 func TestRulesWritingTheSummaryStillPrintsTheListingWhenAsked(t *testing.T) {
 	repository(t, map[string]string{})
 	env := familyEnv(t, twoRules()...)

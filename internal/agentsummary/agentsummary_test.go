@@ -138,6 +138,45 @@ func TestAMarkerInsideALineIsNotAMarker(t *testing.T) {
 	}
 }
 
+func crlf(text string) string { return strings.ReplaceAll(text, "\n", "\r\n") }
+
+func TestAFileWithWindowsLineEndingsGetsItsRegionReplacedNotRepeated(t *testing.T) {
+	before := crlf("# Project\n\nIntro.\n\n")
+	after := crlf("\n## Other\n")
+	existing := before + crlf(agentsummary.Begin+"\n\nold text\n\n"+agentsummary.End+"\n") + after
+
+	got, err := agentsummary.Splice([]byte(existing), region(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if want := before + crlf(region(t)+"\n") + after; string(got) != want {
+		t.Errorf("got %q\nwant %q", got, want)
+	}
+	again, err := agentsummary.Splice(got, region(t))
+	if err != nil || !bytes.Equal(again, got) {
+		t.Errorf("a second splice changed the file: %q, err %v", again, err)
+	}
+}
+
+func TestARegionAppendedToAFileWithWindowsLineEndingsHasThemToo(t *testing.T) {
+	got, err := agentsummary.Splice([]byte(crlf("# Project\n\nText.\n")), region(t))
+
+	if want := crlf("# Project\n\nText.\n\n" + region(t) + "\n"); err != nil || string(got) != want {
+		t.Errorf("got %q, err %v; want %q", got, err, want)
+	}
+}
+
+func TestExtractGivesTheRegionWithPlainLineEndingsWhateverTheFileUses(t *testing.T) {
+	file := crlf("# Project\n\n" + region(t) + "\n")
+
+	found, ok, err := agentsummary.Extract([]byte(file))
+
+	if err != nil || !ok || found != region(t) {
+		t.Errorf("found %q, %v, %v; want the region as Region renders it", found, ok, err)
+	}
+}
+
 func TestExtractFindsTheRegionAndCurrentComparesIt(t *testing.T) {
 	file, err := agentsummary.Splice([]byte("# Project\n"), region(t))
 	if err != nil {

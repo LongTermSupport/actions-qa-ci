@@ -124,7 +124,10 @@ anywhere else it would find nothing and read as clean, so it refuses.
   `AGENTS.md`). The region is replaced where it is and appended where the file has none; the rest
   of the file is kept byte for byte, and a second run changes nothing. A file with a begin
   marker and no end marker (or more than one region) is refused with exit 2 and left alone, as
-  is a link or anything but a regular file. The listing is still printed.
+  is a link or anything but a regular file. A file whose lines end in CRLF gets the region with
+  CRLF. A marker line is a marker wherever it is, a fenced code block included. The file is
+  written beside itself and moved into place, with its permissions kept, so a write that fails
+  leaves it as it was. The listing is still printed.
 - **Failure stops the run.** A lane that fails stops it with exit 3 and prints no findings: a
   partial list would read as a verdict.
 

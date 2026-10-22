@@ -78,13 +78,19 @@ func locate(data []byte) (start, end int, found bool, err error) {
 			lineEnd = offset + next
 		}
 
-		switch string(data[offset:lineEnd]) {
+		text := data[offset:lineEnd]
+		carriage := 0
+		if bytes.HasSuffix(text, []byte("\r")) {
+			text, carriage = text[:len(text)-1], 1
+		}
+
+		switch string(text) {
 		case Begin:
 			begins++
 			beginAt = offset
 		case End:
 			ends++
-			endAt = lineEnd
+			endAt = lineEnd - carriage
 		}
 
 		if next < 0 {
@@ -105,32 +111,51 @@ func locate(data []byte) (start, end int, found bool, err error) {
 	return beginAt, endAt, true, nil
 }
 
-// Extract returns the generated region of data, markers included, and whether there is one.
+// Extract returns the generated region of data, markers included and with plain line endings
+// whatever the file uses, and whether there is one.
 func Extract(data []byte) (string, bool, error) {
 	start, end, found, err := locate(data)
 	if err != nil || !found {
 		return "", false, err
 	}
 
-	return string(data[start:end]), true, nil
+	return strings.ReplaceAll(string(data[start:end]), "\r\n", "\n"), true, nil
 }
 
 // Splice returns data with the region put in: in place of the one already there, or else after
 // everything else. A file with markers that do not form one region is refused, not rewritten.
+// A file whose lines end in CRLF gets the region with the same line endings.
 func Splice(data []byte, region string) ([]byte, error) {
 	start, end, found, err := locate(data)
 	if err != nil {
 		return nil, err
 	}
 
+	newline := "\n"
+	if endsLinesWithCRLF(data) {
+		newline = "\r\n"
+		region = strings.ReplaceAll(region, "\n", newline)
+	}
+
 	if found {
 		return bytes.Join([][]byte{data[:start], []byte(region), data[end:]}, nil), nil
 	}
 
-	base := bytes.TrimRight(data, "\n")
+	base := data
+	for bytes.HasSuffix(base, []byte(newline)) {
+		base = base[:len(base)-len(newline)]
+	}
 	if len(base) == 0 {
-		return []byte(region + "\n"), nil
+		return []byte(region + newline), nil
 	}
 
-	return bytes.Join([][]byte{base, []byte("\n\n" + region + "\n")}, nil), nil
+	return bytes.Join([][]byte{base, []byte(newline + newline + region + newline)}, nil), nil
+}
+
+// endsLinesWithCRLF says whether the first line of data ends in CRLF, which is how the file is
+// taken to end all its lines.
+func endsLinesWithCRLF(data []byte) bool {
+	first := bytes.IndexByte(data, '\n')
+
+	return first > 0 && data[first-1] == '\r'
 }
