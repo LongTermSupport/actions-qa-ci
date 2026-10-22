@@ -22,6 +22,10 @@ word of it is a word of the identifier, when it is shorter than 40 characters or
 
 An exception with no `path` disables its defence everywhere and is held to the same standard.
 
+Every entry of `analyse.unanalysed` (see `actionsqaci.lintCoverage`) states a `hazard` and a
+`scope` in its `justification`, held to the same standard as an exception's: it leaves files out
+of the analysis, which is a suppression as much as an exception is. It has no `decision`.
+
 The check cannot tell whether a sentence is true. It refuses the sentences that could be written
 without knowing anything, so that a reviewer is left with something to judge. An exception that
 passes is applied by `check`: the finding it covers stays in the output as excepted, counted and

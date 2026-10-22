@@ -24,7 +24,7 @@ const (
 func Rules(known func(id string) bool) []registry.Rule {
 	return []registry.Rule{{
 		ID:      UnjustifiedException,
-		Summary: "Every exception in the project record states a hazard, a scope and a decision, none of them generic",
+		Summary: "Every exception in the project record states a hazard, a scope and a decision, and every unanalysed file a hazard and a scope, none of them generic",
 		Check:   CheckRecord(known),
 	}, {
 		// Reported by `check` when it has run every lane over every file: an exception can be
@@ -47,7 +47,7 @@ func Rules(known func(id string) bool) []registry.Rule {
 		ID:      RequiredChecks,
 		Summary: "Every status check the project record requires is the name of a job in a workflow triggered on pull_request",
 		Check:   CheckRequiredChecks(known),
-	}}
+	}, lintCoverageRule(known)}
 }
 
 // CheckRecord is the check on the project record at a path: a finding for each justification
@@ -70,6 +70,24 @@ func CheckRecord(known func(id string) bool) func(path string) ([]finding.Findin
 					Col:      1,
 					Severity: finding.SeverityError,
 					Message:  fmt.Sprintf("%s of exception %d (%s) %s", fault.Field, i+1, e.ID, fault.Reason),
+					DocPath:  registry.DocPath(UnjustifiedException),
+				}
+				if err := f.Validate(); err != nil {
+					return nil, fmt.Errorf("the justification check produced a finding that cannot be reported: %w", err)
+				}
+				found = append(found, f)
+			}
+		}
+		for i, u := range rec.Analyse.Unanalysed {
+			for _, fault := range u.Faults() {
+				f := finding.Finding{
+					ID:       UnjustifiedException,
+					Tool:     Tool,
+					Path:     path,
+					Line:     max(u.Line, 1),
+					Col:      1,
+					Severity: finding.SeverityError,
+					Message:  fmt.Sprintf("%s of unanalysed entry %d (%s) %s", fault.Field, i+1, u.Path, fault.Reason),
 					DocPath:  registry.DocPath(UnjustifiedException),
 				}
 				if err := f.Validate(); err != nil {

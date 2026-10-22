@@ -22,9 +22,10 @@ Generated from the registry; do not edit. Regenerate it with
 | `actionsqaci.actionlint.syntax-check` | A workflow file is valid GitHub Actions workflow syntax | [page](actionsqaci.actionlint.syntax-check.md) |
 | `actionsqaci.actionlint.workflow-call` | A reusable-workflow call passes the inputs and secrets the callee declares | [page](actionsqaci.actionlint.workflow-call.md) |
 | `actionsqaci.inlineSuppression` | No comment tells zizmor, ratchet or ShellCheck to leave a finding out | [page](actionsqaci.inlineSuppression.md) |
+| `actionsqaci.lintCoverage` | Every git-tracked file that is workflow-shaped or action-shaped is analysed, or declared unanalysed with a justification | [page](actionsqaci.lintCoverage.md) |
 | `actionsqaci.nativeSuppressionConfig` | No tool's own configuration file suppresses a finding: zizmor's file, an actionlint ignore, a pinact ignore_actions | [page](actionsqaci.nativeSuppressionConfig.md) |
 | `actionsqaci.requiredChecks` | Every status check the project record requires is the name of a job in a workflow triggered on pull_request | [page](actionsqaci.requiredChecks.md) |
 | `actionsqaci.shellcheck.SC<nnnn>` | Shell in a run: step has no ShellCheck error or warning | [page](actionsqaci.shellcheck.md) |
 | `actionsqaci.staleException` | Every exception in the project record matches a finding in a full run | [page](actionsqaci.staleException.md) |
 | `actionsqaci.templateDrift` | Each declared copy of a template is byte-identical to its source, and a missing source or copy is a finding | [page](actionsqaci.templateDrift.md) |
-| `actionsqaci.unjustifiedException` | Every exception in the project record states a hazard, a scope and a decision, none of them generic | [page](actionsqaci.unjustifiedException.md) |
+| `actionsqaci.unjustifiedException` | Every exception in the project record states a hazard, a scope and a decision, and every unanalysed file a hazard and a scope, none of them generic | [page](actionsqaci.unjustifiedException.md) |

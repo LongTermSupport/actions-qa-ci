@@ -58,6 +58,7 @@ const Path = ".github/actions-qa-ci.yml"
 // document is a record as the YAML decoder reads it, before its entries are checked.
 type document struct {
 	Version    string           `yaml:"version"`
+	Analyse    analyseDocument  `yaml:"analyse"`
 	Templates  []*Template      `yaml:"templates"`
 	Required   []*RequiredCheck `yaml:"requiredChecks"`
 	Exceptions []*Exception     `yaml:"exceptions"`
@@ -71,6 +72,8 @@ const maxSize = 1 << 20
 type Record struct {
 	// Version is the actions-qa-ci version the project pins.
 	Version string `yaml:"version"`
+	// Analyse states which workflow-shaped files the project does not analyse.
+	Analyse Analyse `yaml:"analyse"`
 	// Templates declare the copies that have to stay byte-identical to a source.
 	Templates []Template `yaml:"templates"`
 	// RequiredChecks are the status check contexts the project requires before a merge.
@@ -181,9 +184,10 @@ func Parse(data []byte, known func(id string) bool) (*Record, error) {
 		return nil, invalid("it has more than one document")
 	}
 
-	if len(layout.lines) != len(doc.Exceptions) || len(layout.templateLines) != len(doc.Templates) || len(layout.requiredLines) != len(doc.Required) {
-		return nil, invalid(fmt.Sprintf("cannot match %d exceptions, %d templates and %d required checks to their %d, %d and %d lines",
-			len(doc.Exceptions), len(doc.Templates), len(doc.Required), len(layout.lines), len(layout.templateLines), len(layout.requiredLines)))
+	if len(layout.lines) != len(doc.Exceptions) || len(layout.templateLines) != len(doc.Templates) || len(layout.requiredLines) != len(doc.Required) || len(layout.unanalysedLines) != len(doc.Analyse.Unanalysed) {
+		return nil, invalid(fmt.Sprintf("cannot match %d exceptions, %d templates, %d required checks and %d unanalysed entries to their %d, %d, %d and %d lines",
+			len(doc.Exceptions), len(doc.Templates), len(doc.Required), len(doc.Analyse.Unanalysed),
+			len(layout.lines), len(layout.templateLines), len(layout.requiredLines), len(layout.unanalysedLines)))
 	}
 
 	rec := &Record{
@@ -191,6 +195,7 @@ func Parse(data []byte, known func(id string) bool) (*Record, error) {
 		Exceptions:     make([]Exception, 0, len(doc.Exceptions)),
 		Templates:      make([]Template, 0, len(doc.Templates)),
 		RequiredChecks: make([]RequiredCheck, 0, len(doc.Required)),
+		Analyse:        Analyse{Unanalysed: make([]Unanalysed, 0, len(doc.Analyse.Unanalysed))},
 	}
 	var faults []string
 	if layout.versionTag != "" && layout.versionTag != "!!int" && layout.versionTag != "!!str" {
@@ -198,6 +203,16 @@ func Parse(data []byte, known func(id string) bool) (*Record, error) {
 	}
 	if layout.versionTag == "!!int" && !wholeNumber.MatchString(doc.Version) {
 		faults = append(faults, fmt.Sprintf("version %q must be written as plain digits", doc.Version))
+	}
+	for i, entry := range doc.Analyse.Unanalysed {
+		if entry == nil {
+			faults = append(faults, fmt.Sprintf("unanalysed entry %d (line %d) is empty", i+1, layout.unanalysedLines[i]))
+			rec.Analyse.Unanalysed = append(rec.Analyse.Unanalysed, Unanalysed{Line: layout.unanalysedLines[i], null: true})
+
+			continue
+		}
+		entry.Line = layout.unanalysedLines[i]
+		rec.Analyse.Unanalysed = append(rec.Analyse.Unanalysed, *entry)
 	}
 	for i, entry := range doc.Required {
 		if entry == nil {
@@ -247,6 +262,8 @@ type layout struct {
 	lines         []int
 	templateLines []int
 	requiredLines []int
+	// unanalysedLines are the lines of the entries of analyse.unanalysed.
+	unanalysedLines []int
 	// templateCopies is how many entries each template's copies list is written with, or -1
 	// where it is not a list. The decoder turns a null entry into nothing, so only the node
 	// tree can say that one was written.
@@ -288,6 +305,8 @@ func readLayout(data []byte) (layout, error) {
 			if top[i+1].Kind == yaml.ScalarNode {
 				found.versionTag = top[i+1].ShortTag()
 			}
+		case "analyse":
+			found.unanalysedLines = writtenUnanalysed(top[i+1])
 		case "exceptions":
 			if top[i+1].Kind != yaml.SequenceNode {
 				continue
@@ -371,6 +390,7 @@ func (r *Record) faults(known func(id string) bool) []string {
 		faults = append(faults, "version is missing: state the actions-qa-ci version the project pins")
 	}
 
+	faults = append(faults, analyseFaults(r.Analyse.Unanalysed)...)
 	faults = append(faults, templateFaults(r.Templates)...)
 	faults = append(faults, requiredCheckFaults(r.RequiredChecks)...)
 

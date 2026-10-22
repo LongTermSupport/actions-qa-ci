@@ -59,6 +59,13 @@
   runs a matrix). A job's check run is its `name:` or else its id; a job that calls a reusable
   workflow produces contexts under `<name> / `. A workflow that cannot be read is a finding at
   that workflow. Comparing with the repository's real branch protection is declared as a gap.
+- `actionsqaci.lintCoverage` and the record's `analyse.unanalysed` section: a tracked file that
+  is workflow-shaped (top-level `on` and `jobs`) or action-shaped (`action.yml` with `runs`) and is
+  neither in the default set nor declared with a justification is a finding at the file, and a
+  declaration that excuses no file is a finding at its entry. The tracked files come from the
+  repository's own index (versions 2 to 4, checked against its checksum; a split or sparse index is
+  refused), so no `git` is run. `check` runs this lane once for the project, with or without a
+  record. `analyse.include` is not built yet and is refused.
 - The `github` output format (`--format github`, or `ACTIONS_QA_FORMAT=github`): workflow
   annotations for the findings, ten of each level at most, then the full list as the `agent`
   format prints it. Every format now prints a path that starts `::` or `##[` quoted, so a file
