@@ -75,6 +75,21 @@ func childMain(mode string) int {
 		fmt.Fprint(os.Stdout, "this is not json")
 	case "null":
 		fmt.Fprint(os.Stdout, "null")
+	case "findings-then-crash":
+		fmt.Fprint(os.Stdout, "[]")
+		return 2
+	case "record-and-hang":
+		if err := os.WriteFile(os.Getenv(pidFileEnvironment), []byte(strconv.Itoa(os.Getpid())), 0o600); err != nil {
+			return 97
+		}
+		time.Sleep(time.Minute)
+	case "orphan-parent":
+		// The program that isolates a lane: its lane process hangs, and the test kills this one.
+		if _, err := isolated("record-and-hang", generous).Run(hereAndNow); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+
+			return 96
+		}
 	case "grandchild":
 		// A process of its own that keeps the pipes open and outlives this one.
 		grandchild := exec.Command("sleep", "60")
@@ -153,11 +168,12 @@ func TestAChildThatDiesWithoutAVerdictLeavesNoVerdict(t *testing.T) {
 		limits  check.Limits
 		mention string
 	}{
-		"a runtime fatal error": {"crash", generous, "exit status 2"},
-		"a signal":              {"killed", generous, "signal"},
-		"another exit code":     {"exit-seven", generous, "exit status 7"},
-		"too long a time":       {"hang", check.Limits{Timeout: 300 * time.Millisecond, MaxOutput: 1 << 20, MaxStderr: 2048}, "time limit"},
-		"too much output":       {"flood", check.Limits{Timeout: time.Minute, MaxOutput: 1024, MaxStderr: 2048}, "more than"},
+		"a runtime fatal error":  {"crash", generous, "exit status 2"},
+		"a signal":               {"killed", generous, "signal"},
+		"another exit code":      {"exit-seven", generous, "exit status 7"},
+		"findings, then a crash": {"findings-then-crash", generous, "exit status 2"},
+		"too long a time":        {"hang", check.Limits{Timeout: 300 * time.Millisecond, MaxOutput: 1 << 20, MaxStderr: 2048}, "time limit"},
+		"too much output":        {"flood", check.Limits{Timeout: time.Minute, MaxOutput: 1024, MaxStderr: 2048}, "more than"},
 	}
 
 	for name, c := range cases {
@@ -205,7 +221,7 @@ func gone(t *testing.T, pid int) bool {
 	t.Helper()
 
 	stat, err := os.ReadFile("/proc/" + strconv.Itoa(pid) + "/stat")
-	if errors.Is(err, os.ErrNotExist) {
+	if errors.Is(err, os.ErrNotExist) || errors.Is(err, syscall.ESRCH) {
 		return true
 	}
 	if err != nil {
@@ -240,6 +256,54 @@ func TestAProcessTheLaneProcessLeftBehindDiesWithIt(t *testing.T) {
 			t.Error(killErr)
 		}
 		t.Errorf("process %d, started by the lane process, is still running after the lane ended", pid)
+	}
+}
+
+func TestALaneProcessDoesNotOutliveTheProgramThatStartedIt(t *testing.T) {
+	pidFile := filepath.Join(t.TempDir(), "lane.pid")
+	t.Setenv(pidFileEnvironment, pidFile)
+
+	program := exec.Command(os.Args[0], "-test.run=NoSuchTestEver")
+	program.Env = append(os.Environ(), childEnvironment+"=orphan-parent")
+	if err := program.Start(); err != nil {
+		t.Fatal(err)
+	}
+
+	pid := 0
+	deadline := time.Now().Add(20 * time.Second)
+	for pid == 0 && time.Now().Before(deadline) {
+		written, err := os.ReadFile(pidFile)
+		if err == nil {
+			if parsed, parseErr := strconv.Atoi(string(written)); parseErr == nil {
+				pid = parsed
+			}
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if pid == 0 {
+		if err := program.Process.Kill(); err != nil {
+			t.Error(err)
+		}
+		t.Fatal("the lane process never started")
+	}
+
+	if err := program.Process.Kill(); err != nil {
+		t.Fatal(err)
+	}
+	var exit *exec.ExitError
+	if err := program.Wait(); !errors.As(err, &exit) {
+		t.Fatalf("the program that was killed ended with %v", err)
+	}
+
+	deadline = time.Now().Add(10 * time.Second)
+	for !gone(t, pid) && time.Now().Before(deadline) {
+		time.Sleep(50 * time.Millisecond)
+	}
+	if !gone(t, pid) {
+		if err := syscall.Kill(pid, syscall.SIGKILL); err != nil {
+			t.Error(err)
+		}
+		t.Errorf("lane process %d is still running after the program that started it was killed", pid)
 	}
 }
 

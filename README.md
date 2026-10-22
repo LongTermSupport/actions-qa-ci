@@ -129,7 +129,8 @@ A usage error writes nothing to standard output: it is not a verdict.
 an internal `lane` command), with a time limit of two minutes and a cap on what it may write. A
 workflow made to send actionlint's expression parser into unbounded recursion, or to make it
 slow, therefore ends that process and not the run: the run has no verdict, names the lane and
-the file, and exits 4. A lane process whose lane fails on its own account is exit 3.
+the file, and exits 4. A lane process whose lane fails on its own account is exit 3. Whatever a
+lane process started ends with it, and a lane process ends if `actions-qa` itself is killed.
 
 One declared gap (`dbf.json`, `actionlint-runs-in-process`): the `rule` harness still runs
 actionlint inside its own process, so there a workflow built to recurse without bound ends the

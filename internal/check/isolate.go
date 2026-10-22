@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"runtime"
 	"strings"
 	"syscall"
 	"time"
@@ -59,9 +60,15 @@ func runChild(name, path string, command Command, limits Limits) ([]finding.Find
 	ctx, cancel := context.WithTimeout(context.Background(), limits.Timeout)
 	defer cancel()
 
+	// The lane process is signalled when the thread that started it ends, which is why the thread
+	// is held for as long as the process lives. A program that is killed leaves no lane process
+	// behind to run without its time limit.
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
 	cmd := command(ctx, name, path)
 	// The lane process may start tools of its own; they die with it.
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Pdeathsig: syscall.SIGKILL}
 	cmd.Cancel = func() error {
 		if cmd.Process == nil {
 			return nil
