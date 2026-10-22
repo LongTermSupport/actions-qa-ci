@@ -20,7 +20,7 @@
     },
     {
       "id": "action-files-not-linted",
-      "description": "actionlint checks workflow files only, so composite actions (action.yml) and the Dependabot file are discovered but analysed by no lane until the zizmor backend (phase 4) and the coverage check (phase 6) arrive."
+      "description": "actionlint checks workflow files only, so composite actions (action.yml) and the Dependabot file are discovered and named on standard error as unanalysed, but analysed by no lane until the zizmor backend (phase 4) and the coverage check (phase 6) arrive."
     },
     {
       "id": "conformance-reading-unconfirmed",

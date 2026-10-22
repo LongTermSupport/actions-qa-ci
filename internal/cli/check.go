@@ -7,6 +7,7 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"syscall"
 
 	"github.com/LongTermSupport/actions-qa-ci/internal/check"
 	"github.com/LongTermSupport/actions-qa-ci/internal/output"
@@ -60,6 +61,11 @@ func checkCommand(env Env, args []string, stdout, stderr io.Writer) int {
 
 	if err := output.Write(stdout, format, found); err != nil {
 		return fault(stderr, fmt.Errorf("cannot write output: %w", err))
+	}
+	if len(arguments.files) == 0 {
+		if err := noteUnanalysed(env.Lanes, files, stderr); err != nil {
+			return fault(stderr, fmt.Errorf("cannot write output: %w", err))
+		}
 	}
 	if hasUnexcepted(found) {
 		return ExitFindings
@@ -166,6 +172,9 @@ func chooseLanes(all []check.Lane, wanted []string) ([]check.Lane, string) {
 func validateRecord(env Env, stderr io.Writer) int {
 	if _, err := os.Lstat(record.Path); errors.Is(err, os.ErrNotExist) {
 		return ExitOK
+	} else if errors.Is(err, syscall.ENOTDIR) {
+		// .github is not a directory: the same fault Discover reports for it.
+		return noVerdict(stderr, fmt.Errorf("cannot look for the project record: %w", err))
 	} else if err != nil {
 		return fault(stderr, fmt.Errorf("cannot look for the project record: %w", err))
 	}
@@ -220,6 +229,24 @@ func filesToCheck(lanes []check.Lane, named []string, stderr io.Writer) ([]strin
 	}
 
 	return files, ExitOK
+}
+
+// noteUnanalysed names, on the diagnostic stream, the files of the default set that no lane of
+// this build analyses at all, so a clean result is not read as covering them.
+func noteUnanalysed(lanes []check.Lane, files []string, stderr io.Writer) error {
+	var skipped []string
+	for _, file := range files {
+		if len(check.Selecting(lanes, file)) == 0 {
+			skipped = append(skipped, file)
+		}
+	}
+	if len(skipped) == 0 {
+		return nil
+	}
+
+	_, err := fmt.Fprintf(stderr, "actions-qa: no lane in this build analyses %s\n", strings.Join(skipped, ", "))
+
+	return err
 }
 
 // noVerdict reports an analysis that could not cover what it should have.

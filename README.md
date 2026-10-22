@@ -61,9 +61,11 @@ and prints every finding. It must be run from the repository root, which holds `
 anywhere else it would find nothing and read as clean, so it refuses.
 
 - **Files.** By default: the workflows directly in `.github/workflows`, every `action.yml` or
-  `action.yaml` under `.github/actions` and at the root, `.github/dependabot.yml` and the project
-  record. A lane analyses the files it covers; today actionlint covers the workflows and the
-  first-party lane covers the record. Naming files on the command line analyses only those, and
+  `action.yaml` under `.github/actions` and at the root, `.github/dependabot.yml` or
+  `.github/dependabot.yaml`, and the project record. A lane analyses the files it covers; today
+  actionlint covers the workflows and the first-party lane covers the record. A file of the
+  default set that no lane of the build covers is named on standard error, so a clean result is
+  not read as covering it. Naming files on the command line analyses only those, and
   a file no chosen lane covers is refused rather than passed over. A symbolic link or other
   non-file where the default set looks stops the run with exit 4.
 - **`-t lane[,lane]`** runs only the named lanes (repeatable); an unknown name is refused with

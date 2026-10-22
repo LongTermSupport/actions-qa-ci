@@ -24,8 +24,8 @@
   and first-party lanes over the workflows, actions, Dependabot file and record the project has,
   or over the files named. `-t` picks lanes, `--format` and `ACTIONS_QA_FORMAT` pick the output.
   A failing lane stops the run with exit 3 and no findings; a file that cannot be read as a plain
-  file is exit 4; a directory that is not the repository root is refused. Exceptions are still
-  not applied.
+  file is exit 4; a directory that is not the repository root is refused. A discovered file no
+  lane analyses is named on standard error. Exceptions are still not applied.
 - The `rule <id> <path>` harness: runs one rule on one file and prints only that rule's
   findings, exiting 1 when it fires.
 - The `text`, `agent` and `json` output formats, and the finding model with its identifier

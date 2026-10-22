@@ -27,6 +27,7 @@ func TestDiscoverFindsTheDefaultSetAndNothingElse(t *testing.T) {
 		".github/actions/x/y/other.yml":          file("not an action\n"),
 		"action.yml":                             file("runs: {}\n"),
 		".github/dependabot.yml":                 file("version: 2\n"),
+		".github/dependabot.yaml":                file("version: 2\n"),
 		".github/actions-qa-ci.yml":              file("version: 1\n"),
 		"README.md":                              file("# repo\n"),
 		"other/action.yml":                       file("outside the default set\n"),
@@ -42,6 +43,7 @@ func TestDiscoverFindsTheDefaultSetAndNothingElse(t *testing.T) {
 		".github/actions-qa-ci.yml",
 		".github/actions/x/action.yml",
 		".github/actions/x/y/action.yaml",
+		".github/dependabot.yaml",
 		".github/dependabot.yml",
 		".github/workflows/a.yml",
 		".github/workflows/b.yaml",
@@ -71,6 +73,7 @@ func TestDiscoverRefusesWhatItCannotReadAsAFileInsteadOfSkippingIt(t *testing.T)
 		"a symlink anywhere under actions":  {".github/actions/x/shared": link},
 		"a symlinked root action":           {"action.yml": link},
 		"a symlinked dependabot file":       {".github/dependabot.yml": link},
+		"a symlinked dependabot yaml file":  {".github/dependabot.yaml": link},
 		"a symlinked record":                {".github/actions-qa-ci.yml": link},
 		"a symlinked .github directory":     {".github": link},
 		"a .github that is a file":          {".github": file("not a directory\n")},
@@ -169,6 +172,22 @@ func TestRunStopsAtTheFirstFailureAndReturnsNoFindingsAtAll(t *testing.T) {
 	var laneErr *check.LaneError
 	if !errors.As(err, &laneErr) || laneErr.Lane != "broken" || laneErr.Path != "a.yml" {
 		t.Errorf("error %v must name the lane and the file", err)
+	}
+}
+
+func TestRunReturnsNoFindingsWhenALaterLaneFailsAfterAnEarlierOneFound(t *testing.T) {
+	var ran []string
+	lanes := []check.Lane{
+		recording("finds", suffix(".yml"), &ran),
+		{Name: "broken", Selects: suffix(".yml"), Run: func(string) ([]finding.Finding, error) {
+			return nil, errors.New("tool exploded")
+		}},
+	}
+
+	got, err := check.Run(lanes, []string{"a.yml"})
+
+	if err == nil || got != nil {
+		t.Errorf("findings = %v, error = %v; what an earlier lane found must not be returned beside a failure", got, err)
 	}
 }
 

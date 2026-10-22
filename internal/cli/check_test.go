@@ -438,3 +438,76 @@ func TestTheProgramsOwnCheckNamesItsLanesWhenOneIsMistyped(t *testing.T) {
 		t.Errorf("exit %d, stderr %q", got.code, got.stderr)
 	}
 }
+
+func TestTheProgramsOwnCheckReadsTheFormatFromTheEnvironment(t *testing.T) {
+	repository(t, map[string]string{"README.md": "# x\n"})
+
+	t.Setenv("ACTIONS_QA_FORMAT", "json")
+	got := runProgram(t, "check")
+	if got.code != cli.ExitOK || got.stdout != "[]\n" {
+		t.Errorf("json: exit %d, stdout %q, stderr %q", got.code, got.stdout, got.stderr)
+	}
+
+	t.Setenv("ACTIONS_QA_FORMAT", "bogus")
+	got = runProgram(t, "check")
+	if got.code != cli.ExitUsage || got.stdout != "" || !strings.Contains(got.stderr, "bogus") {
+		t.Errorf("bogus: exit %d, stdout %q, stderr %q", got.code, got.stdout, got.stderr)
+	}
+
+	got = runProgram(t, "check", "--format", "agent")
+	if got.code != cli.ExitOK || got.stdout != "0 findings\n" {
+		t.Errorf("a format on the command line must win over a wrong one in the environment: exit %d, stdout %q, stderr %q", got.code, got.stdout, got.stderr)
+	}
+}
+
+func TestCheckIsNoVerdictWhenDotGithubIsAFileWhateverElseIsAskedFor(t *testing.T) {
+	for name, args := range map[string][]string{"by default": {"check"}, "for a named file": {"check", "README.md"}} {
+		repository(t, map[string]string{".github": "not a directory\n", "README.md": "# x\n"})
+		var run laneRun
+		env := checkEnv(t, run.lane("fake", func(string) bool { return true }, findsNothing))
+
+		got := runWith(t, env, args...)
+
+		if name == "by default" && (got.code != cli.ExitNoVerdict || got.stdout != "") {
+			t.Errorf("%s: exit %d, stdout %q, stderr %q; the record cannot be looked for, which is no verdict", name, got.code, got.stdout, got.stderr)
+		}
+		if name == "for a named file" && got.code == cli.ExitOK && len(run.ran) == 0 {
+			t.Errorf("%s: exit %d without analysing anything", name, got.code)
+		}
+	}
+}
+
+func TestCheckNamesTheDiscoveredFilesNoLaneAnalysesInsteadOfPassingThemQuietly(t *testing.T) {
+	repository(t, map[string]string{
+		workflowPath:                   "on: push\n",
+		"action.yml":                   "runs: {}\n",
+		".github/dependabot.yaml":      "version: 2\n",
+		".github/actions/x/action.yml": "runs: {}\n",
+	})
+	var run laneRun
+
+	got := runWith(t, checkEnv(t, run.lane("fake", func(p string) bool { return p == workflowPath }, findsNothing)), "check")
+
+	if got.code != cli.ExitOK || got.stdout != "0 findings\n" {
+		t.Fatalf("exit %d, stdout %q; the verdict itself does not change", got.code, got.stdout)
+	}
+	for _, want := range []string{"action.yml", ".github/dependabot.yaml", ".github/actions/x/action.yml", "no lane"} {
+		if !strings.Contains(got.stderr, want) {
+			t.Errorf("stderr %q does not name %q", got.stderr, want)
+		}
+	}
+	if strings.Contains(got.stderr, workflowPath) {
+		t.Errorf("stderr %q names a file that was analysed", got.stderr)
+	}
+}
+
+func TestCheckSaysNothingAboutSkippedFilesWhenEveryFileWasAnalysed(t *testing.T) {
+	repository(t, map[string]string{workflowPath: "on: push\n"})
+	var run laneRun
+
+	got := runWith(t, checkEnv(t, run.lane("fake", yml, findsNothing)), "check")
+
+	if got.stderr != "" {
+		t.Errorf("stderr = %q", got.stderr)
+	}
+}
