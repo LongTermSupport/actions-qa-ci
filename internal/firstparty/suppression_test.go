@@ -41,8 +41,14 @@ func TestInlineSuppressionFindsEveryCommentThatSuppressesWithNoRecord(t *testing
 		"a ratchet exclusion":                        {"on: push\njobs:\n  a:\n    steps:\n      - uses: x/y@v1 # ratchet:exclude\n", 5, 22, "ratchet"},
 		"a shellcheck disable":                       {"on: push\njobs:\n  a:\n    steps:\n      - run: |\n          # shellcheck disable=SC2086\n          echo $X\n", 6, 11, "ShellCheck"},
 		"a shellcheck directive with another option": {"run: |\n  # shellcheck source=/dev/null disable=SC1090,SC2034\n  . \"$F\"\n", 2, 3, "ShellCheck"},
-		"capitals":  {"# ZIZMOR: IGNORE\n", 1, 1, "zizmor"},
-		"no spaces": {"#zizmor:ignore[x]\n", 1, 1, "zizmor"},
+		"capitals":                                  {"# ZIZMOR: IGNORE\n", 1, 1, "zizmor"},
+		"capitals for ratchet":                      {"x: 1 # RATCHET:EXCLUDE\n", 1, 6, "ratchet"},
+		"capitals for ShellCheck":                   {"run: |\n  # SHELLCHECK DISABLE=SC2086\n", 2, 3, "ShellCheck"},
+		"a space before the colon":                  {"# zizmor : ignore\n", 1, 1, "zizmor"},
+		"a space before the colon for ratchet":      {"x: 1 # ratchet : exclude\n", 1, 6, "ratchet"},
+		"a tab after the hash":                      {"#\tzizmor: ignore\n", 1, 1, "zizmor"},
+		"carriage return and line feed":             {"on: push\r\nx: 1\r\n# zizmor: ignore\r\n", 3, 1, "zizmor"},
+		"no spaces":                                 {"#zizmor:ignore[x]\n", 1, 1, "zizmor"},
 		"a carriage return as the only line ending": {"on: push\r# zizmor: ignore\r", 2, 1, "zizmor"},
 		"a next line character":                     {"on: push\u0085# zizmor: ignore\n", 2, 1, "zizmor"},
 		"a column after wide characters":            {"name: \"é€\" # zizmor: ignore\n", 1, 12, "zizmor"},
@@ -182,6 +188,29 @@ func TestNativeSuppressionConfigFindsAnIgnoreKeyAtAnyDepthAndInAnyDocument(t *te
 
 	if err != nil || len(got) != 1 || got[0].Line != 6 {
 		t.Errorf("findings %+v, error %v; want one on line 6", got, err)
+	}
+}
+
+func TestNativeSuppressionConfigFindsAnIgnoreKeyWrittenAsAnAlias(t *testing.T) {
+	inTree(t, map[string]string{
+		".github/actionlint.yaml": "names:\n  - &k ignore\npaths:\n  x:\n    *k : [foo]\n",
+		".pinact.yaml":            "names:\n  - &k ignore_actions\n*k : [foo]\n",
+		".github/actionlint.yml":  "names:\n  - &k labels\nself-hosted-runner:\n  *k : [gpu]\n",
+	})
+
+	forbidden, err := firstparty.CheckNativeSuppressionConfig(".github/actionlint.yaml")
+	if err != nil || len(forbidden) != 1 || forbidden[0].Line != 5 || forbidden[0].Col != 5 {
+		t.Errorf("actionlint: findings %+v, error %v; want one, at the alias on line 5 column 5", forbidden, err)
+	}
+
+	forbidden, err = firstparty.CheckNativeSuppressionConfig(".pinact.yaml")
+	if err != nil || len(forbidden) != 1 || forbidden[0].Line != 3 {
+		t.Errorf("pinact: findings %+v, error %v; want one, at the alias on line 3", forbidden, err)
+	}
+
+	allowed, err := firstparty.CheckNativeSuppressionConfig(".github/actionlint.yml")
+	if err != nil || len(allowed) != 0 {
+		t.Errorf("an alias for another key: findings %+v, error %v", allowed, err)
 	}
 }
 

@@ -162,13 +162,19 @@ func toolOf(file string) string {
 	return ""
 }
 
-// collectKeys gathers the nodes of every mapping key with this name, at any depth. An alias is
-// not followed: what it stands for is found where it is written.
+// collectKeys gathers the nodes of every mapping key with this name, at any depth. A key written
+// as an alias counts as the scalar it stands for, and is reported where the alias is. An alias
+// is otherwise not followed: what it stands for is found where it is written.
 func collectKeys(node *yaml.Node, name string, into *[]*yaml.Node) {
 	if node.Kind == yaml.MappingNode {
 		for i := 0; i+1 < len(node.Content); i += 2 {
-			if node.Content[i].Kind == yaml.ScalarNode && node.Content[i].Value == name {
-				*into = append(*into, node.Content[i])
+			key := node.Content[i]
+			named := key
+			if key.Kind == yaml.AliasNode && key.Alias != nil {
+				named = key.Alias
+			}
+			if named.Kind == yaml.ScalarNode && named.Value == name {
+				*into = append(*into, key)
 			}
 		}
 	}
