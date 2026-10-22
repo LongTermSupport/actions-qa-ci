@@ -16,32 +16,50 @@ import (
 	"slices"
 )
 
-// maxDownload bounds both the archive and the executable taken out of it, so a hostile or broken
-// response cannot fill the disk or memory before a checksum is compared.
-const maxDownload = 64 << 20
+// maxDownload bounds both the archive and the executable taken out of it, and maxExpanded
+// bounds everything the archive decompresses to, members that are skipped included, so a
+// hostile or broken response cannot fill the disk or memory before a checksum is compared.
+const (
+	maxDownload = 128 << 20
+	maxExpanded = 256 << 20
+)
 
 // Fetch downloads an asset, checks the archive against its pin, takes the pinned member out of
 // it, checks that against its pin too, and only then writes it as an executable named name in
 // dir. Nothing is written when any step fails. It is for developing the toolchain: the shipped
 // binary never downloads anything.
 func Fetch(ctx context.Context, client *http.Client, asset Asset, dir, name string) (string, error) {
-	archive, err := download(ctx, client, asset.URL)
+	if !toolName.MatchString(name) {
+		return "", fmt.Errorf("%q is not a plain tool name", name)
+	}
+
+	binary, err := prepare(ctx, client, asset)
 	if err != nil {
 		return "", err
 	}
+
+	return install(binary, dir, name)
+}
+
+// prepare downloads an asset and returns the executable once both of its pins have held.
+func prepare(ctx context.Context, client *http.Client, asset Asset) ([]byte, error) {
+	archive, err := download(ctx, client, asset.URL)
+	if err != nil {
+		return nil, err
+	}
 	if got := checksum(archive); got != asset.ArchiveSHA256 {
-		return "", fmt.Errorf("the archive %s %w: it is %s and the manifest pins %s", asset.URL, ErrMismatch, got, asset.ArchiveSHA256)
+		return nil, fmt.Errorf("the archive %s %w: it is %s and the manifest pins %s", asset.URL, ErrMismatch, got, asset.ArchiveSHA256)
 	}
 
 	binary, err := extract(archive, asset.Member)
 	if err != nil {
-		return "", fmt.Errorf("%s: %w", asset.URL, err)
+		return nil, fmt.Errorf("%s: %w", asset.URL, err)
 	}
 	if got := checksum(binary); got != asset.BinarySHA256 {
-		return "", fmt.Errorf("%s in %s %w: it is %s and the manifest pins %s", asset.Member, asset.URL, ErrMismatch, got, asset.BinarySHA256)
+		return nil, fmt.Errorf("%s in %s %w: it is %s and the manifest pins %s", asset.Member, asset.URL, ErrMismatch, got, asset.BinarySHA256)
 	}
 
-	return install(binary, dir, name)
+	return binary, nil
 }
 
 func download(ctx context.Context, client *http.Client, url string) ([]byte, error) {
@@ -70,14 +88,15 @@ func extract(archive []byte, member string) ([]byte, error) {
 	}
 	defer closeBody(gz)
 
-	reader := tar.NewReader(gz)
+	expanding := &io.LimitedReader{R: gz, N: maxExpanded}
+	reader := tar.NewReader(expanding)
 	for {
 		header, err := reader.Next()
 		if errors.Is(err, io.EOF) {
 			return nil, fmt.Errorf("the archive has no member %s", member)
 		}
 		if err != nil {
-			return nil, fmt.Errorf("cannot read the archive: %w", err)
+			return nil, archiveFault(expanding, err)
 		}
 		if header.Name != member {
 			continue
@@ -86,8 +105,23 @@ func extract(archive []byte, member string) ([]byte, error) {
 			return nil, fmt.Errorf("member %s is not a regular file", member)
 		}
 
-		return readLimited(reader, member)
+		data, err := readLimited(reader, member)
+		if err != nil {
+			return nil, archiveFault(expanding, err)
+		}
+
+		return data, nil
 	}
+}
+
+// archiveFault says why reading the archive failed: running into the expansion bound looks to
+// the tar reader like a truncated archive, so the bound is checked first.
+func archiveFault(expanding *io.LimitedReader, err error) error {
+	if expanding.N <= 0 {
+		return fmt.Errorf("the archive is larger than %d bytes when expanded", int64(maxExpanded))
+	}
+
+	return fmt.Errorf("cannot read the archive: %w", err)
 }
 
 func install(binary []byte, dir, name string) (string, error) {
@@ -154,6 +188,8 @@ func closeBody(closer io.Closer) {
 
 // FetchAll fetches every tool the manifest pins for a platform into dir, in name order, and
 // returns where each was placed. A tool with no asset for the platform is an error, not a skip.
+// Every tool is downloaded and checked before any is written, and a failure while writing
+// removes what this call had written, so a failed call leaves nothing behind.
 func FetchAll(ctx context.Context, client *http.Client, m Manifest, platform, dir string) ([]string, error) {
 	names := make([]string, 0, len(m.Tools))
 	for name := range m.Tools {
@@ -161,15 +197,30 @@ func FetchAll(ctx context.Context, client *http.Client, m Manifest, platform, di
 	}
 	slices.Sort(names)
 
-	paths := make([]string, 0, len(names))
+	binaries := make([][]byte, 0, len(names))
 	for _, name := range names {
 		tool, asset, err := m.Lookup(name, platform)
 		if err != nil {
 			return nil, err
 		}
-		placed, err := Fetch(ctx, client, asset, dir, name)
+		binary, err := prepare(ctx, client, asset)
 		if err != nil {
 			return nil, fmt.Errorf("cannot fetch %s %s: %w", name, tool.Version, err)
+		}
+		binaries = append(binaries, binary)
+	}
+
+	paths := make([]string, 0, len(names))
+	for i, name := range names {
+		placed, err := install(binaries[i], dir, name)
+		if err != nil {
+			for _, earlier := range paths {
+				if removeErr := os.Remove(earlier); removeErr != nil {
+					err = errors.Join(err, removeErr)
+				}
+			}
+
+			return nil, fmt.Errorf("cannot place %s: %w", name, err)
 		}
 		paths = append(paths, placed)
 	}
