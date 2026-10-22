@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"unicode/utf16"
 
 	"github.com/LongTermSupport/actions-qa-ci/internal/finding"
 )
@@ -91,10 +92,36 @@ func renderJSON(out *bytes.Buffer, findings []finding.Finding) error {
 		findings = []finding.Finding{}
 	}
 
-	encoder := json.NewEncoder(out)
+	var encoded bytes.Buffer
+	encoder := json.NewEncoder(&encoded)
 	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(findings); err != nil {
+		return err
+	}
 
-	return encoder.Encode(findings)
+	out.WriteString(escapeUnprintable(encoded.String()))
+
+	return nil
+}
+
+// escapeUnprintable writes as \u escapes the characters of encoded JSON that a terminal
+// would act on and the encoder leaves as they are: delete, the C1 controls, direction
+// overrides and other format characters. Outside a string the encoder writes only ASCII, so
+// every such character is inside one, where the escape reads back as the same character.
+func escapeUnprintable(encoded string) string {
+	var escaped strings.Builder
+	for _, r := range encoded {
+		if r < 0x7f || !finding.IsControlOrSeparator(r) {
+			escaped.WriteRune(r)
+
+			continue
+		}
+		for _, unit := range utf16.Encode([]rune{r}) {
+			fmt.Fprintf(&escaped, `\u%04x`, unit)
+		}
+	}
+
+	return escaped.String()
 }
 
 // split separates the findings to list from the excepted ones, which are only counted.
@@ -176,18 +203,7 @@ func column(f finding.Finding) int {
 	return max(f.Col, 1)
 }
 
-// displayPath prints a path as it is when that is unambiguous, and as a double-quoted Go
-// string when it contains a space or anything that needs escaping (a quote, a backslash,
-// invalid UTF-8, a non-printable character). A trailer line always holds a space, and a
-// quoted path starts with a quote, so a file name cannot pass for a trailer.
-func displayPath(path string) string {
-	quoted := strconv.Quote(path)
-	if strings.Contains(path, " ") || quoted != `"`+path+`"` {
-		return quoted
-	}
-
-	return path
-}
+func displayPath(path string) string { return finding.DisplayPath(path) }
 
 var crlf = strings.NewReplacer("\r\n", "\n")
 

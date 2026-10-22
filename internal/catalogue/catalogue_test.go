@@ -79,3 +79,36 @@ func TestTheJustificationCheckIsShippedAndKnowsEveryShippedIdentifier(t *testing
 		t.Errorf("an exception naming no shipped identifier was accepted: %+v", found)
 	}
 }
+
+func TestTheShippedLanesSelectExactlyWhatTheyAnalyse(t *testing.T) {
+	lanes := catalogue.Lanes(func(string) bool { return true })
+	selects := map[string]func(string) bool{}
+	for _, lane := range lanes {
+		selects[lane.Name] = lane.Selects
+	}
+
+	cases := []struct {
+		lane, path string
+		want       bool
+	}{
+		{"actionlint", ".github/workflows/ci.yml", true},
+		{"actionlint", ".github/workflows/ci.yaml", true},
+		{"actionlint", ".github/workflows/sub/ci.yml", false},
+		{"actionlint", ".github/workflows/ciyml", false},
+		{"actionlint", ".github/workflows/ci.yml.bak", false},
+		{"actionlint", "other/.github/workflows/ci.yml", false},
+		{"actionlint", "action.yml", false},
+		{"actionlint", ".github/actions-qa-ci.yml", false},
+		{"firstParty", ".github/actions-qa-ci.yml", true},
+		{"firstParty", ".github/workflows/ci.yml", false},
+		{"firstParty", "sub/.github/actions-qa-ci.yml", false},
+	}
+	for _, c := range cases {
+		if got := selects[c.lane](c.path); got != c.want {
+			t.Errorf("lane %s selects %s = %v, want %v", c.lane, c.path, got, c.want)
+		}
+	}
+	if len(lanes) != 2 {
+		t.Errorf("lanes = %d; a lane added here needs cases above", len(lanes))
+	}
+}

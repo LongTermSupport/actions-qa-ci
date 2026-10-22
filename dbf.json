@@ -19,6 +19,18 @@
       "description": "A step whose runs-on: is an expression that resolves to a Windows runner is checked as bash, so a PowerShell script there can draw false ShellCheck findings; give the step an explicit shell: pwsh."
     },
     {
+      "id": "action-files-not-linted",
+      "description": "actionlint checks workflow files only, so composite actions (action.yml) and the Dependabot file are discovered and named on standard error as unanalysed, but analysed by no lane until the zizmor backend (phase 4) and the coverage check (phase 6) arrive."
+    },
+    {
+      "id": "actionlint-runs-in-process",
+      "description": "actionlint is compiled in and runs inside the program, so a workflow that makes its expression parser recurse without bound (a million nested parentheses) kills the program with the Go runtime's own exit code 2, and one that makes it quadratic (tens of thousands) runs without a time bound; neither is reported as exit 4. Running each lane in a child process with a time limit, as the design's exit 4 calls for, closes it."
+    },
+    {
+      "id": "workflow-second-document-unread",
+      "description": "A workflow file holding a second YAML document is analysed on its first document only, and the second is not read; whether GitHub accepts such a file is not confirmed, so it stays a gap until the lint-coverage check (phase 6) decides it."
+    },
+    {
       "id": "conformance-reading-unconfirmed",
       "description": "That actions-qa-ci is the Detector and zizmor and actionlint are bundled rule backends is a reading of toolchain 4.1 the specification does not spell out; it stands until the Owner confirms it."
     }

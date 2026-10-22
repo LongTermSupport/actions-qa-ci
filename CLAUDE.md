@@ -16,8 +16,8 @@ its rule backends. This file holds the binding floor; the depth is one link away
   it receives.
 - **No hidden failures**: an error is returned or reported by name, never swallowed. A tool
   that fails is exit 3, an analysis with no verdict is exit 4, and neither is ever reported as
-  clean. (Exit 3 is used today for a failing rule, a missing page or unwritable output; exit 4
-  is reserved until the bundled tools arrive.)
+  clean. (Exit 3 is used today for a failing rule or lane, a missing page or unwritable output;
+  exit 4 for a file in the default set that cannot be read as a plain file.)
 - **One owner per hazard class**: a hazard is reported by exactly one rule. A bundled backend's
   finding is renamed to this project's stable identifier, and a duplicate is dropped.
 - **Conformance is declared, not claimed**: `dbf.json` states the method and toolchain versions
@@ -50,6 +50,8 @@ branch named `feature/…`, `bugfix/…` or `chore/…`; the default branch is `
 - Pinned third-party binaries: `internal/toolchain/manifest.json` pins each release by archive and
   binary sha256, the runtime refuses a binary that differs, and `go run ./cmd/actions-qa-dev
   fetch bin` downloads the pinned ones for development.
+- The `check` run: `internal/check` discovers the default file set and runs the lanes, which
+  `internal/catalogue` lists; `internal/cli/check.go` is the command.
 - The project record: `internal/record` loads `.github/actions-qa-ci.yml` and judges
   justifications; `internal/firstparty` holds the checks this toolchain makes itself.
 - Exit codes: [README.md](README.md#exit-codes).

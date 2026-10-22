@@ -5,8 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
 // Severity is how serious a finding is.
@@ -72,11 +74,49 @@ func (f Finding) Validate() error {
 	return nil
 }
 
-// IsControlOrSeparator reports a character that can start another line or move a cursor
-// when printed: a control character (including NUL, tab, escape and the C1 set) or a Unicode
-// line or paragraph separator.
+// IsControlOrSeparator reports a character that can start another line, move a cursor or
+// hide or reorder the text around it when printed: a control character (including NUL, tab,
+// escape, delete and the C1 set), a Unicode line or paragraph separator, or a format character
+// (a direction override or isolate, a zero-width character, a byte order mark).
 func IsControlOrSeparator(r rune) bool {
-	return unicode.IsControl(r) || r == ' ' || r == ' '
+	return unicode.IsControl(r) || unicode.In(r, unicode.Zl, unicode.Zp, unicode.Cf)
+}
+
+// Escape shows, as a Go escape (\n, \x1b, \u202e), every character in text that a reader could
+// not see or a terminal would act on: control characters, line and paragraph separators,
+// direction overrides and other format characters, and bytes that are not UTF-8. It changes
+// nothing else, so a name that came from a repository can be put in a diagnostic without
+// starting a line or reaching the terminal as a command.
+func Escape(text string) string {
+	var escaped strings.Builder
+	for i := 0; i < len(text); {
+		r, size := utf8.DecodeRuneInString(text[i:])
+		switch {
+		case r == utf8.RuneError && size == 1:
+			fmt.Fprintf(&escaped, `\x%02x`, text[i])
+		case r != ' ' && !strconv.IsPrint(r):
+			quoted := strconv.QuoteToASCII(string(r))
+			escaped.WriteString(quoted[1 : len(quoted)-1])
+		default:
+			escaped.WriteRune(r)
+		}
+		i += size
+	}
+
+	return escaped.String()
+}
+
+// DisplayPath prints a path as it is when that is unambiguous, and as a double-quoted Go
+// string when it contains a space or anything that needs escaping (a quote, a backslash,
+// invalid UTF-8, a non-printable character). A trailer line always holds a space, and a
+// quoted path starts with a quote, so a file name cannot pass for a trailer.
+func DisplayPath(path string) string {
+	quoted := strconv.Quote(path)
+	if strings.Contains(path, " ") || quoted != `"`+path+`"` {
+		return quoted
+	}
+
+	return path
 }
 
 func blank(text string) bool {
