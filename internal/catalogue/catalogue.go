@@ -45,6 +45,13 @@ func Lanes(known func(id string) bool) []check.Lane {
 			Run:     firstparty.CheckRequiredChecks(known),
 		},
 		{
+			// About the project, not one file: it runs whether or not the project has a record.
+			Name:    "lintCoverage",
+			Subject: record.Path,
+			Selects: func(path string) bool { return path == record.Path },
+			Run:     firstparty.CheckLintCoverage(known),
+		},
+		{
 			// A comment that tells a tool to leave a finding out: a suppression the project
 			// record cannot see.
 			Name:    "inlineSuppression",

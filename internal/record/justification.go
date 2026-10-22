@@ -37,24 +37,33 @@ type Fault struct {
 // hazard, scope and decision. The check cannot tell whether a sentence is true; it refuses the
 // ones that could be written without knowing anything.
 func (e Exception) Faults() []Fault {
+	faults := hazardScopeFaults(e.Hazard, e.Scope, e.ID)
+
+	if reason := decisionFault(strings.TrimSpace(e.Decision)); reason != "" {
+		faults = append(faults, Fault{"decision", reason})
+	}
+
+	return faults
+}
+
+// hazardScopeFaults judges a hazard and a scope: neither may be missing, generic, a repeat of
+// the identifier, a pointer to another entry or too short, and the scope may not be the hazard
+// said again.
+func hazardScopeFaults(hazardText, scopeText, id string) []Fault {
 	var faults []Fault
 
-	hazard := normalise(e.Hazard)
-	if reason := reasonFault(hazard, e.ID); reason != "" {
+	hazard := normalise(hazardText)
+	if reason := reasonFault(hazard, id); reason != "" {
 		faults = append(faults, Fault{"hazard", reason})
 	}
 
-	scope := normalise(e.Scope)
-	reason := reasonFault(scope, e.ID)
+	scope := normalise(scopeText)
+	reason := reasonFault(scope, id)
 	if reason == "" && words(scope) == words(hazard) {
 		reason = "is the same as the hazard; say where the exception applies and why it is accepted only there"
 	}
 	if reason != "" {
 		faults = append(faults, Fault{"scope", reason})
-	}
-
-	if reason := decisionFault(strings.TrimSpace(e.Decision)); reason != "" {
-		faults = append(faults, Fault{"decision", reason})
 	}
 
 	return faults

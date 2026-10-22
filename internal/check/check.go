@@ -31,6 +31,10 @@ type Lane struct {
 	// the file's content, so a workflow or action that only guard lanes select is still named as
 	// one nothing lints.
 	Guard bool
+	// Subject is set on a lane that is about the project and not about one file: in a run over
+	// the whole project (RunProject) it runs once on this path, a repository-relative one the
+	// lane reads if there is such a file, whether or not the project has it.
+	Subject string
 }
 
 // LaneError is a lane failing on a file. It is a fault of the toolchain or of the file's
@@ -52,6 +56,16 @@ func (e *LaneError) Unwrap() error { return e.Err }
 // and returns everything they found, sorted. The first failure stops the run and no findings
 // are returned: a partial list would read as a verdict.
 func Run(lanes []Lane, files []string) ([]finding.Finding, error) {
+	return run(lanes, files, false)
+}
+
+// RunProject is Run for a run over the whole project: the lanes that are about the project, and
+// not about one file, also run once on their subject if the files did not already give it.
+func RunProject(lanes []Lane, files []string) ([]finding.Finding, error) {
+	return run(lanes, files, true)
+}
+
+func run(lanes []Lane, files []string, wholeProject bool) ([]finding.Finding, error) {
 	if err := validate(lanes); err != nil {
 		return nil, err
 	}
@@ -62,10 +76,12 @@ func Run(lanes []Lane, files []string) ([]finding.Finding, error) {
 
 	var all []finding.Finding
 	for _, lane := range lanes {
-		for _, file := range ordered {
-			if !lane.Selects(file) {
-				continue
-			}
+		targets := slices.DeleteFunc(slices.Clone(ordered), func(file string) bool { return !lane.Selects(file) })
+		if wholeProject && lane.Subject != "" && !slices.Contains(targets, lane.Subject) {
+			targets = append(targets, lane.Subject)
+		}
+
+		for _, file := range targets {
 			found, err := lane.Run(file)
 			if err != nil {
 				return nil, &LaneError{Lane: lane.Name, Path: file, Err: err}

@@ -145,7 +145,19 @@ Its `requiredChecks` section lists the status checks a merge needs, each a `cont
 optionally a `branch`; `actionsqaci.requiredChecks` reports a context that no job of a workflow
 triggered on `pull_request` produces, so a renamed job cannot leave branch protection waiting for
 a check that never comes. It does not compare with the repository's real branch protection
-(`dbf.json`, `required-checks-online-comparison`). The other sections the design gives the record arrive with the checks
+(`dbf.json`, `required-checks-online-comparison`).
+
+Its `analyse.unanalysed` section lists patterns of paths (`path`, with a `justification` holding a
+`hazard` and a `scope`) of workflow-shaped files the project deliberately leaves out of the
+analysis. `actionsqaci.lintCoverage` reports every tracked file that has a top-level `on` and
+`jobs`, or is an `action.yml` with `runs`, that is neither analysed by default nor declared, and
+a declaration that excuses nothing. It lists the tracked files by reading the repository's own
+index (no `git` is run, and no other tool is needed), so a file not yet added is not seen; an
+index it cannot read completely is exit 3. It is about the project, not one file, so `check` runs
+it once whether or not the project has a record, and naming files on the command line runs only
+the lanes that cover them. The patterns are the small glob of `internal/glob` (`*`, `?`, `**` as
+a whole segment); `analyse.include`, for extra files to analyse, is not built, and a record that
+states it is refused. The other sections the design gives the record arrive with the checks
 that use them.
 
 ### Exit codes

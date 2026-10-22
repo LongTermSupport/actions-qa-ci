@@ -50,7 +50,11 @@ func checkCommand(env Env, args []string, stdout, stderr io.Writer) int {
 		return code
 	}
 
-	found, err := check.Run(isolate(env.Isolation, lanes), files)
+	run := check.RunProject
+	if len(arguments.files) > 0 {
+		run = check.Run
+	}
+	found, err := run(isolate(env.Isolation, lanes), files)
 	var ended *check.NoVerdictError
 	if errors.Is(err, record.ErrInvalid) {
 		return refuseInvalid(stderr, err)
