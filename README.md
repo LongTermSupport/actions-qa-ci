@@ -58,7 +58,9 @@ integration is not enabled.
 A project states what it has accepted in one file, `.github/actions-qa-ci.yml`: a `version` and a
 list of `exceptions`, each with an `id`, optionally a `path` (with `job` and `step` to narrow it),
 and a `hazard`, `scope` and `decision`. The loader refuses an unknown field, a duplicate key, a
-second document, an identifier no defence has and a path that is not a plain file path inside the
+second document, an alias, anchor, merge key or explicit tag (a hand-written record has no use for
+them, and each is a way for a value to arrive from somewhere it is not written), a key that is
+not plain text, an identifier no defence has and a path that is not a plain file path inside the
 repository, and reports every fault at once. `actionsqaci.unjustifiedException` holds the three
 justification fields to a standard (see its page); `rule actionsqaci.unjustifiedException
 .github/actions-qa-ci.yml` runs it. This build reads and checks the record; it does not yet apply

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 	"strings"
 	"unicode"
 
@@ -107,6 +108,14 @@ func Parse(data []byte, known func(id string) bool) (*Record, error) {
 		return nil, fmt.Errorf("%w: it is larger than %d bytes", ErrInvalid, maxSize)
 	}
 
+	// The structure is judged before anything is decoded, so what the decoder fills in is
+	// exactly what this reader has seen: no alias, anchor, tag or merge key can carry a value
+	// past it.
+	layout, err := readLayout(data)
+	if err != nil {
+		return nil, err
+	}
+
 	doc := document{}
 	decoder := yaml.NewDecoder(bytes.NewReader(data))
 	decoder.KnownFields(true)
@@ -117,10 +126,6 @@ func Parse(data []byte, known func(id string) bool) (*Record, error) {
 		return nil, fmt.Errorf("%w: it has more than one document", ErrInvalid)
 	}
 
-	layout, err := readLayout(data)
-	if err != nil {
-		return nil, err
-	}
 	if len(layout.lines) != len(doc.Exceptions) {
 		return nil, fmt.Errorf("%w: cannot match %d entries to their %d lines", ErrInvalid, len(doc.Exceptions), len(layout.lines))
 	}
@@ -129,6 +134,9 @@ func Parse(data []byte, known func(id string) bool) (*Record, error) {
 	var faults []string
 	if layout.versionTag != "" && layout.versionTag != "!!int" && layout.versionTag != "!!str" {
 		faults = append(faults, fmt.Sprintf("version must be a whole number or text, not %s", layout.versionTag))
+	}
+	if layout.versionTag == "!!int" && !wholeNumber.MatchString(doc.Version) {
+		faults = append(faults, fmt.Sprintf("version %q must be written as plain digits", doc.Version))
 	}
 	for i, entry := range doc.Exceptions {
 		if entry == nil {
@@ -161,6 +169,9 @@ func readLayout(data []byte) (layout, error) {
 	if err := yaml.Unmarshal(data, &root); err != nil {
 		return layout{}, fmt.Errorf("%w: %w", ErrInvalid, err)
 	}
+	if err := rejectIndirection(&root); err != nil {
+		return layout{}, fmt.Errorf("%w: %w", ErrInvalid, err)
+	}
 	if len(root.Content) == 0 || root.Content[0].Kind != yaml.MappingNode {
 		return layout{}, nil
 	}
@@ -169,17 +180,9 @@ func readLayout(data []byte) (layout, error) {
 	top := root.Content[0].Content
 	for i := 0; i+1 < len(top); i += 2 {
 		switch top[i].Value {
-		case "<<":
-			// A merge key can supply the version or the entries from somewhere this reader does
-			// not look, so the top of the record says what it holds itself.
-			return layout{}, fmt.Errorf("%w: a merge key (<<) at the top of the record is not supported; write the version and exceptions out", ErrInvalid)
 		case "version":
-			node := top[i+1]
-			if node.Kind == yaml.AliasNode && node.Alias != nil {
-				node = node.Alias
-			}
-			if node.Kind == yaml.ScalarNode {
-				found.versionTag = node.ShortTag()
+			if top[i+1].Kind == yaml.ScalarNode {
+				found.versionTag = top[i+1].ShortTag()
 			}
 		case "exceptions":
 			if top[i+1].Kind != yaml.SequenceNode {
@@ -192,6 +195,54 @@ func readLayout(data []byte) (layout, error) {
 	}
 
 	return found, nil
+}
+
+var wholeNumber = regexp.MustCompile(`^[0-9]+$`)
+
+// rejectIndirection refuses every part of YAML that lets a value reach the record from
+// somewhere other than where it is written: aliases, anchors, merge keys, explicit tags, and
+// keys that are not plain text. A hand-written record has no use for them, and each is a way
+// for the decoder and this reader to disagree about what the record says.
+func rejectIndirection(node *yaml.Node) error {
+	switch {
+	case node.Kind == yaml.AliasNode:
+		return fmt.Errorf("line %d: an alias (*%s) is not supported; write the value out", node.Line, node.Value)
+	case node.Anchor != "":
+		return fmt.Errorf("line %d: an anchor (&%s) is not supported; write the value out", node.Line, node.Anchor)
+	case node.Style&yaml.TaggedStyle != 0:
+		return fmt.Errorf("line %d: an explicit tag (%s) is not supported", node.Line, node.Tag)
+	}
+
+	if node.Kind == yaml.MappingNode {
+		for i := 0; i+1 < len(node.Content); i += 2 {
+			key := node.Content[i]
+			if key.Kind == yaml.AliasNode {
+				return fmt.Errorf("line %d: an alias (*%s) is not supported as a key; write the key out", key.Line, key.Value)
+			}
+			if key.Kind == yaml.ScalarNode && key.ShortTag() == "!!merge" {
+				return fmt.Errorf("line %d: a merge key (<<) is not supported; write the values out", key.Line)
+			}
+			if key.Kind != yaml.ScalarNode || key.ShortTag() != "!!str" {
+				return fmt.Errorf("line %d: a key must be plain text, not %s", key.Line, describe(key))
+			}
+		}
+	}
+
+	for _, child := range node.Content {
+		if err := rejectIndirection(child); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func describe(node *yaml.Node) string {
+	if node.Kind == yaml.ScalarNode {
+		return node.ShortTag() + " " + node.Value
+	}
+
+	return "a collection"
 }
 
 func (r *Record) faults(known func(id string) bool) []string {
