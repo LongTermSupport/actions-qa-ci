@@ -21,20 +21,34 @@ func literalIdentifierUses(fset *token.FileSet, file *ast.File) []string {
 		uses = append(uses, fset.Position(at).String())
 	}
 
+	checkFinding := func(literal *ast.CompositeLit) {
+		for position, element := range literal.Elts {
+			pair, keyed := element.(*ast.KeyValueExpr)
+			if !keyed {
+				// ID is the first field, so a positional literal starts with it.
+				if position == 0 && isStringLiteral(element) {
+					report(element.Pos())
+				}
+
+				continue
+			}
+			if key, ok := pair.Key.(*ast.Ident); ok && key.Name == "ID" && isStringLiteral(pair.Value) {
+				report(pair.Value.Pos())
+			}
+		}
+	}
+
 	ast.Inspect(file, func(node ast.Node) bool {
 		switch n := node.(type) {
 		case *ast.CompositeLit:
-			if !namesFinding(n.Type) {
+			if namesFinding(n.Type) {
+				checkFinding(n)
+
 				return true
 			}
-			for _, element := range n.Elts {
-				pair, ok := element.(*ast.KeyValueExpr)
-				if !ok {
-					continue
-				}
-				if key, ok := pair.Key.(*ast.Ident); ok && key.Name == "ID" && isStringLiteral(pair.Value) {
-					report(pair.Value.Pos())
-				}
+			// A literal of findings leaves its elements' type out: []Finding{{ID: …}}.
+			for _, element := range elidedFindings(n) {
+				checkFinding(element)
 			}
 		case *ast.AssignStmt:
 			for i, target := range n.Lhs {
@@ -57,15 +71,71 @@ func namesFinding(expression ast.Expr) bool {
 		return typed.Name == "Finding"
 	case *ast.SelectorExpr:
 		return typed.Sel.Name == "Finding"
+	case *ast.StarExpr:
+		return namesFinding(typed.X)
 	}
 
 	return false
 }
 
-func isStringLiteral(expression ast.Expr) bool {
-	literal, ok := expression.(*ast.BasicLit)
+// elidedFindings returns the type-less element literals of a slice, array or map of
+// findings; deeper nesting is reached because Inspect visits those literals in turn.
+func elidedFindings(literal *ast.CompositeLit) []*ast.CompositeLit {
+	var elementType ast.Expr
+	switch typed := literal.Type.(type) {
+	case *ast.ArrayType:
+		elementType = typed.Elt
+	case *ast.MapType:
+		elementType = typed.Value
+	default:
+		return nil
+	}
 
-	return ok && literal.Kind == token.STRING
+	var elided []*ast.CompositeLit
+	for _, element := range literal.Elts {
+		if pair, ok := element.(*ast.KeyValueExpr); ok {
+			element = pair.Value
+		}
+		inner, ok := element.(*ast.CompositeLit)
+		if !ok || inner.Type != nil {
+			continue
+		}
+		if namesFinding(elementType) {
+			elided = append(elided, inner)
+		} else if nested := elidedElements(elementType, inner); nested != nil {
+			elided = append(elided, nested...)
+		}
+	}
+
+	return elided
+}
+
+// elidedElements handles a literal whose own element type is a slice, array or map of
+// findings: [][]Finding{{{ID: …}}}.
+func elidedElements(elementType ast.Expr, literal *ast.CompositeLit) []*ast.CompositeLit {
+	typed := &ast.CompositeLit{Type: elementType, Elts: literal.Elts}
+
+	return elidedFindings(typed)
+}
+
+// isStringLiteral is true for a string written out in full: a literal, a parenthesised
+// one, a concatenation of literals, or a string(...) conversion of one. A name or a
+// concatenation with a non-literal operand is how an identifier is built from a constant.
+func isStringLiteral(expression ast.Expr) bool {
+	switch typed := expression.(type) {
+	case *ast.BasicLit:
+		return typed.Kind == token.STRING
+	case *ast.ParenExpr:
+		return isStringLiteral(typed.X)
+	case *ast.BinaryExpr:
+		return typed.Op == token.ADD && isStringLiteral(typed.X) && isStringLiteral(typed.Y)
+	case *ast.CallExpr:
+		conversion, ok := typed.Fun.(*ast.Ident)
+
+		return ok && conversion.Name == "string" && len(typed.Args) == 1 && isStringLiteral(typed.Args[0])
+	}
+
+	return false
 }
 
 func usesIn(t *testing.T, source string) []string {
@@ -86,6 +156,15 @@ func TestTheScannerFindsAFindingBuiltWithALiteralIdentifier(t *testing.T) {
 		"unqualified type":  `package p; var f = Finding{ID: "actionsqaci.templateDrift"}`,
 		"later assignment":  `package p; func g(f *finding.Finding) { f.ID = "actionsqaci.templateDrift" }`,
 		"pointer to struct": `package p; var f = &finding.Finding{ID: "actionsqaci.templateDrift"}`,
+		"slice element":     `package p; var f = []finding.Finding{{ID: "actionsqaci.templateDrift"}}`,
+		"pointer element":   `package p; var f = []*finding.Finding{{ID: "actionsqaci.templateDrift"}}`,
+		"map value":         `package p; var f = map[string]finding.Finding{"k": {ID: "actionsqaci.templateDrift"}}`,
+		"array element":     `package p; var f = [1]finding.Finding{{ID: "actionsqaci.templateDrift"}}`,
+		"positional field":  `package p; var f = finding.Finding{"actionsqaci.templateDrift", "tool"}`,
+		"parenthesised":     `package p; var f = finding.Finding{ID: ("actionsqaci.templateDrift")}`,
+		"concatenated":      `package p; var f = finding.Finding{ID: "actionsqaci." + "templateDrift"}`,
+		"converted":         `package p; var f = finding.Finding{ID: string("actionsqaci.templateDrift")}`,
+		"nested element":    `package p; var f = [][]finding.Finding{{{ID: "actionsqaci.templateDrift"}}}`,
 	}
 
 	for name, source := range cases {
@@ -101,6 +180,9 @@ func TestTheScannerAcceptsAFindingBuiltFromAConstant(t *testing.T) {
 		`package p; func g(f *finding.Finding) { f.ID = registry.IDTemplateDrift }`,
 		`package p; var f = finding.Finding{Message: "actionsqaci.templateDrift"}`,
 		`package p; var r = registry.Rule{ID: "actionsqaci.templateDrift"}`,
+		`package p; var r = []registry.Rule{{ID: "actionsqaci.templateDrift"}}`,
+		`package p; var f = finding.Finding{ID: prefix + audit}`,
+		`package p; var f = []finding.Finding{{ID: templateDrift}}`,
 	}
 
 	for _, source := range sources {

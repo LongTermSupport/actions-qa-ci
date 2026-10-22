@@ -76,6 +76,10 @@ func (r *Registry) Lookup(id string) (Rule, bool) {
 // Nearest returns up to limit registered identifiers that resemble id, closest first. It
 // returns nothing when none is close: a wild guess is worse than no suggestion.
 func (r *Registry) Nearest(id string, limit int) []string {
+	if limit <= 0 {
+		return nil
+	}
+
 	type candidate struct {
 		id       string
 		distance int

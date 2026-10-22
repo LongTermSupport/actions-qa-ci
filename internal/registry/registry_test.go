@@ -85,6 +85,75 @@ func TestNearestSuggestsTheClosestIdentifiersFirst(t *testing.T) {
 	}
 }
 
+func TestNearestRanksByDistanceNotAlphabetically(t *testing.T) {
+	const near, exact = "actionsqaci.alphaDrift", "actionsqaci.alphaDrifts"
+
+	reg, err := registry.New(rule(near), rule(exact))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got := reg.Nearest("actionsqaci.alphadrifts", 2)
+
+	if len(got) != 2 || got[0] != exact || got[1] != near {
+		t.Errorf("Nearest = %v, want [%s %s]: the closer identifier first, though it sorts later", got, exact, near)
+	}
+}
+
+func TestNearestIgnoresCase(t *testing.T) {
+	reg, err := registry.New(rule(templateDrift))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got := reg.Nearest("ACTIONSQACI.TEMPLATEDRIFT", 1)
+
+	if len(got) != 1 || got[0] != templateDrift {
+		t.Errorf("Nearest = %v, want %s: only the case differs", got, templateDrift)
+	}
+}
+
+func TestNearestReturnsAtMostTheLimit(t *testing.T) {
+	reg, err := registry.New(rule("actionsqaci.checkOne"), rule("actionsqaci.checkTwo"), rule("actionsqaci.checkTre"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got := reg.Nearest("actionsqaci.checkOne", 2); len(got) != 2 {
+		t.Errorf("Nearest returned %v, want exactly 2", got)
+	}
+}
+
+func TestNearestWithNoRoomForSuggestionsReturnsNone(t *testing.T) {
+	reg, err := registry.New(rule(templateDrift))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, limit := range []int{0, -1} {
+		if got := reg.Nearest(templateDrift, limit); len(got) != 0 {
+			t.Errorf("limit %d: Nearest = %v, want none", limit, got)
+		}
+	}
+}
+
+func TestTheListAllReturnsIsACopy(t *testing.T) {
+	reg, err := registry.New(rule(templateDrift))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	listed := reg.All()
+	listed[0].Summary = "tampered"
+
+	if again := reg.All(); again[0].Summary == "tampered" {
+		t.Error("changing the listed rules changed the registry")
+	}
+	if found, ok := reg.Lookup(templateDrift); !ok || found.Summary == "tampered" {
+		t.Error("changing the listed rules changed what Lookup returns")
+	}
+}
+
 func TestNearestSuggestsNothingForAnIdentifierNothingResembles(t *testing.T) {
 	reg, err := registry.New(rule(templateDrift))
 	if err != nil {
