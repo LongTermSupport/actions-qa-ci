@@ -59,7 +59,7 @@ func checkCommand(env Env, args []string, stdout, stderr io.Writer) int {
 	if errors.Is(err, record.ErrInvalid) {
 		return refuseInvalid(stderr, err)
 	}
-	if errors.As(err, &ended) {
+	if errors.As(err, &ended) || errors.Is(err, check.ErrNotAnalysable) {
 		return noVerdict(stderr, err)
 	}
 	if err != nil {

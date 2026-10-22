@@ -232,6 +232,10 @@ func skipExtensions(body []byte, position int) error {
 	return nil
 }
 
+// maxPrefix bounds a prefix length before it is shifted again, far above any path and far below
+// what could overflow a number.
+const maxPrefix = 1 << 32
+
 // offsetVarint reads the number format a version 4 index uses for the length of the prefix to
 // drop from the previous path, and says how many bytes it took (0 when it cannot be read).
 func offsetVarint(data []byte) (value, used int) {
@@ -242,6 +246,9 @@ func offsetVarint(data []byte) (value, used int) {
 		if i == 0 {
 			value = int(c & 127)
 		} else {
+			if value > maxPrefix {
+				return 0, 0
+			}
 			value = (value+1)<<7 + int(c&127)
 		}
 		if c&128 == 0 {
@@ -266,7 +273,7 @@ func allZero(data []byte) bool {
 // same: a path outside the work tree, or one inside .git.
 func pathProblem(path string) string {
 	if path == "" {
-		return "is empty"
+		return "is empty, as the entries of a split index are (it keeps its paths in another file); a split or sparse index is not read"
 	}
 	if strings.HasPrefix(path, "/") {
 		return "is absolute"

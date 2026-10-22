@@ -78,6 +78,18 @@ func TestAnIndexThatCannotBeReadIsAFaultNotACleanRun(t *testing.T) {
 	}
 }
 
+func TestAFileWhoseNameCannotBePrintedIsNoVerdictNamingTheFile(t *testing.T) {
+	t.Setenv("ACTIONS_QA_CI_TOOLS_DIR", toolsDirectory(t))
+	repository(t, map[string]string{workflowPath: cleanWorkflow, "bad\nname.yml": strayWorkflow})
+	gitindextest.Write(t, ".", gitindextest.Files(workflowPath, "bad\nname.yml")...)
+
+	got := runWith(t, realEnv(t, nil), "check", "--format", "agent")
+
+	if got.code != cli.ExitNoVerdict || got.stdout != "" || !strings.Contains(got.stderr, `bad\nname.yml`) || strings.Count(got.stderr, "\n") != 1 {
+		t.Errorf("exit %d, stdout %q, stderr %q; a file that cannot be reported is no verdict, as in the default set", got.code, got.stdout, got.stderr)
+	}
+}
+
 func TestLintCoverageIsListedByRules(t *testing.T) {
 	got := runWith(t, realEnv(t, nil), "rules")
 

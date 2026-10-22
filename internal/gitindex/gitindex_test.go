@@ -220,6 +220,47 @@ func TestParseRefusesWhatIsNotAnIntactIndex(t *testing.T) {
 	}
 }
 
+// resealed is the index with its body replaced and the checksum made right again, so that what
+// is wrong with it is the body and not the checksum.
+func resealed(body []byte) []byte {
+	sum := sha1.Sum(body)
+
+	return append(slices.Clone(body), sum[:]...)
+}
+
+func TestParseRefusesAPathPrefixLengthThatOverflowsInsteadOfPanicking(t *testing.T) {
+	good := buildIndex(4, []entry{{path: "a.yml", mode: regular}, {path: "b.yml", mode: regular}})
+	body := good[:len(good)-20]
+	// Entry 1 is 62 bytes, a one-byte prefix length and "a.yml" with its NUL; entry 2's prefix
+	// length follows its own 62 bytes.
+	at := 12 + 62 + 1 + 6 + 62
+	hostile := slices.Concat(body[:at], []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x7f}, body[at+1:])
+
+	for _, overflow := range [][]byte{
+		{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x7f},
+		{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x7f},
+		{0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x00},
+	} {
+		sealed := resealed(slices.Concat(body[:at], overflow, body[at+1:]))
+		if _, err := gitindex.Parse(sealed); err == nil {
+			t.Errorf("a prefix length of %x was accepted", overflow)
+		}
+	}
+	if _, err := gitindex.Parse(resealed(hostile)); err == nil {
+		t.Error("the overflowing prefix length was accepted")
+	}
+}
+
+func TestASplitIndexIsRefusedWithAnExplanationNotAsAnEmptyPath(t *testing.T) {
+	data := buildIndex(2, []entry{{path: "", mode: regular}}, extension("link", "shared index"))
+
+	_, err := gitindex.Parse(data)
+
+	if err == nil || !strings.Contains(err.Error(), "split") {
+		t.Errorf("error %v; want a refusal that says a split index is not read", err)
+	}
+}
+
 func TestParseRefusesAPathThatIsNotInsideTheRepository(t *testing.T) {
 	for _, path := range []string{"/abs.yml", "a/../b.yml", "../b.yml", "a//b.yml", "./a.yml", "a/", ".git/config", "x/.git/config"} {
 		if _, err := gitindex.Parse(buildIndex(2, []entry{{path: path, mode: regular}})); err == nil {
