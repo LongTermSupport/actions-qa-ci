@@ -50,6 +50,16 @@ func TestARecordWithAMistakeInItIsAUsageErrorNotAToolchainFault(t *testing.T) {
 	}
 }
 
+func TestTheRecordIsNamedOnceInTheMessageAboutIt(t *testing.T) {
+	withRecord(t, "version: 1\nsurprise: true\n")
+
+	got := runProgram(t, "rule", "actionsqaci.unjustifiedException", ".github/actions-qa-ci.yml")
+
+	if strings.Count(got.stderr, ".github/actions-qa-ci.yml") != 1 {
+		t.Errorf("stderr = %q; the file is named once", got.stderr)
+	}
+}
+
 func TestAnUnjustifiedExceptionIsAFindingAndAJustifiedRecordIsClean(t *testing.T) {
 	withRecord(t, "version: 1\nexceptions:\n  - id: actionsqaci.actionlint.glob\n    hazard: legacy\n    scope: legacy\n    decision: later\n")
 	got := runProgram(t, "rule", "--format", "agent", "actionsqaci.unjustifiedException", ".github/actions-qa-ci.yml")

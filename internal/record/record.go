@@ -58,6 +58,10 @@ type Exception struct {
 
 	// Line is where the entry starts in the record file.
 	Line int `yaml:"-"`
+
+	// null marks an entry written as nothing at all (a bare dash, null or ~), which Parse
+	// reports once and which has no fields to judge.
+	null bool
 }
 
 // DisablesDefence says whether the exception turns a defence off everywhere rather than
@@ -129,7 +133,7 @@ func Parse(data []byte, known func(id string) bool) (*Record, error) {
 	for i, entry := range doc.Exceptions {
 		if entry == nil {
 			faults = append(faults, fmt.Sprintf("exception %d (line %d) is empty", i+1, layout.lines[i]))
-			rec.Exceptions = append(rec.Exceptions, Exception{Line: layout.lines[i]})
+			rec.Exceptions = append(rec.Exceptions, Exception{Line: layout.lines[i], null: true})
 
 			continue
 		}
@@ -166,8 +170,12 @@ func readLayout(data []byte) (layout, error) {
 	for i := 0; i+1 < len(top); i += 2 {
 		switch top[i].Value {
 		case "version":
-			if top[i+1].Kind == yaml.ScalarNode {
-				found.versionTag = top[i+1].ShortTag()
+			node := top[i+1]
+			if node.Kind == yaml.AliasNode && node.Alias != nil {
+				node = node.Alias
+			}
+			if node.Kind == yaml.ScalarNode {
+				found.versionTag = node.ShortTag()
 			}
 		case "exceptions":
 			if top[i+1].Kind != yaml.SequenceNode {
@@ -190,8 +198,8 @@ func (r *Record) faults(known func(id string) bool) []string {
 	}
 
 	for i, e := range r.Exceptions {
-		if e == (Exception{Line: e.Line}) {
-			continue // an empty entry is reported once, by Parse
+		if e.null {
+			continue // reported once, by Parse
 		}
 		where := fmt.Sprintf("exception %d (line %d)", i+1, e.Line)
 		for _, fault := range e.shapeFaults(known) {
