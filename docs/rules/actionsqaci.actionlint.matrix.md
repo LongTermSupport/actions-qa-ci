@@ -2,13 +2,13 @@
 
 ## What it forbids or requires
 
-A job matrix lists each value once, and every `include` or `exclude` entry refers to a key and a
-value the matrix defines.
+A job matrix lists each value once, and every `exclude` entry refers to a key and a value the
+matrix defines.
 
 ## Hazard
 
-A repeated value runs the same job twice, and an `exclude` that matches nothing hides a combination
-the author believed was removed.
+A repeated value runs the same job twice, and an `exclude` that matches nothing leaves in a
+combination the author believed was removed.
 
 ## Correct construction
 

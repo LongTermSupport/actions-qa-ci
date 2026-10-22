@@ -14,7 +14,7 @@ type Kind struct {
 // kinds is every kind actionlint reports as itself, in no order that matters. Findings it
 // reports from the shellcheck and pyflakes integrations are other tools' and are not here.
 var kinds = []Kind{
-	{"syntax-check", "A workflow or action file is valid GitHub Actions syntax"},
+	{"syntax-check", "A workflow file is valid GitHub Actions workflow syntax"},
 	{"matrix", "A matrix has no duplicate values and no combination that matches nothing"},
 	{"credentials", "Container and service credentials come from secrets, never as literals"},
 	{"shell-name", "A step's shell is one GitHub provides"},

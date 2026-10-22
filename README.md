@@ -34,9 +34,11 @@ the registry and a test fails when it is stale (`go test . -run TestTheIdentifie
 its five required sections (in order, outside code fences, none empty), or when a page has no
 rule.
 
-The project's own actionlint configuration (`.github/actionlint.yaml`) is never read: an ignore
-there would suppress findings with no recorded justification. Suppression belongs in the project
-record, which this build does not have yet, so a finding is fixed. ShellCheck and pyflakes
+The project's own actionlint configuration (`.github/actionlint.yaml`) is never applied: an ignore
+there would suppress findings with no recorded justification, so the lane hands actionlint an empty
+configuration. (actionlint still parses the file while locating the project, so a malformed one
+fails the lane.) Suppression belongs in the project record, which this build does not have yet, so
+a finding is fixed. Run from the repository root, which holds `.git`. ShellCheck and pyflakes
 integration inside actionlint are not enabled; ShellCheck arrives as its own backend.
 
 ### Exit codes

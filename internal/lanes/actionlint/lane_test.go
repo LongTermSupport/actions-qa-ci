@@ -195,6 +195,59 @@ func TestConvertRefusesAKindItDoesNotKnow(t *testing.T) {
 	}
 }
 
+func TestConvertOrdersFindingsByPositionWhateverOrderActionlintReportedThem(t *testing.T) {
+	found, err := actionlint.Convert(workflowPath, []*upstream.Error{
+		{Message: "later", Line: 9, Column: 1, Kind: "glob"},
+		{Message: "earlier", Line: 2, Column: 1, Kind: "glob"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(found) != 2 || found[0].Message != "earlier" || found[1].Message != "later" {
+		t.Errorf("order = %+v", found)
+	}
+}
+
+func TestConvertRefusesAFindingThatCannotBeReported(t *testing.T) {
+	_, err := actionlint.Convert("", []*upstream.Error{{Message: "m", Line: 1, Column: 1, Kind: "glob"}})
+
+	if err == nil || !strings.Contains(err.Error(), "cannot be reported") {
+		t.Errorf("err = %v; a finding with no path must not be printed", err)
+	}
+}
+
+func TestLintLeavesNothingBehindInTheTemporaryDirectory(t *testing.T) {
+	scratch := t.TempDir()
+	t.Setenv("TMPDIR", scratch)
+	target := inProject(t, fixtures["glob"].red)
+
+	if _, err := actionlint.Lint(target); err != nil {
+		t.Fatal(err)
+	}
+
+	left, err := os.ReadDir(scratch)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(left) != 0 {
+		t.Errorf("the lane left %d entries in the temporary directory", len(left))
+	}
+}
+
+func TestAMalformedProjectConfigFailsTheLaneRatherThanBeingHonouredOrSkipped(t *testing.T) {
+	fx := fixtures["glob"].green
+	fx.files = map[string]string{
+		workflowPath:              fixtures["glob"].green.files[workflowPath],
+		".github/actionlint.yaml": "paths: [this is: not valid",
+	}
+	target := inProject(t, fx)
+
+	if _, err := actionlint.Lint(target); err == nil {
+		t.Error("a malformed project configuration was ignored without a word")
+	}
+}
+
 func TestConvertTurnsAnUnknownPositionIntoTheStartOfTheFile(t *testing.T) {
 	found, err := actionlint.Convert(workflowPath, []*upstream.Error{{Message: "m", Line: 0, Column: 0, Kind: "glob"}})
 	if err != nil || len(found) != 1 {

@@ -19,5 +19,5 @@ Generated from the registry; do not edit. Regenerate it with
 | `actionsqaci.actionlint.permissions` | permissions: uses real scopes with read, write or none | [page](actionsqaci.actionlint.permissions.md) |
 | `actionsqaci.actionlint.runner-label` | runs-on names a runner label that exists | [page](actionsqaci.actionlint.runner-label.md) |
 | `actionsqaci.actionlint.shell-name` | A step's shell is one GitHub provides | [page](actionsqaci.actionlint.shell-name.md) |
-| `actionsqaci.actionlint.syntax-check` | A workflow or action file is valid GitHub Actions syntax | [page](actionsqaci.actionlint.syntax-check.md) |
+| `actionsqaci.actionlint.syntax-check` | A workflow file is valid GitHub Actions workflow syntax | [page](actionsqaci.actionlint.syntax-check.md) |
 | `actionsqaci.actionlint.workflow-call` | A reusable-workflow call passes the inputs and secrets the callee declares | [page](actionsqaci.actionlint.workflow-call.md) |

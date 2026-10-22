@@ -8,7 +8,9 @@ environment and path changes to `GITHUB_ENV` and `GITHUB_PATH`.
 
 ## Hazard
 
-GitHub has disabled these commands, so the value is silently never set.
+GitHub has deprecated these commands in favour of the environment files. `set-env` and `add-path`
+are already refused, and the others may stop working, so a step that relies on one breaks without a
+change to the repository.
 
 ## Correct construction
 

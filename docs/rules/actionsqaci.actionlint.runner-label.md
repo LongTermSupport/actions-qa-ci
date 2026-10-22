@@ -3,7 +3,8 @@
 ## What it forbids or requires
 
 `runs-on` names a runner label that exists: a GitHub-hosted label or one of the preset labels of a
-self-hosted runner. The project's own actionlint list of custom runner labels is not read.
+self-hosted runner. The project's own actionlint list of custom runner labels is not applied, so
+the message's suggestion to add a label to `actionlint.yaml` does not apply here.
 
 ## Hazard
 
