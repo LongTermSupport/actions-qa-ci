@@ -64,7 +64,7 @@ func Index(reg *registry.Registry) string {
 	out.WriteString("| Identifier | Standing instruction | Page |\n")
 	out.WriteString("| --- | --- | --- |\n")
 	for _, rule := range rules {
-		fmt.Fprintf(&out, "| `%s` | %s | [page](%s.md) |\n", rule.ID, rule.Summary, rule.ID)
+		fmt.Fprintf(&out, "| `%s` | %s | [page](%s.md) |\n", rule.ID, strings.ReplaceAll(rule.Summary, "|", `\|`), rule.ID)
 	}
 
 	return out.String()
@@ -117,15 +117,71 @@ func sectionProblems(fsys fs.FS, id string) []string {
 	}
 
 	var problems []string
-	for _, section := range RequiredSections {
-		if !hasHeading(content, section) {
-			problems = append(problems, fmt.Sprintf("%s lacks the section %q", registry.DocPath(id), section))
+	sections := parseSections(content)
+	next := 0 // the first section not yet used, so the required ones are found in order
+
+	for _, required := range RequiredSections {
+		found := slices.IndexFunc(sections[next:], func(s section) bool { return s.heading == required })
+		if found < 0 {
+			if slices.ContainsFunc(sections, func(s section) bool { return s.heading == required }) {
+				problems = append(problems, fmt.Sprintf("%s has the section %q out of order", registry.DocPath(id), required))
+			} else {
+				problems = append(problems, fmt.Sprintf("%s lacks the section %q", registry.DocPath(id), required))
+			}
+
+			continue
+		}
+
+		found += next
+		next = found + 1
+		if strings.TrimSpace(sections[found].body) == "" {
+			problems = append(problems, fmt.Sprintf("%s has an empty section %q", registry.DocPath(id), required))
 		}
 	}
 
 	return problems
 }
 
-func hasHeading(content, heading string) bool {
-	return slices.Contains(strings.Split(content, "\n"), heading)
+// section is a level-two heading and the text under it up to the next one.
+type section struct {
+	heading string
+	body    string
+}
+
+// parseSections splits a page at its level-two headings. A heading inside a fenced code
+// block is example text, not a heading, so fences are tracked.
+func parseSections(content string) []section {
+	var sections []section
+	var body strings.Builder
+	fence := ""
+
+	flush := func() {
+		if len(sections) > 0 {
+			sections[len(sections)-1].body = body.String()
+		}
+		body.Reset()
+	}
+
+	for _, line := range strings.Split(content, "\n") {
+		trimmed := strings.TrimLeft(line, " ")
+		switch {
+		case fence != "":
+			if strings.HasPrefix(trimmed, fence) {
+				fence = ""
+			}
+		case strings.HasPrefix(trimmed, "```"):
+			fence = "```"
+		case strings.HasPrefix(trimmed, "~~~"):
+			fence = "~~~"
+		case strings.HasPrefix(line, "## "):
+			flush()
+			sections = append(sections, section{heading: strings.TrimRight(line, " \t")})
+
+			continue
+		}
+		body.WriteString(line + "\n")
+	}
+	flush()
+
+	return sections
 }

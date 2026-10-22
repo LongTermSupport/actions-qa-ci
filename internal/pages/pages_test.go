@@ -162,6 +162,90 @@ func TestAuditReportsAPageMissingARequiredSection(t *testing.T) {
 	}
 }
 
+func TestTheRequiredSectionsAreTheFiveTheDesignNames(t *testing.T) {
+	want := []string{
+		"## What it forbids or requires",
+		"## Hazard",
+		"## Correct construction",
+		"## Exceptions",
+		"## Upstream",
+	}
+
+	if strings.Join(pages.RequiredSections, "\n") != strings.Join(want, "\n") {
+		t.Errorf("RequiredSections = %v, want %v", pages.RequiredSections, want)
+	}
+}
+
+func auditOf(t *testing.T, page string) []string {
+	t.Helper()
+
+	fsys := pagesFor(templateDrift)
+	fsys["docs/rules/"+templateDrift+".md"] = &fstest.MapFile{Data: []byte(page)}
+
+	return pages.Audit(registryOf(t, templateDrift), fsys)
+}
+
+func TestAuditDoesNotCountAHeadingThatIsOnlyInsideACodeFence(t *testing.T) {
+	for _, fence := range []string{"```", "~~~"} {
+		page := strings.Replace(completePage, "## Hazard\n\nSomething bad.", fence+"\n## Hazard\n"+fence+"\n\nSomething bad.", 1)
+
+		problems := auditOf(t, page)
+
+		if len(problems) == 0 || !strings.Contains(strings.Join(problems, "\n"), "## Hazard") {
+			t.Errorf("a heading inside a %s fence was counted: %v", fence, problems)
+		}
+	}
+}
+
+func TestAuditRequiresTheSectionsInOrder(t *testing.T) {
+	page := strings.Replace(completePage, "## Exceptions", "## Upstream-first", 1)
+	page = strings.Replace(page, "## Upstream\n", "## Exceptions\n", 1)
+	page = strings.Replace(page, "## Upstream-first", "## Upstream", 1)
+
+	if problems := auditOf(t, page); len(problems) == 0 {
+		t.Error("sections out of order passed the audit")
+	}
+}
+
+func TestAuditRefusesAnEmptySection(t *testing.T) {
+	page := strings.Replace(completePage, "Something bad.\n", "\n", 1)
+
+	problems := auditOf(t, page)
+
+	if len(problems) != 1 || !strings.Contains(problems[0], "## Hazard") || !strings.Contains(problems[0], "empty") {
+		t.Errorf("problems = %v", problems)
+	}
+}
+
+func TestAuditDoesNotAcceptAHeadingThatOnlyStartsWithTheRequiredOne(t *testing.T) {
+	page := strings.Replace(completePage, "## Hazard\n", "## Hazard and more\n", 1)
+
+	if problems := auditOf(t, page); len(problems) == 0 {
+		t.Error("a longer heading passed for the required one")
+	}
+}
+
+func TestAuditAcceptsTrailingSpacesOnAHeading(t *testing.T) {
+	page := strings.Replace(completePage, "## Hazard\n", "## Hazard  \n", 1)
+
+	if problems := auditOf(t, page); len(problems) != 0 {
+		t.Errorf("problems = %v", problems)
+	}
+}
+
+func TestTheIndexKeepsASummaryWithAPipeInItsOwnCell(t *testing.T) {
+	reg, err := registry.New(registry.Rule{ID: templateDrift, Summary: "either a | b"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got := pages.Index(reg)
+
+	if !strings.Contains(got, `either a \| b`) {
+		t.Errorf("a pipe in a summary would split the table cell:\n%s", got)
+	}
+}
+
 func TestAuditReportsAPageForNoRegisteredRule(t *testing.T) {
 	problems := pages.Audit(registryOf(t, templateDrift), pagesFor(templateDrift, lintCoverage))
 

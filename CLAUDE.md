@@ -16,7 +16,8 @@ its rule backends. This file holds the binding floor; the depth is one link away
   it receives.
 - **No hidden failures**: an error is returned or reported by name, never swallowed. A tool
   that fails is exit 3, an analysis with no verdict is exit 4, and neither is ever reported as
-  clean. (Exit 3 and 4 are reserved now and gain code paths with the bundled tools.)
+  clean. (Exit 3 is used today for a missing page or unwritable output; exit 4 is reserved
+  until the bundled tools arrive.)
 - **One owner per hazard class**: a hazard is reported by exactly one rule. A bundled backend's
   finding is renamed to this project's stable identifier, and a duplicate is dropped.
 - **Conformance is declared, not claimed**: `dbf.json` states the method and toolchain versions

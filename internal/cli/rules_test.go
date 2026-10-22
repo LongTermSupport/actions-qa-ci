@@ -3,6 +3,7 @@ package cli_test
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -176,6 +177,53 @@ func TestRuleDocForARegisteredRuleWithNoPageIsAToolchainFault(t *testing.T) {
 	}
 	if !strings.Contains(got.stderr, templateInj) {
 		t.Errorf("stderr should name the rule whose page is missing:\n%s", got.stderr)
+	}
+}
+
+type brokenWriter struct{}
+
+func (brokenWriter) Write([]byte) (int, error) {
+	return 0, errors.New("the output is closed")
+}
+
+func TestACommandWhoseOutputCannotBeWrittenIsAToolchainFault(t *testing.T) {
+	commands := [][]string{
+		{"help"},
+		{"version"},
+		{"version", "--json"},
+		{"rules"},
+		{"rules", "--json"},
+		{"rule-doc", templateDrift},
+	}
+
+	for _, args := range commands {
+		var stderr bytes.Buffer
+
+		code := cli.RunWith(envWith(t, twoRules()...), args, brokenWriter{}, &stderr)
+
+		if code != cli.ExitToolchainFault {
+			t.Errorf("%v: exit %d, want %d: a lost result must not look like success", args, code, cli.ExitToolchainFault)
+		}
+		if !strings.Contains(stderr.String(), "cannot write output") {
+			t.Errorf("%v: stderr should say the output could not be written:\n%s", args, stderr.String())
+		}
+	}
+}
+
+func TestTheProgramRunsAgainstTheRulesAndPagesItShips(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+
+	if code := cli.Run([]string{"rules"}, &stdout, &stderr); code != cli.ExitOK {
+		t.Fatalf("exit %d; stderr: %s", code, stderr.String())
+	}
+	if stdout.String() != "no rules are active\n" {
+		t.Errorf("rules output = %q; no rule ships yet", stdout.String())
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	if code := cli.Run([]string{"rule-doc", templateDrift}, &stdout, &stderr); code != cli.ExitUsage {
+		t.Errorf("exit %d for a rule that does not ship, want %d", code, cli.ExitUsage)
 	}
 }
 

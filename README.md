@@ -26,7 +26,8 @@ go run ./cmd/actions-qa help
 Every rule has an identifier, and every identifier has a page under `docs/rules/` that states
 the correct construction. `docs/rules/README.md` is the identifier index; it is generated from
 the registry and a test fails when it is stale (`go test . -run TestTheIdentifierIndexIsCurrent
--update` regenerates it). A test also fails when a rule has no complete page, or a page has no
+-update` regenerates it). A test also fails when a rule has no page, when a page lacks one of
+its five required sections (in order, outside code fences, none empty), or when a page has no
 rule. No rule ships yet: the registry is empty until the bundled backends arrive.
 
 ### Exit codes
@@ -36,7 +37,7 @@ rule. No rule ships yet: the registry is empty until the bundled backends arrive
 | 0    | analysed, nothing to report                                          |
 | 1    | analysed, findings reported                                          |
 | 2    | the command line or a project record was wrong; nothing was analysed |
-| 3    | a bundled tool failed or its pinned binary did not verify            |
+| 3    | the toolchain itself failed: a bundled tool or its pinned binary, a page the build should hold, or output that could not be written |
 | 4    | the analysis could not reach a verdict                               |
 
 A usage error writes nothing to standard output: it is not a verdict.
