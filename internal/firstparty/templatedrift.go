@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	"github.com/LongTermSupport/actions-qa-ci/internal/finding"
@@ -32,6 +33,15 @@ func CheckTemplateDrift(known func(id string) bool) func(path string) ([]finding
 			return nil, err
 		}
 
+		working, err := os.Getwd()
+		if err != nil {
+			return nil, fmt.Errorf("cannot find the working directory: %w", err)
+		}
+		root, err := filepath.EvalSymlinks(working)
+		if err != nil {
+			return nil, fmt.Errorf("cannot resolve the working directory: %w", err)
+		}
+
 		var found []finding.Finding
 		report := func(file string, line int, message string) error {
 			f, err := driftFinding(file, line, message)
@@ -44,7 +54,7 @@ func CheckTemplateDrift(known func(id string) bool) func(path string) ([]finding
 		}
 
 		for _, template := range rec.Templates {
-			source, problem, err := readTemplateFile(template.Source)
+			source, problem, err := readTemplateFile(root, template.Source)
 			if err != nil {
 				return nil, err
 			}
@@ -57,7 +67,7 @@ func CheckTemplateDrift(known func(id string) bool) func(path string) ([]finding
 			}
 
 			for _, copied := range template.Copies {
-				data, problem, err := readTemplateFile(copied)
+				data, problem, err := readTemplateFile(root, copied)
 				if err != nil {
 					return nil, err
 				}
@@ -82,7 +92,20 @@ func CheckTemplateDrift(known func(id string) bool) func(path string) ([]finding
 // compared (missing, not a plain file, too large); the error is a failure to look at all. The
 // file is opened without blocking and without following a link, and judged by what was opened,
 // so a pipe or a link in its place is reported and never read.
-func readTemplateFile(name string) ([]byte, string, error) {
+func readTemplateFile(root, name string) ([]byte, string, error) {
+	// The last component is not followed (below); a link in a directory of the path may be, but
+	// only to somewhere inside the repository.
+	directory, err := filepath.EvalSymlinks(filepath.Dir(filepath.FromSlash(name)))
+	switch {
+	case errors.Is(err, os.ErrNotExist):
+		return nil, "is missing", nil
+	case err != nil:
+		return nil, fmt.Sprintf("cannot be reached: %v", err), nil
+	}
+	if !withinRoot(root, directory) {
+		return nil, "leads outside the repository through a link in its path and is not read", nil
+	}
+
 	file, err := os.OpenFile(filepath.FromSlash(name), os.O_RDONLY|syscall.O_NONBLOCK|syscall.O_NOFOLLOW, 0)
 	switch {
 	case errors.Is(err, os.ErrNotExist):
@@ -111,6 +134,20 @@ func readTemplateFile(name string) ([]byte, string, error) {
 	}
 
 	return data, "", nil
+}
+
+// withinRoot says whether a directory, with its links resolved, is the root or inside it.
+func withinRoot(root, directory string) bool {
+	if !filepath.IsAbs(directory) {
+		absolute, err := filepath.Abs(directory)
+		if err != nil {
+			return false
+		}
+		directory = absolute
+	}
+	relative, err := filepath.Rel(root, directory)
+
+	return err == nil && relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator))
 }
 
 // firstDifferingLine is the line, counted in line feeds from 1, where the two byte strings first

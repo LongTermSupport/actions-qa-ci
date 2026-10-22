@@ -199,6 +199,9 @@ func Parse(data []byte, known func(id string) bool) (*Record, error) {
 			continue
 		}
 		entry.Line = layout.templateLines[i]
+		if written := layout.templateCopies[i]; written > len(entry.Copies) {
+			faults = append(faults, fmt.Sprintf("template %d (line %d): copies has an empty entry", i+1, entry.Line))
+		}
 		rec.Templates = append(rec.Templates, *entry)
 	}
 	for i, entry := range doc.Exceptions {
@@ -225,7 +228,25 @@ func Parse(data []byte, known func(id string) bool) (*Record, error) {
 type layout struct {
 	lines         []int
 	templateLines []int
-	versionTag    string
+	// templateCopies is how many entries each template's copies list is written with, or -1
+	// where it is not a list. The decoder turns a null entry into nothing, so only the node
+	// tree can say that one was written.
+	templateCopies []int
+	versionTag     string
+}
+
+// writtenCopies is the number of entries in a template's copies list as written, or -1.
+func writtenCopies(template *yaml.Node) int {
+	if template.Kind != yaml.MappingNode {
+		return -1
+	}
+	for i := 0; i+1 < len(template.Content); i += 2 {
+		if template.Content[i].Value == "copies" && template.Content[i+1].Kind == yaml.SequenceNode {
+			return len(template.Content[i+1].Content)
+		}
+	}
+
+	return -1
 }
 
 func readLayout(data []byte) (layout, error) {
@@ -261,6 +282,7 @@ func readLayout(data []byte) (layout, error) {
 			}
 			for _, item := range top[i+1].Content {
 				found.templateLines = append(found.templateLines, item.Line)
+				found.templateCopies = append(found.templateCopies, writtenCopies(item))
 			}
 		}
 	}

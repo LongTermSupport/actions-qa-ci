@@ -52,6 +52,9 @@ func TestParseRefusesATemplateThatDeclaresNothingUsable(t *testing.T) {
 		"a glob copy":                       {"version: 1\ntemplates:\n  - source: a.yml\n    copies: [.github/workflows/*.yml]\n", "copies"},
 		"a backslash source":                {"version: 1\ntemplates:\n  - source: a\\b.yml\n    copies: [c.yml]\n", "source"},
 		"a mode this build does not act on": {"version: 1\ntemplates:\n  - source: a.yml\n    mode: identical-except\n    copies: [b.yml]\n", "mode"},
+		"a null copy beside a real one":     {"version: 1\ntemplates:\n  - source: a.yml\n    copies: [~, b.yml]\n", "empty"},
+		"a null copy alone":                 {"version: 1\ntemplates:\n  - source: a.yml\n    copies: [~]\n", "empty"},
+		"an empty-string copy":              {"version: 1\ntemplates:\n  - source: a.yml\n    copies: ['', b.yml]\n", "empty"},
 		"copies as text":                    {"version: 1\ntemplates:\n  - source: a.yml\n    copies: b.yml\n", "unmarshal"},
 		"templates as a map":                {"version: 1\ntemplates:\n  source: a.yml\n", "unmarshal"},
 	}

@@ -19,8 +19,10 @@ Three things are findings:
   two first differ (counted in line feeds, from 1; a line ending written differently is a
   difference on that line);
 - a source or a copy that is missing, reported at the record's entry for the template;
-- a source or a copy that is not a plain file (a directory, a link, a pipe) or is larger than
-  1 MiB, reported at the same place. Such a file is never read.
+- a source or a copy that is not a plain file (a directory, a link, a pipe), is larger than
+  1 MiB, or is reached through a link in one of its directories that leads outside the
+  repository, reported at the same place. Such a file is never read. A link in a directory of
+  the path that stays inside the repository is followed.
 
 A missing file is a finding and not silence on purpose: a copy that is renamed or deleted must not
 turn its own check off. A path is repository-relative, with forward slashes, and names one file;

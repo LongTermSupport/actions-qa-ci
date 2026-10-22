@@ -171,6 +171,50 @@ func TestACopyOverTheSizeLimitIsAFindingNotAnUnboundedRead(t *testing.T) {
 	}
 }
 
+func TestACopyExactlyAtTheSizeLimitIsComparedAndOneByteOverIsNot(t *testing.T) {
+	atLimit := strings.Repeat("x", 1<<20)
+
+	got, err := driftIn(t, map[string]string{
+		recordPath: templateRecord("t.yml", "c.yml"),
+		"t.yml":    atLimit,
+		"c.yml":    atLimit,
+	})
+
+	if err != nil || len(got) != 0 {
+		t.Errorf("findings %+v, error %v; a file of exactly the limit is compared", got, err)
+	}
+}
+
+func TestAPathThroughALinkedDirectoryIsFollowedOnlyInsideTheRepository(t *testing.T) {
+	root, outside := t.TempDir(), t.TempDir()
+	write := func(name, content string) {
+		t.Helper()
+		if err := os.MkdirAll(filepath.Dir(name), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(name, []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write(filepath.Join(root, recordPath), templateRecord("t.yml", "linked-out/g.yml")+"  - source: t.yml\n    copies: [linked-in/g.yml]\n")
+	write(filepath.Join(root, "t.yml"), "same\n")
+	write(filepath.Join(outside, "g.yml"), "same\n")
+	write(filepath.Join(root, "real", "g.yml"), "same\n")
+	if err := os.Symlink(outside, filepath.Join(root, "linked-out")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("real", filepath.Join(root, "linked-in")); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(root)
+
+	got, err := firstparty.CheckTemplateDrift(everythingIsKnown)(recordPath)
+
+	if err != nil || len(got) != 1 || got[0].Path != recordPath || !strings.Contains(got[0].Message, "linked-out/g.yml") || !strings.Contains(got[0].Message, "outside the repository") {
+		t.Errorf("findings %+v, error %v; want one: the copy through the link that leaves the repository, which is not read (the one through a link that stays inside is compared and identical)", got, err)
+	}
+}
+
 func TestTemplateDriftReportsEveryPairInOrder(t *testing.T) {
 	got, err := driftIn(t, map[string]string{
 		recordPath: templateRecord("a.yml", "a-copy.yml", "b.yml", "b-copy.yml"),
