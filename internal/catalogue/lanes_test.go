@@ -44,6 +44,8 @@ func TestTheRecordLaneSelectsTheRecordAndNothingNearIt(t *testing.T) {
 
 	for path, want := range map[string]bool{
 		".github/actions-qa-ci.yml":           true,
+		"action.yml":                          false,
+		".github/actions/x/action.yml":        false,
 		".github/actions-qa-ci.yaml":          false,
 		".github/dependabot.yml":              false,
 		".github/dependabot.yaml":             false,

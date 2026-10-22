@@ -106,6 +106,11 @@ checks that use them.
 
 A usage error writes nothing to standard output: it is not a verdict.
 
+One declared gap (`dbf.json`, `actionlint-runs-in-process`): actionlint runs inside the program,
+so a workflow that sends its expression parser into unbounded recursion ends the program with
+the Go runtime's own exit code 2, which is not a usage error, and an expression made to be slow
+runs without a time limit. Neither is reported as exit 4 yet.
+
 ## Conformance
 
 `dbf.json` declares the method and toolchain specification versions this repository is audited

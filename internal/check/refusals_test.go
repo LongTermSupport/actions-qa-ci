@@ -63,7 +63,9 @@ func TestDiscoverStopsOnADirectoryItCannotListAndEscapesItsName(t *testing.T) {
 		evil + "/action.yml":       file("runs: {}\n"),
 	}
 
-	for name, broken := range map[string]string{"workflows": ".github/workflows", "actions": ".github/actions", "a nested action directory": evil} {
+	for name, broken := range map[string]string{
+		"the root": ".", "dot github": ".github", "workflows": ".github/workflows", "actions": ".github/actions", "a nested action directory": evil,
+	} {
 		got, err := check.Discover(failingFS{tree, broken})
 
 		if err == nil {

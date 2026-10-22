@@ -12,7 +12,7 @@ import (
 // hostile holds one of each kind of character that hides or reorders text on a terminal.
 func hostile() string {
 	return "a" + string(rune(0x202e)) + "b" + string(rune(0x85)) + "c" + string(rune(0x200b)) +
-		"d\x7fe" + string(rune(0x2028)) + "f\x1b[2Jg" + string(rune(0xfeff)) + "h"
+		"d\x7fe" + string(rune(0x2028)) + "f\x1b[2Jg" + string(rune(0xfeff)) + "h" + string(rune(0xe0041)) + "i"
 }
 
 func TestNoFormatPrintsACharacterThatHidesOrReordersText(t *testing.T) {
@@ -46,7 +46,7 @@ func TestTheJSONFormatKeepsWhatItWasGivenWhileEscapingIt(t *testing.T) {
 	if len(parsed) != 1 || parsed[0].Message != hostile() {
 		t.Errorf("the message did not survive the round trip: %+v", parsed)
 	}
-	for _, want := range []string{"u202e", "u0085", "u007f", "u200b", "ufeff"} {
+	for _, want := range []string{"u202e", "u0085", "u007f", "u200b", "ufeff", "udb40" + string(rune(92)) + "udc41"} {
 		if !strings.Contains(got, strings.Repeat(string(rune(92)), 1)+want) {
 			t.Errorf("%s is not shown as an escape:\n%s", want, got)
 		}
