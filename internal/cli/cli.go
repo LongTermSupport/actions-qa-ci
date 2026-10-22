@@ -5,14 +5,12 @@
 package cli
 
 import (
-	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"io/fs"
 	"os"
-	"slices"
 	"strings"
 	"time"
 
@@ -20,6 +18,7 @@ import (
 	"github.com/LongTermSupport/actions-qa-ci/internal/catalogue"
 	"github.com/LongTermSupport/actions-qa-ci/internal/check"
 	"github.com/LongTermSupport/actions-qa-ci/internal/finding"
+	"github.com/LongTermSupport/actions-qa-ci/internal/listing"
 	"github.com/LongTermSupport/actions-qa-ci/internal/output"
 	"github.com/LongTermSupport/actions-qa-ci/internal/pages"
 	"github.com/LongTermSupport/actions-qa-ci/internal/record"
@@ -40,7 +39,9 @@ var usage = strings.NewReplacer("FORMATS", strings.Join(output.FormatNames(), "|
 
 commands:
   version [--json]   print the specification versions this build is audited against
-  rules [--json]     list every active rule without running it
+  rules [--json] [--write-agent-summary file]
+                     list every active rule without running it, and put the list in the
+                     generated region of a file an agent reads (CLAUDE.md, AGENTS.md)
   rule-doc <id>      print the page for a rule identifier, offline
   check [-t lane[,lane…]] [--format FORMATS] [--sarif file] [--] [path…]
                      run the lanes over the project's files, or over the files named
@@ -262,26 +263,21 @@ func printJSON(stdout, stderr io.Writer, value any) int {
 	return ExitOK
 }
 
-// ruleEntry is one rule as `rules --json` prints it.
-type ruleEntry struct {
-	ID       string `json:"id"`
-	Summary  string `json:"summary"`
-	Upstream string `json:"upstream"`
-	DocPath  string `json:"docPath"`
-	// NarrowedBy says how the project record turns the defence off, which is a narrowing of the
-	// method's standard and has to be visible wherever the defences are listed.
-	NarrowedBy []string `json:"narrowedBy,omitempty"`
-}
-
 func rules(env Env, args []string, stdout, stderr io.Writer) int {
-	asJSON, problem := jsonFlag("rules", args)
+	asJSON, summaryFile, problem := rulesFlags(args)
 	if problem != "" {
 		return usageError(stderr, problem)
 	}
 
-	active := activeEntries(env.Registry)
+	active := listing.Active(env.Registry)
 	if code := narrowByRecord(env, active, stderr); code != ExitOK {
 		return code
+	}
+
+	if summaryFile != "" {
+		if code := writeAgentSummary(summaryFile, active, stderr); code != ExitOK {
+			return code
+		}
 	}
 
 	if asJSON {
@@ -306,19 +302,36 @@ func rules(env Env, args []string, stdout, stderr io.Writer) int {
 	return ExitOK
 }
 
-// activeEntries lists every individual rule and every family, in identifier order. A family
-// is listed once, under its placeholder name, not once per member.
-func activeEntries(reg *registry.Registry) []ruleEntry {
-	entries := []ruleEntry{}
-	for _, rule := range reg.All() {
-		entries = append(entries, ruleEntry{ID: rule.ID, Summary: rule.Summary, Upstream: rule.Upstream, DocPath: registry.DocPath(rule.ID)})
+// rulesFlags reads the arguments of `rules`: --json, and --write-agent-summary with its file
+// (written as --write-agent-summary=<file> or with the file as the next argument).
+func rulesFlags(args []string) (asJSON bool, summaryFile, problem string) {
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		switch {
+		case arg == "--json":
+			asJSON = true
+		case arg == "--write-agent-summary" || strings.HasPrefix(arg, "--write-agent-summary="):
+			if summaryFile != "" {
+				return false, "", "--write-agent-summary is given once"
+			}
+			value, joined := strings.CutPrefix(arg, "--write-agent-summary=")
+			if !joined {
+				if i+1 >= len(args) {
+					return false, "", "--write-agent-summary needs the file to write"
+				}
+				i++
+				value = args[i]
+			}
+			if value == "" || strings.HasPrefix(value, "-") {
+				return false, "", "--write-agent-summary needs the file to write (a name that starts with - is written ./-name)"
+			}
+			summaryFile = value
+		default:
+			return false, "", fmt.Sprintf("unknown flag or argument %q for rules", arg)
+		}
 	}
-	for _, family := range reg.Families() {
-		entries = append(entries, ruleEntry{ID: family.Name, Summary: family.Summary, Upstream: family.Upstream, DocPath: pages.Directory + "/" + family.Page + ".md"})
-	}
-	slices.SortFunc(entries, func(a, b ruleEntry) int { return cmp.Compare(a.ID, b.ID) })
 
-	return entries
+	return asJSON, summaryFile, ""
 }
 
 // suggestionLimit is how many nearest identifiers an unknown one is answered with.

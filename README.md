@@ -118,6 +118,13 @@ anywhere else it would find nothing and read as clean, so it refuses.
   everywhere, the text format adds a `    narrowed: …` line and `rules --json` adds a `narrowedBy`
   array to that entry; an entry without one has no such key, so a consumer that reads entries as
   string maps breaks only when a record narrows something.
+- **`rules --write-agent-summary <file>`** (or `=<file>`) puts the same list, narrowings
+  included, in a region of the file between the lines `<!-- actions-qa-ci:begin -->` and
+  `<!-- actions-qa-ci:end -->`, for the markdown file an agent reads (`CLAUDE.md`,
+  `AGENTS.md`). The region is replaced where it is and appended where the file has none; the rest
+  of the file is kept byte for byte, and a second run changes nothing. A file with a begin
+  marker and no end marker (or more than one region) is refused with exit 2 and left alone, as
+  is a link or anything but a regular file. The listing is still printed.
 - **Failure stops the run.** A lane that fails stops it with exit 3 and prints no findings: a
   partial list would read as a verdict.
 

@@ -65,5 +65,8 @@ branch named `feature/…`, `bugfix/…` or `chore/…`; the default branch is `
   A lane marked `Subject` is about the project, not one file, and runs once per whole-project run.
   `internal/scope` resolves the record's `analyse.include` patterns to tracked files, and a lane
   that `Covers` a kind of included file is widened to select them (`check.Widen`).
+- The active defences as an agent reads them: `internal/listing` lists them (what `rules` prints)
+  and `internal/agentsummary` renders and splices the generated region of `CLAUDE.md` or
+  `AGENTS.md`.
 - Exit codes: [README.md](README.md#exit-codes).
 - Conformance: `dbf.json`, printed by `actions-qa version --json`.
