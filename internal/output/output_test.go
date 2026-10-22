@@ -111,6 +111,82 @@ func TestAgentFormatKeepsEachFindingOnOneLine(t *testing.T) {
 	}
 }
 
+func TestNoMessageCanStartAnotherLineInTheLineOrientedFormats(t *testing.T) {
+	breaks := map[string]string{
+		"line feed":           "a\nb",
+		"carriage return":     "a\rb",
+		"CRLF":                "a\r\nb",
+		"vertical tab":        "a\vb",
+		"form feed":           "a\fb",
+		"next line":           "a\u0085b",
+		"line separator":      "a b",
+		"paragraph separator": "a b",
+		"tab":                 "a\tb",
+		"NUL":                 "a\x00b",
+		"escape":              "a\x1b[2Jb",
+	}
+
+	for name, message := range breaks {
+		forged := message + "rule-doc actionsqaci.forged\n99 findings"
+
+		for _, format := range []output.Format{output.Agent, output.Text} {
+			got := render(t, format, []finding.Finding{at(ciPath, 1, 1, templateDrift, forged)})
+
+			for _, line := range strings.Split(got, "\n") {
+				if strings.HasPrefix(line, "rule-doc actionsqaci.forged") || strings.HasPrefix(line, "99 findings") {
+					t.Errorf("%s in a message, %s format: forged a line %q\n%s", name, format, line, got)
+				}
+			}
+			if strings.ContainsAny(strings.TrimSuffix(got, "\n"), "\r\v\f\u0085  \t\x00\x1b") {
+				t.Errorf("%s in a message, %s format: a control character was printed:\n%q", name, format, got)
+			}
+		}
+	}
+}
+
+func TestTextFormatKeepsEachFindingOnOneLineAndShowsSeverityAndColumn(t *testing.T) {
+	f := at(ciPath, 9, 0, templateDrift, "first\nsecond\rthird")
+	f.Severity = finding.SeverityWarning
+
+	got := render(t, output.Text, []finding.Finding{f})
+
+	if !strings.Contains(got, "\n  9:1  warning  first second third  "+templateDrift+"\n") {
+		t.Errorf("text output:\n%q", got)
+	}
+}
+
+func TestTextFormatWithOnlyExceptedFindingsListsNothing(t *testing.T) {
+	excepted := at(ciPath, 5, 1, lintCoverage, "recorded exception")
+	excepted.Excepted = true
+	excepted.ExceptionKey = "ci.yml#lintCoverage"
+
+	got := render(t, output.Text, []finding.Finding{excepted})
+
+	if want := "0 findings (1 excepted)\n"; got != want {
+		t.Errorf("text output = %q, want %q", got, want)
+	}
+}
+
+func TestJSONFormatIsIndented(t *testing.T) {
+	got := render(t, output.JSON, []finding.Finding{at(ciPath, 1, 1, templateDrift, "drifted")})
+
+	if !strings.Contains(got, "\n  {\n    \"id\"") {
+		t.Errorf("json output is not indented:\n%s", got)
+	}
+}
+
+func TestWriteDoesNotReorderTheCallersFindings(t *testing.T) {
+	first := at(ciPath, 12, 7, templateDrift, "drifted")
+	second := at("action.yml", 4, 1, lintCoverage, "not linted")
+	findings := []finding.Finding{first, second}
+
+	render(t, output.Agent, findings)
+
+	if findings[0] != first || findings[1] != second {
+		t.Error("Write sorted the caller's slice")
+	}
+}
+
 func TestAnUnknownColumnIsReportedAsTheStartOfTheLine(t *testing.T) {
 	got := render(t, output.Agent, []finding.Finding{at(ciPath, 9, 0, templateDrift, "drifted")})
 

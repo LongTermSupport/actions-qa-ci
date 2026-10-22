@@ -21,7 +21,9 @@ type Format string
 const (
 	// Text is grouped by file, for a person at a terminal.
 	Text Format = "text"
-	// Agent is one line per finding, for a reader that parses lines rather than layout.
+	// Agent is one line per finding, for a reader that parses lines rather than layout. A path
+	// is printed as it is, so a path containing a space is ambiguous to a whitespace split; the
+	// json format is the one to parse when paths are not known to be plain.
 	Agent Format = "agent"
 	// JSON is the finding schema, every finding including the excepted ones.
 	JSON Format = "json"
@@ -174,8 +176,17 @@ func column(f finding.Finding) int {
 	return max(f.Col, 1)
 }
 
-var lineBreaks = strings.NewReplacer("\r\n", " ", "\n", " ", "\r", " ")
+var crlf = strings.NewReplacer("\r\n", "\n")
 
+// oneLine makes a message safe to print on a single line of a line-oriented format: every
+// control character and every Unicode line or paragraph separator becomes a space, so a
+// message cannot start another line, forge a trailer or move the terminal cursor.
 func oneLine(message string) string {
-	return lineBreaks.Replace(message)
+	return strings.Map(func(r rune) rune {
+		if finding.IsControlOrSeparator(r) {
+			return ' '
+		}
+
+		return r
+	}, crlf.Replace(message))
 }
