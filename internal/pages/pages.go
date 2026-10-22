@@ -116,8 +116,14 @@ func sectionProblems(fsys fs.FS, id string) []string {
 		return []string{err.Error()}
 	}
 
+	sections, closed := parseSections(content)
+	if !closed {
+		// Everything after the open fence reads as code, so the sections it hides would
+		// be reported missing; say what is actually wrong instead.
+		return []string{registry.DocPath(id) + " has a code fence that is never closed"}
+	}
+
 	var problems []string
-	sections := parseSections(content)
 	next := 0 // the first section not yet used, so the required ones are found in order
 
 	for _, required := range RequiredSections {
@@ -149,8 +155,9 @@ type section struct {
 }
 
 // parseSections splits a page at its level-two headings. A heading inside a fenced code
-// block is example text, not a heading, so fences are tracked.
-func parseSections(content string) []section {
+// block is example text, not a heading, so fences are tracked; the second result is false
+// when a fence is still open at the end of the page. Both line endings are accepted.
+func parseSections(content string) ([]section, bool) {
 	var sections []section
 	var body strings.Builder
 	fence := ""
@@ -163,6 +170,7 @@ func parseSections(content string) []section {
 	}
 
 	for _, line := range strings.Split(content, "\n") {
+		line = strings.TrimSuffix(line, "\r")
 		trimmed := strings.TrimLeft(line, " ")
 		switch {
 		case fence != "":
@@ -183,5 +191,5 @@ func parseSections(content string) []section {
 	}
 	flush()
 
-	return sections
+	return sections, fence == ""
 }

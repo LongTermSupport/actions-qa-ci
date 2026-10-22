@@ -5,9 +5,10 @@ GitHub Actions code: workflows, composite actions and the shell they run. It is 
 program, `actions-qa`, that bundles its rule backends and gives every finding a stable
 identifier and a page stating the correct construction.
 
-This repository is being built in phases. What exists today is the repository floor: the Go
-module, the conformance declaration, the command line skeleton and the repository's own CI.
-The rules arrive in later phases.
+This repository is being built in phases. What exists today is the core: the Go module, the
+conformance declaration, the finding model and identifier scheme, the rule registry, the output
+formats, the `version`, `rules`, `rule-doc` and `rule` commands, and the repository's own CI.
+The bundled backends and the checks themselves arrive in later phases, so no rule ships yet.
 
 ## Requirements
 
@@ -20,6 +21,7 @@ go run ./cmd/actions-qa version          # the specification versions this build
 go run ./cmd/actions-qa version --json   # the same, as the conformance declaration
 go run ./cmd/actions-qa rules            # every active rule, without running it (--json for a list)
 go run ./cmd/actions-qa rule-doc <id>    # the page for a rule identifier, offline
+go run ./cmd/actions-qa rule <id> <path> # one rule on one file, only its findings (--format text|agent|json)
 go run ./cmd/actions-qa help
 ```
 
