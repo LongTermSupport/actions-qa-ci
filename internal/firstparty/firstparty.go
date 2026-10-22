@@ -31,6 +31,14 @@ func Rules(known func(id string) bool) []registry.Rule {
 		// judged stale only against a whole run, so this rule cannot run on one file.
 		ID:      StaleException,
 		Summary: "Every exception in the project record matches a finding in a full run",
+	}, {
+		ID:      InlineSuppression,
+		Summary: "No comment tells zizmor, ratchet or ShellCheck to leave a finding out",
+		Check:   CheckInlineSuppression,
+	}, {
+		ID:      NativeSuppressionConfig,
+		Summary: "No tool's own configuration file suppresses a finding: zizmor's file, an actionlint ignore, a pinact ignore_actions",
+		Check:   CheckNativeSuppressionConfig,
 	}}
 }
 

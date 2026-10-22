@@ -56,16 +56,20 @@ integration is not enabled.
 ### The check command
 
 `actions-qa check` validates the project record, then runs the lanes (`actionlint`, which carries
-ShellCheck's findings, and `firstParty`, which checks the record) over the files the project has
-and prints every finding. It must be run from the repository root, which holds `.git`: from
+ShellCheck's findings; `firstParty`, which checks the record; and two guards against suppression,
+`inlineSuppression` and `nativeSuppressionConfig`, described below) over the files the project
+has and prints every finding. It must be run from the repository root, which holds `.git`: from
 anywhere else it would find nothing and read as clean, so it refuses.
 
 - **Files.** By default: the workflows directly in `.github/workflows`, every `action.yml` or
   `action.yaml` under `.github/actions` and at the root, `.github/dependabot.yml` or
-  `.github/dependabot.yaml`, and the project record. A lane analyses the files it covers; today
-  actionlint covers the workflows and the first-party lane covers the record. A file of the
-  default set that no lane of the build covers is named on standard error, so a clean result is
-  not read as covering it. Naming files on the command line analyses only those, and
+  `.github/dependabot.yaml`, the project record, and the configuration files of the bundled
+  tools (`zizmor.yml`, `.github/actionlint.yaml`, `.pinact.yaml` and their other spellings, see
+  `actionsqaci.nativeSuppressionConfig`). A lane analyses the files it covers; today actionlint
+  covers the workflows and the first-party lane covers the record. A file of the default set
+  that no lane of the build lints is named on standard error, so a clean result is not read as
+  covering it: the guards read the workflows and actions for suppression comments but do not
+  lint them, so a composite action is still named. Naming files on the command line analyses only those, and
   a file no chosen lane covers is refused rather than passed over. A symbolic link or other
   non-file where the default set looks (a directory named like a workflow or an action, at any depth) stops the run with exit 4, and so does a project record that is a symbolic link or any other
   non-file, and a file of the default set whose name holds a character that cannot be printed on

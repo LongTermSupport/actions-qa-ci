@@ -102,13 +102,25 @@ func TestTheShippedLanesSelectExactlyWhatTheyAnalyse(t *testing.T) {
 		{"firstParty", ".github/actions-qa-ci.yml", true},
 		{"firstParty", ".github/workflows/ci.yml", false},
 		{"firstParty", "sub/.github/actions-qa-ci.yml", false},
+		{"inlineSuppression", ".github/workflows/ci.yml", true},
+		{"inlineSuppression", "action.yml", true},
+		{"inlineSuppression", ".github/actions/x/action.yaml", true},
+		{"inlineSuppression", "other/action.yml", false},
+		{"inlineSuppression", ".github/dependabot.yml", false},
+		{"inlineSuppression", ".github/actions-qa-ci.yml", false},
+		{"inlineSuppression", "zizmor.yml", false},
+		{"nativeSuppressionConfig", "zizmor.yml", true},
+		{"nativeSuppressionConfig", ".github/actionlint.yaml", true},
+		{"nativeSuppressionConfig", ".pinact.yaml", true},
+		{"nativeSuppressionConfig", ".github/workflows/ci.yml", false},
+		{"nativeSuppressionConfig", "sub/zizmor.yml", false},
 	}
 	for _, c := range cases {
 		if got := selects[c.lane](c.path); got != c.want {
 			t.Errorf("lane %s selects %s = %v, want %v", c.lane, c.path, got, c.want)
 		}
 	}
-	if len(lanes) != 2 {
+	if len(lanes) != 4 {
 		t.Errorf("lanes = %d; a lane added here needs cases above", len(lanes))
 	}
 }

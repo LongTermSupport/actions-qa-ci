@@ -279,11 +279,16 @@ func filesToCheck(lanes []check.Lane, named []string, stderr io.Writer) ([]strin
 }
 
 // noteUnanalysed names, on the diagnostic stream, the files of the default set that no lane of
-// this build analyses at all, so a clean result is not read as covering them.
+// this build lints, so a clean result is not read as covering them. A lane that only guards
+// against suppression does not lint; a tool's configuration file is not linted either, it is
+// forbidden, and the lane that forbids it covers it.
 func noteUnanalysed(lanes []check.Lane, files []string, stderr io.Writer) error {
 	var skipped []string
 	for _, file := range files {
-		if len(check.Selecting(lanes, file)) == 0 {
+		if check.IsNativeSuppressionConfig(file) {
+			continue
+		}
+		if !slices.ContainsFunc(check.Selecting(lanes, file), func(lane check.Lane) bool { return !lane.Guard }) {
 			skipped = append(skipped, file)
 		}
 	}

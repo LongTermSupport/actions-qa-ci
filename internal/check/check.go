@@ -27,6 +27,10 @@ type Lane struct {
 	// crash the process it runs in or never finish. The program runs such a lane in a child
 	// process (see Isolated).
 	Isolated bool
+	// Guard says the lane only guards against a way to suppress a finding: it is not a lint of
+	// the file's content, so a workflow or action that only guard lanes select is still named as
+	// one nothing lints.
+	Guard bool
 }
 
 // LaneError is a lane failing on a file. It is a fault of the toolchain or of the file's
@@ -118,10 +122,42 @@ func IsWorkflow(file string) bool {
 	return path.Dir(file) == ".github/workflows" && yamlName.MatchString(path.Base(file))
 }
 
+// nativeSuppressionConfigs are the configuration files of the bundled tools that can suppress a
+// finding with no record behind it, at the paths the tools look for them.
+var nativeSuppressionConfigs = []string{
+	".github/actionlint.yaml",
+	".github/actionlint.yml",
+	".github/pinact.yaml",
+	".github/pinact.yml",
+	".github/zizmor.yaml",
+	".github/zizmor.yml",
+	".pinact.yaml",
+	".pinact.yml",
+	"zizmor.yaml",
+	"zizmor.yml",
+}
+
+// IsNativeSuppressionConfig says whether a repository-relative path is a configuration file of
+// zizmor, actionlint or pinact, which this toolchain forbids when it can suppress a finding.
+func IsNativeSuppressionConfig(file string) bool {
+	return slices.Contains(nativeSuppressionConfigs, file)
+}
+
+// IsActionFile says whether a repository-relative path is a composite action of the default
+// set: an action.yml or action.yaml at the root or under .github/actions.
+func IsActionFile(file string) bool {
+	if !isActionName(path.Base(file)) {
+		return false
+	}
+
+	return path.Dir(file) == "." || strings.HasPrefix(file, ".github/actions/")
+}
+
 // Discover lists the files analysed by default, repository-relative and sorted: the workflows
 // in .github/workflows (GitHub reads only that level), every action.yml or action.yaml under
-// .github/actions and at the root, .github/dependabot.yml and the project record. A symlink
-// or any other thing that is not a plain file, where the set looks, is an error.
+// .github/actions and at the root, .github/dependabot.yml, the project record and the
+// configuration files of the bundled tools. A symlink or any other thing that is not a plain
+// file, where the set looks, is an error.
 func Discover(fsys fs.FS) ([]string, error) {
 	found, err := discover(fsys)
 	if err != nil {
@@ -163,7 +199,7 @@ func discover(fsys fs.FS) ([]string, error) {
 		switch {
 		case entry.Name() == ".github" && !entry.IsDir():
 			return nil, fmt.Errorf("%w .github: it is not a directory", ErrNotAnalysable)
-		case isActionName(entry.Name()):
+		case isActionName(entry.Name()), IsNativeSuppressionConfig(entry.Name()):
 			if err := add(entry.Name(), entry); err != nil {
 				return nil, err
 			}
@@ -176,12 +212,12 @@ func discover(fsys fs.FS) ([]string, error) {
 	}
 	for _, entry := range githubEntries {
 		file := ".github/" + entry.Name()
-		switch entry.Name() {
-		case "workflows", "actions":
+		switch {
+		case entry.Name() == "workflows", entry.Name() == "actions":
 			if !entry.IsDir() {
 				return nil, fmt.Errorf("%w %s: it is not a directory", ErrNotAnalysable, file)
 			}
-		case "dependabot.yml", "dependabot.yaml", "actions-qa-ci.yml":
+		case entry.Name() == "dependabot.yml", entry.Name() == "dependabot.yaml", entry.Name() == "actions-qa-ci.yml", IsNativeSuppressionConfig(file):
 			if err := add(file, entry); err != nil {
 				return nil, err
 			}
