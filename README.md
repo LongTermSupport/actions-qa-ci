@@ -53,6 +53,18 @@ ShellCheck on `PATH` is never used. In a development checkout, `go run ./cmd/act
 bin` downloads it, and `ACTIONS_QA_CI_TOOLS_DIR=$PWD/bin` points the program at it. pyflakes
 integration is not enabled.
 
+### The project record
+
+A project states what it has accepted in one file, `.github/actions-qa-ci.yml`: a `version` and a
+list of `exceptions`, each with an `id`, optionally a `path` (with `job` and `step` to narrow it),
+and a `hazard`, `scope` and `decision`. The loader refuses an unknown field, a duplicate key, a
+second document, an identifier no defence has and a path that is not a plain file path inside the
+repository, and reports every fault at once. `actionsqaci.unjustifiedException` holds the three
+justification fields to a standard (see its page); `rule actionsqaci.unjustifiedException
+.github/actions-qa-ci.yml` runs it. This build reads and checks the record; it does not yet apply
+an exception to a finding, and the other sections the design gives the record arrive with the
+checks that use them.
+
 ### Exit codes
 
 | Code | Meaning                                                              |
