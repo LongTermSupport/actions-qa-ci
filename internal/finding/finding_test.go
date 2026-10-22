@@ -57,26 +57,57 @@ func TestAValidFindingValidates(t *testing.T) {
 }
 
 func TestAFindingThatCannotBeActedOnIsRefused(t *testing.T) {
-	cases := map[string]func(*finding.Finding){
-		"malformed identifier": func(f *finding.Finding) { f.ID = "template-drift" },
-		"no path":              func(f *finding.Finding) { f.Path = "" },
-		"no message":           func(f *finding.Finding) { f.Message = "" },
-		"unknown severity":     func(f *finding.Finding) { f.Severity = "fatal" },
-		"line before the file": func(f *finding.Finding) { f.Line = 0 },
-		"end before start":     func(f *finding.Finding) { f.EndLine = 3 },
-		"no tool":              func(f *finding.Finding) { f.Tool = "" },
-		"excepted without key": func(f *finding.Finding) { f.Excepted = true },
-		"key without exception": func(f *finding.Finding) {
-			f.ExceptionKey = "ci.yml#templateDrift"
-		},
+	cases := []struct {
+		name    string
+		mutate  func(*finding.Finding)
+		message string
+	}{
+		{"malformed identifier", func(f *finding.Finding) { f.ID = "template-drift" }, "not of a form"},
+		{"no path", func(f *finding.Finding) { f.Path = "" }, "no path"},
+		{"blank path", func(f *finding.Finding) { f.Path = "  " }, "no path"},
+		{"absolute path", func(f *finding.Finding) { f.Path = "/etc/ci.yml" }, "repository-relative"},
+		{"path leaving the repository", func(f *finding.Finding) { f.Path = "../ci.yml" }, "repository-relative"},
+		{"no message", func(f *finding.Finding) { f.Message = "" }, "no message"},
+		{"blank message", func(f *finding.Finding) { f.Message = "\n" }, "no message"},
+		{"unknown severity", func(f *finding.Finding) { f.Severity = "fatal" }, "severity"},
+		{"line before the file", func(f *finding.Finding) { f.Line = 0 }, "lines start at 1"},
+		{"negative column", func(f *finding.Finding) { f.Col = -1 }, "column"},
+		{"end before start", func(f *finding.Finding) { f.EndLine = 3 }, "before it starts"},
+		{"no tool", func(f *finding.Finding) { f.Tool = "" }, "no tool"},
+		{"blank tool", func(f *finding.Finding) { f.Tool = " " }, "no tool"},
+		{"excepted without key", func(f *finding.Finding) { f.Excepted = true }, "names no exception"},
+		{"key without exception", func(f *finding.Finding) { f.ExceptionKey = "ci.yml#templateDrift" }, "is not excepted"},
 	}
 
-	for name, mutate := range cases {
+	for _, c := range cases {
 		f := sample()
-		mutate(&f)
+		c.mutate(&f)
 
-		if err := f.Validate(); err == nil {
-			t.Errorf("%s: the finding was accepted", name)
+		err := f.Validate()
+		if err == nil {
+			t.Errorf("%s: the finding was accepted", c.name)
+
+			continue
+		}
+		if !strings.Contains(err.Error(), c.message) {
+			t.Errorf("%s: refused for the wrong reason: %v (want it to mention %q)", c.name, err, c.message)
+		}
+	}
+}
+
+func TestFindingsThatTieOnPositionAreOrderedByTheRestOfTheirContent(t *testing.T) {
+	first, second := sample(), sample()
+	first.Message = "alpha"
+	second.Message = "beta"
+
+	forward := []finding.Finding{first, second}
+	backward := []finding.Finding{second, first}
+	finding.Sort(forward)
+	finding.Sort(backward)
+
+	for i := range forward {
+		if forward[i].Message != backward[i].Message {
+			t.Fatalf("position %d is %q from one input order and %q from the other", i, forward[i].Message, backward[i].Message)
 		}
 	}
 }

@@ -34,7 +34,7 @@ var (
 	actionlintPattern = regexp.MustCompile(`^` + ToolPrefix + `\.actionlint\.` + kebab + `$`)
 	shellcheckPattern = regexp.MustCompile(`^` + ToolPrefix + `\.shellcheck\.SC[0-9]{4}$`)
 	firstPartyPattern = regexp.MustCompile(`^` + ToolPrefix + `\.` + camel + `$`)
-	projectPattern    = regexp.MustCompile(`^([a-z][a-z0-9]*)\.` + camel + `$`)
+	projectPattern    = regexp.MustCompile(`^[a-z][a-z0-9]*\.` + camel + `$`)
 )
 
 // reservedSecondSegments are the second segments the three bundled backends own; a first-party
@@ -54,7 +54,9 @@ func ClassifyIdentifier(id string) (Kind, error) {
 		return firstPartyKind(id)
 	}
 
-	if match := projectPattern.FindStringSubmatch(id); match != nil && match[1] != ToolPrefix {
+	// Every name under the tool's own prefix matched a case above, so a match here is
+	// never one: a project rule cannot take the tool's prefix.
+	if projectPattern.MatchString(id) {
 		return KindProject, nil
 	}
 
