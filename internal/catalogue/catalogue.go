@@ -23,9 +23,10 @@ func Rules(known func(id string) bool) []registry.Rule {
 func Lanes(known func(id string) bool) []check.Lane {
 	return []check.Lane{
 		{
-			Name:    "actionlint",
-			Selects: check.IsWorkflow,
-			Run:     actionlint.Lint,
+			Name:     "actionlint",
+			Selects:  check.IsWorkflow,
+			Run:      actionlint.Lint,
+			Isolated: true,
 		},
 		{
 			Name:    "firstParty",

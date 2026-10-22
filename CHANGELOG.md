@@ -33,6 +33,11 @@
   the text format and a `narrowedBy` array on the entry in `--json`, absent when nothing narrows
   it; it reads the record in the working directory and refuses an invalid one. The two checks on
   the record itself cannot be excepted.
+- `check` runs the actionlint lane on each file in a process of its own, with a two-minute time
+  limit and a cap on its output. A workflow that crashes actionlint's parser or makes it run
+  without end is exit 4, naming the lane and the file, and is never reported as clean; a lane
+  that fails on its own account is exit 3. The `rule` harness still runs actionlint in its own
+  process, which `dbf.json` declares.
 - The `rule <id> <path>` harness: runs one rule on one file and prints only that rule's
   findings, exiting 1 when it fires.
 - The `text`, `agent` and `json` output formats, and the finding model with its identifier
