@@ -54,8 +54,8 @@ func validate(rule Rule) error {
 	if strings.TrimSpace(rule.Summary) == "" {
 		return fmt.Errorf("rule %s has no summary", rule.ID)
 	}
-	if strings.ContainsAny(rule.Summary, "\r\n") {
-		return fmt.Errorf("rule %s has a summary of more than one line", rule.ID)
+	if strings.ContainsFunc(rule.Summary, finding.IsControlOrSeparator) {
+		return fmt.Errorf("rule %s has a summary with a control character or line break; it must print on one line", rule.ID)
 	}
 
 	return nil

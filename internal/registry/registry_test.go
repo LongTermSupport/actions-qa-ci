@@ -45,6 +45,14 @@ func TestARegistryRefusesARuleThatCannotBeReadAsAStandingInstruction(t *testing.
 		"no summary":           {ID: templateDrift},
 		"blank summary":        {ID: templateDrift, Summary: "  "},
 		"multi-line summary":   {ID: templateDrift, Summary: "one\ntwo"},
+		"carriage return":      {ID: templateDrift, Summary: "one\rtwo"},
+		"escape sequence":      {ID: templateDrift, Summary: "one\x1b[2Jtwo"},
+		"NUL":                  {ID: templateDrift, Summary: "one\x00two"},
+		"vertical tab":         {ID: templateDrift, Summary: "one\vtwo"},
+		"form feed":            {ID: templateDrift, Summary: "one\ftwo"},
+		"tab":                  {ID: templateDrift, Summary: "one\ttwo"},
+		"line separator":       {ID: templateDrift, Summary: "one two"},
+		"paragraph separator":  {ID: templateDrift, Summary: "one two"},
 	}
 
 	for name, r := range cases {
