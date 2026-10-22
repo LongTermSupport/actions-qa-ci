@@ -42,3 +42,8 @@ jobs:
 
       - name: Test
         run: go test ./...
+
+      - name: Check this repository with its own program
+        env:
+          ACTIONS_QA_CI_TOOLS_DIR: ${{ github.workspace }}/bin
+        run: go run ./cmd/actions-qa check --format agent

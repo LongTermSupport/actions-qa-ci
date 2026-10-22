@@ -10,12 +10,15 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"os"
 	"slices"
 	"strings"
 
 	actionsqaci "github.com/LongTermSupport/actions-qa-ci"
 	"github.com/LongTermSupport/actions-qa-ci/internal/catalogue"
+	"github.com/LongTermSupport/actions-qa-ci/internal/check"
 	"github.com/LongTermSupport/actions-qa-ci/internal/finding"
+	"github.com/LongTermSupport/actions-qa-ci/internal/output"
 	"github.com/LongTermSupport/actions-qa-ci/internal/pages"
 	"github.com/LongTermSupport/actions-qa-ci/internal/registry"
 )
@@ -36,17 +39,24 @@ commands:
   version [--json]   print the specification versions this build is audited against
   rules [--json]     list every active rule without running it
   rule-doc <id>      print the page for a rule identifier, offline
+  check [-t lane[,lane…]] [--format text|agent|json] [--] [path…]
+                     run the lanes over the project's files, or over the files named
   rule [--format text|agent|json] <id> <path>
                      run one rule on one file and print only its findings
   help               print this text
 `
 
-// Env is what the commands read from outside themselves: the rules that exist and the
-// pages that describe them. The program passes the real ones; a test passes fakes.
+// Env is what the commands read from outside themselves: the rules that exist, the lanes that
+// run them and the pages that describe them. The program passes the real ones; a test passes
+// fakes.
 type Env struct {
 	Registry *registry.Registry
 	// Pages is rooted at the repository, so a rule's page is at registry.DocPath(id).
 	Pages fs.FS
+	// Lanes are the analyses `check` runs, in the order it runs them.
+	Lanes []check.Lane
+	// DefaultFormat names the output format `check` uses when none is asked for; empty is agent.
+	DefaultFormat string
 }
 
 // Run executes one invocation against the real rules and the pages embedded in the binary.
@@ -56,7 +66,28 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		return fault(stderr, fmt.Errorf("the built-in rule registry is invalid: %w", err))
 	}
 
-	return RunWith(Env{Registry: reg, Pages: actionsqaci.Pages}, args, stdout, stderr)
+	known := func(id string) bool {
+		_, ok := reg.Lookup(id)
+
+		return ok
+	}
+	env := Env{Registry: reg, Pages: actionsqaci.Pages, Lanes: catalogue.Lanes(known), DefaultFormat: defaultFormat(stdout)}
+
+	return RunWith(env, args, stdout, stderr)
+}
+
+// defaultFormat is the format ACTIONS_QA_FORMAT names, else text for a terminal, else agent.
+func defaultFormat(stdout io.Writer) string {
+	if named := os.Getenv("ACTIONS_QA_FORMAT"); named != "" {
+		return named
+	}
+	if file, ok := stdout.(*os.File); ok {
+		if info, err := file.Stat(); err == nil && info.Mode()&os.ModeCharDevice != 0 {
+			return string(output.Text)
+		}
+	}
+
+	return string(output.Agent)
 }
 
 // RunWith executes one invocation and returns the process exit code. Results go to stdout,
@@ -77,6 +108,8 @@ func RunWith(env Env, args []string, stdout, stderr io.Writer) int {
 		return ruleDoc(env, args[1:], stdout, stderr)
 	case "rule":
 		return ruleHarness(env, args[1:], stdout, stderr)
+	case "check":
+		return checkCommand(env, args[1:], stdout, stderr)
 	default:
 		return usageError(stderr, fmt.Sprintf("unknown command %q", args[0]))
 	}

@@ -3,8 +3,12 @@
 package catalogue
 
 import (
+	"regexp"
+
+	"github.com/LongTermSupport/actions-qa-ci/internal/check"
 	"github.com/LongTermSupport/actions-qa-ci/internal/firstparty"
 	"github.com/LongTermSupport/actions-qa-ci/internal/lanes/actionlint"
+	"github.com/LongTermSupport/actions-qa-ci/internal/record"
 	"github.com/LongTermSupport/actions-qa-ci/internal/registry"
 )
 
@@ -13,6 +17,27 @@ import (
 // identifier belongs to a defence of this build, for the checks that read the project record.
 func Rules(known func(id string) bool) []registry.Rule {
 	return append(actionlint.Rules(), firstparty.Rules(known)...)
+}
+
+// workflowFile is a workflow GitHub would run: a YAML file directly in .github/workflows.
+var workflowFile = regexp.MustCompile(`^\.github/workflows/[^/]+\.ya?ml$`)
+
+// Lanes returns the analyses `check` runs, in the order it runs them. The actionlint lane
+// carries ShellCheck's findings on the shell in run: steps; the first-party lane checks the
+// project record. known says whether an identifier belongs to a defence of this build.
+func Lanes(known func(id string) bool) []check.Lane {
+	return []check.Lane{
+		{
+			Name:    "actionlint",
+			Selects: workflowFile.MatchString,
+			Run:     actionlint.Lint,
+		},
+		{
+			Name:    "firstParty",
+			Selects: func(path string) bool { return path == record.Path },
+			Run:     firstparty.CheckRecord(known),
+		},
+	}
 }
 
 // Families returns the families of rules this build ships: sets too large to register one rule

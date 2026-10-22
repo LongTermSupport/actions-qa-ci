@@ -24,11 +24,13 @@ func Rules(known func(id string) bool) []registry.Rule {
 	return []registry.Rule{{
 		ID:      UnjustifiedException,
 		Summary: "Every exception in the project record states a hazard, a scope and a decision, none of them generic",
-		Check:   checkUnjustified(known),
+		Check:   CheckRecord(known),
 	}}
 }
 
-func checkUnjustified(known func(id string) bool) func(path string) ([]finding.Finding, error) {
+// CheckRecord is the check on the project record at a path: a finding for each justification
+// that is missing or generic. A record that is not valid is an error wrapping record.ErrInvalid.
+func CheckRecord(known func(id string) bool) func(path string) ([]finding.Finding, error) {
 	return func(path string) ([]finding.Finding, error) {
 		rec, err := record.Load(path, known)
 		if err != nil {
