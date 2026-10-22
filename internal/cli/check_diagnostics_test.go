@@ -3,6 +3,7 @@ package cli_test
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -14,16 +15,27 @@ import (
 // onlyTheWorkflow is the one file the fake lanes of these tests cover.
 func onlyTheWorkflow(path string) bool { return path == workflowPath }
 
-func TestTheNoteOfUnanalysedFilesCannotBeForgedByAFileName(t *testing.T) {
-	evil := ".github/actions/evil\nactions-qa: no lane in this build analyses FORGED\x1b]0;pwned\x07"
-	repository(t, map[string]string{evil + "/action.yml": "runs: {}\n"})
+func TestTheNoteOfUnanalysedFilesQuotesANameThatCouldPassForAnotherLine(t *testing.T) {
+	odd := ".github/actions/99 findings\"x\\y/action.yml"
+	repository(t, map[string]string{odd: "runs: {}\n"})
 	var run laneRun
 
 	got := runWith(t, checkEnv(t, run.lane("fake", onlyTheWorkflow, findsNothing)), "check")
 
-	if got.code != cli.ExitOK || strings.Contains(got.stderr, "\nactions-qa:") || !strings.HasPrefix(got.stderr, "actions-qa: ") || strings.ContainsAny(got.stderr, "\x1b\x07") ||
-		strings.Count(got.stderr, "\n") != 1 {
+	if got.code != cli.ExitOK || !strings.Contains(got.stderr, strconv.Quote(odd)) || strings.Count(got.stderr, "\n") != 1 {
 		t.Errorf("exit %d, stderr %q; one line, naming the file quoted", got.code, got.stderr)
+	}
+}
+
+func TestAFileOfTheDefaultSetWhoseNameCannotBePrintedIsNoVerdictNotAQuietPass(t *testing.T) {
+	hostile := ".github/actions/evil\nactions-qa: no lane in this build analyses FORGED\x1b]0;pwned\x07/action.yml"
+	repository(t, map[string]string{hostile: "runs: {}\n"})
+	var run laneRun
+
+	got := runWith(t, checkEnv(t, run.lane("fake", yml, findsNothing)), "check")
+
+	if got.code != cli.ExitNoVerdict || got.stdout != "" || !onlyOurLines(t, got.stderr) || len(run.ran) != 0 {
+		t.Errorf("exit %d, stdout %q, stderr %q, ran %v", got.code, got.stdout, got.stderr, run.ran)
 	}
 }
 

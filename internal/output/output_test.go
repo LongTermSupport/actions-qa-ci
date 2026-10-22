@@ -153,8 +153,6 @@ func TestAPathThatCouldBeMistakenForAnotherLineIsPrintedQuoted(t *testing.T) {
 		"a name with a quote":      `a"b.yml`,
 		"a name with a backslash":  `a\b.yml`,
 		"invalid UTF-8":            "a\x9b.yml",
-		"a bidi override":          "a\u202e.yml",
-		"a zero-width character":   "a\u200b.yml",
 		"a quoted trailer lookout": `"99 findings"`,
 	}
 

@@ -74,11 +74,12 @@ func (f Finding) Validate() error {
 	return nil
 }
 
-// IsControlOrSeparator reports a character that can start another line or move a cursor
-// when printed: a control character (including NUL, tab, escape and the C1 set) or a Unicode
-// line or paragraph separator.
+// IsControlOrSeparator reports a character that can start another line, move a cursor or
+// hide or reorder the text around it when printed: a control character (including NUL, tab,
+// escape, delete and the C1 set), a Unicode line or paragraph separator, or a format character
+// (a direction override or isolate, a zero-width character, a byte order mark).
 func IsControlOrSeparator(r rune) bool {
-	return unicode.IsControl(r) || r == ' ' || r == ' '
+	return unicode.IsControl(r) || unicode.In(r, unicode.Zl, unicode.Zp, unicode.Cf)
 }
 
 // Escape shows, as a Go escape (\n, \x1b, \u202e), every character in text that a reader could

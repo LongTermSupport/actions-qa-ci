@@ -171,6 +171,12 @@ func chooseLanes(all []check.Lane, wanted []string) ([]check.Lane, string) {
 // validateRecord loads the project record if there is one, so that a mistake in it stops the
 // run before anything is analysed.
 func validateRecord(env Env, stderr io.Writer) int {
+	// The record has one name. A copy under another extension would be read by nothing, and a
+	// project with one would look like a project with no record.
+	if _, err := os.Lstat(".github/actions-qa-ci.yaml"); err == nil {
+		return refusal(stderr, fmt.Sprintf("found .github/actions-qa-ci.yaml; the project record is %s", record.Path))
+	}
+
 	info, err := os.Lstat(record.Path)
 	switch {
 	case errors.Is(err, os.ErrNotExist):

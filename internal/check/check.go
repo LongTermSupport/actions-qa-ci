@@ -142,6 +142,10 @@ func discover(fsys fs.FS) ([]string, error) {
 		if !entry.Type().IsRegular() {
 			return fmt.Errorf("%w %s: it is not a regular file", ErrNotAnalysable, file)
 		}
+		if strings.ContainsFunc(file, finding.IsControlOrSeparator) {
+			// A finding in it could not be printed, so the run would fail only if it had one.
+			return fmt.Errorf("%w %s: its name has a character that cannot be printed on a line", ErrNotAnalysable, file)
+		}
 		found = append(found, file)
 
 		return nil
