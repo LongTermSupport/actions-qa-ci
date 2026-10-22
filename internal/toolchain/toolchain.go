@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"path"
 	"path/filepath"
@@ -18,6 +19,8 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+	"syscall"
+	"unicode"
 )
 
 // ErrMismatch marks a binary whose content is not the one the manifest pins.
@@ -65,10 +68,15 @@ func Load() (Manifest, error) {
 	return Parse(embedded)
 }
 
-// Parse reads a manifest and refuses anything that is not exactly well-formed: an unknown field,
-// trailing data, a pin that is not a lower-case sha256, a download that is not https or a
-// member path that could leave the extraction directory.
+// Parse reads a manifest and refuses anything that is not exactly well-formed: a key written
+// twice or in the wrong case, an unknown field, data after the end, a tool or platform name
+// that is not one the toolchain uses, a pin that is not a lower-case sha256, a download that
+// is not https, or a member path that could leave the extraction directory.
 func Parse(data []byte) (Manifest, error) {
+	if err := checkKeys(data); err != nil {
+		return Manifest{}, err
+	}
+
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
 
@@ -76,7 +84,7 @@ func Parse(data []byte) (Manifest, error) {
 	if err := decoder.Decode(&manifest); err != nil {
 		return Manifest{}, fmt.Errorf("the toolchain manifest is not valid: %w", err)
 	}
-	if decoder.More() {
+	if _, err := decoder.Token(); !errors.Is(err, io.EOF) {
 		return Manifest{}, errors.New("the toolchain manifest has data after its end")
 	}
 	if len(manifest.Tools) == 0 {
@@ -92,8 +100,94 @@ func Parse(data []byte) (Manifest, error) {
 	return manifest, nil
 }
 
+// allowedKeys are the field names each object depth admits; a depth with no entry holds names
+// the data chooses (tools, platforms), which validate checks instead.
+var allowedKeys = map[int][]string{
+	0: {"tools"},
+	2: {"version", "assets"},
+	4: {"url", "archiveSha256", "member", "binarySha256"},
+}
+
+// checkKeys walks the manifest and refuses a key that appears twice in one object or that is
+// not exactly a field name: encoding/json would take the last duplicate and match names
+// without regard to case, so a reviewer would read one pin and the loader would use another.
+func checkKeys(data []byte) error {
+	type frame struct {
+		isObject  bool
+		expectKey bool
+		seen      map[string]bool
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	var stack []frame
+
+	valueDone := func() {
+		if len(stack) > 0 && stack[len(stack)-1].isObject {
+			stack[len(stack)-1].expectKey = true
+		}
+	}
+
+	for {
+		token, err := decoder.Token()
+		if errors.Is(err, io.EOF) {
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("the toolchain manifest is not valid: %w", err)
+		}
+
+		if delim, isDelim := token.(json.Delim); isDelim {
+			switch delim {
+			case '{':
+				stack = append(stack, frame{isObject: true, expectKey: true, seen: map[string]bool{}})
+			case '[':
+				stack = append(stack, frame{})
+			default:
+				stack = stack[:len(stack)-1]
+				if len(stack) == 0 {
+					// Whatever follows the manifest is Parse's to refuse.
+					return nil
+				}
+				valueDone()
+			}
+
+			continue
+		}
+
+		top := len(stack) - 1
+		if top < 0 || !stack[top].isObject || !stack[top].expectKey {
+			valueDone()
+
+			continue
+		}
+
+		key, isString := token.(string)
+		if !isString {
+			return fmt.Errorf("the toolchain manifest is not valid: unexpected key %v", token)
+		}
+		if stack[top].seen[key] {
+			return fmt.Errorf("the toolchain manifest has the key %q twice in one object", key)
+		}
+		stack[top].seen[key] = true
+		if allowed, restricted := allowedKeys[top]; restricted && !slices.Contains(allowed, key) {
+			return fmt.Errorf("the toolchain manifest has the key %q where only %s are allowed", key, strings.Join(allowed, ", "))
+		}
+		stack[top].expectKey = false
+	}
+}
+
+var (
+	toolName = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
+
+	// platforms are the targets the shipped bundle is built for.
+	platforms = []string{"linux_amd64", "linux_arm64"}
+)
+
 func (t Tool) validate(name string) error {
-	if t.Version == "" {
+	if !toolName.MatchString(name) {
+		return fmt.Errorf("tool name %q must be lower-case letters, digits and hyphens, starting with a letter", name)
+	}
+	if strings.TrimSpace(t.Version) == "" {
 		return fmt.Errorf("tool %s has no version", name)
 	}
 	if len(t.Assets) == 0 {
@@ -102,23 +196,40 @@ func (t Tool) validate(name string) error {
 
 	for platform, asset := range t.Assets {
 		where := name + " " + platform
-		switch {
-		case !strings.HasPrefix(asset.URL, "https://"):
-			return fmt.Errorf("%s: the download must be an https URL, got %q", where, asset.URL)
-		case !sha256Hex.MatchString(asset.ArchiveSHA256):
-			return fmt.Errorf("%s: archiveSha256 must be 64 lower-case hex digits", where)
-		case !sha256Hex.MatchString(asset.BinarySHA256):
-			return fmt.Errorf("%s: binarySha256 must be 64 lower-case hex digits", where)
-		case !safeMember(asset.Member):
-			return fmt.Errorf("%s: member %q must be a relative path inside the archive", where, asset.Member)
+		if !slices.Contains(platforms, platform) {
+			return fmt.Errorf("%s: %q is not a platform the toolchain ships for (%s)", name, platform, strings.Join(platforms, ", "))
+		}
+		if err := asset.validate(where); err != nil {
+			return err
 		}
 	}
 
 	return nil
 }
 
+func (a Asset) validate(where string) error {
+	address, err := url.Parse(a.URL)
+	switch {
+	case err != nil || address.Scheme != "https":
+		return fmt.Errorf("%s: the download must be an https URL, got %q", where, a.URL)
+	case address.Host == "":
+		return fmt.Errorf("%s: the download URL %q has no host", where, a.URL)
+	case address.User != nil:
+		return fmt.Errorf("%s: the download URL must not carry credentials", where)
+	case !sha256Hex.MatchString(a.ArchiveSHA256):
+		return fmt.Errorf("%s: archiveSha256 must be 64 lower-case hex digits", where)
+	case !sha256Hex.MatchString(a.BinarySHA256):
+		return fmt.Errorf("%s: binarySha256 must be 64 lower-case hex digits", where)
+	case !safeMember(a.Member):
+		return fmt.Errorf("%s: member %q must be a relative path inside the archive", where, a.Member)
+	}
+
+	return nil
+}
+
 func safeMember(member string) bool {
-	if member == "" || path.IsAbs(member) || strings.ContainsRune(member, '\\') {
+	if member == "" || member == "." || path.IsAbs(member) || strings.ContainsRune(member, '\\') ||
+		strings.ContainsFunc(member, unicode.IsControl) {
 		return false
 	}
 
@@ -140,28 +251,46 @@ func (m Manifest) Lookup(tool, platform string) (Tool, Asset, error) {
 	return pinned, asset, nil
 }
 
-// Verify checks that the file at binary is a regular file whose content is the pinned one.
+// Verify checks that the file at binary is a regular file, not a symbolic link, whose content
+// is the pinned one. The file is opened before it is inspected, so what is hashed is what was
+// inspected. It does not make the path safe to run later: the directory holding it must be one
+// no other user can write to.
 func Verify(binary string, asset Asset) error {
-	info, err := os.Stat(binary)
+	link, err := os.Lstat(binary)
 	if errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("%s: %w", binary, ErrNotFound)
 	}
 	if err != nil {
 		return fmt.Errorf("cannot inspect %s: %w", binary, err)
 	}
-	if !info.Mode().IsRegular() {
+	if link.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("%s is a symbolic link; the pinned binary must be the file itself", binary)
+	}
+	if !link.Mode().IsRegular() {
 		return fmt.Errorf("%s is not a regular file", binary)
 	}
 
-	file, err := os.Open(binary)
+	// O_NONBLOCK keeps an entry swapped for a FIFO after the check above from blocking the open.
+	file, err := os.OpenFile(binary, os.O_RDONLY|syscall.O_NONBLOCK, 0)
 	if err != nil {
 		return fmt.Errorf("cannot read %s: %w", binary, err)
 	}
 	defer closeQuietly(file)
 
+	opened, err := file.Stat()
+	if err != nil {
+		return fmt.Errorf("cannot inspect %s: %w", binary, err)
+	}
+	if !opened.Mode().IsRegular() {
+		return fmt.Errorf("%s is not a regular file", binary)
+	}
+	if !os.SameFile(link, opened) {
+		return fmt.Errorf("%s changed while it was being verified", binary)
+	}
+
 	hash := sha256.New()
-	if _, err := io.Copy(hash, file); err != nil {
-		return fmt.Errorf("cannot read %s: %w", binary, err)
+	if written, err := io.Copy(hash, file); err != nil {
+		return fmt.Errorf("cannot read %s after %d bytes: %w", binary, written, err)
 	}
 	if got := hex.EncodeToString(hash.Sum(nil)); got != asset.BinarySHA256 {
 		return fmt.Errorf("%s %w: it is %s and the manifest pins %s", binary, ErrMismatch, got, asset.BinarySHA256)
@@ -170,13 +299,19 @@ func Verify(binary string, asset Asset) error {
 	return nil
 }
 
-// Resolve finds the executable for a tool in the first directory that holds a file of its name
-// and verifies it. A file that fails verification ends the search: a later directory is never
-// consulted to cover for a tampered binary, and PATH is never consulted at all.
+// Resolve finds the executable for a tool in the first directory that holds an entry of its
+// name and verifies it. Every directory must be absolute. An entry that fails verification ends
+// the search: a later directory is never consulted to cover for a tampered binary, and PATH is
+// never consulted at all.
 func Resolve(m Manifest, tool, platform string, dirs []string) (string, error) {
-	_, asset, err := m.Lookup(tool, platform)
+	pinned, asset, err := m.Lookup(tool, platform)
 	if err != nil {
 		return "", err
+	}
+	for _, dir := range dirs {
+		if !filepath.IsAbs(dir) {
+			return "", fmt.Errorf("the directory %q to look for %s %s in is not absolute", dir, tool, pinned.Version)
+		}
 	}
 
 	for _, dir := range dirs {
@@ -193,7 +328,7 @@ func Resolve(m Manifest, tool, platform string, dirs []string) (string, error) {
 		return candidate, nil
 	}
 
-	return "", fmt.Errorf("%s %w in %s", tool, ErrNotFound, strings.Join(dirs, ", "))
+	return "", fmt.Errorf("%s %s %w in %s", tool, pinned.Version, ErrNotFound, strings.Join(dirs, ", "))
 }
 
 func closeQuietly(file *os.File) {

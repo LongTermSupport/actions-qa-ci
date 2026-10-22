@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"strings"
 	"testing"
 )
@@ -41,5 +42,22 @@ func TestFetchNeedsExactlyOneDirectory(t *testing.T) {
 		if got.code != 2 || !strings.Contains(got.stderr, "fetch <directory>") {
 			t.Errorf("%v: got %+v, want exit 2 and the usage on stderr", args, got)
 		}
+	}
+}
+
+type brokenWriter struct{}
+
+func (brokenWriter) Write([]byte) (int, error) {
+	return 0, errors.New("the writer is broken")
+}
+
+func TestAUsageMessageThatCannotBeWrittenIsAToolchainFault(t *testing.T) {
+	var stdout bytes.Buffer
+
+	if code := run(nil, &stdout, brokenWriter{}); code != 3 {
+		t.Errorf("exit code = %d, want 3", code)
+	}
+	if code := run([]string{"bump"}, &stdout, brokenWriter{}); code != 3 {
+		t.Errorf("exit code = %d, want 3", code)
 	}
 }
