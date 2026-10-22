@@ -30,6 +30,30 @@ func TestTheBelowRootNoteIsGivenFromAnyDepthAndEscapesTheRootsName(t *testing.T)
 	}
 }
 
+func TestAFindingThatCannotBeReportedIsJudgedBeforeAnExceptionTriesToReadItsFile(t *testing.T) {
+	repository(t, map[string]string{
+		workflowPath: releaseWorkflow,
+		record.Path:  excepting(entry(templateDrift, "gone.yml", "    job: release\n")),
+	})
+	var run laneRun
+	badLine := func(path string) ([]finding.Finding, error) {
+		if path == record.Path {
+			return nil, nil
+		}
+		f := finds(templateDrift, "gone.yml")
+		f.Line = 0
+
+		return []finding.Finding{f}, nil
+	}
+
+	got := runWith(t, checkEnv(t, run.lane("fake", workflowAndRecord, badLine)), "check")
+
+	if got.code != cli.ExitToolchainFault || !strings.Contains(got.stderr, "a lane reported a finding that cannot be reported") ||
+		strings.Contains(got.stderr, "cannot read") {
+		t.Errorf("exit %d, stderr %q; the finding is invalid whatever its file holds", got.code, got.stderr)
+	}
+}
+
 func TestAFindingThatCannotBeReportedIsAFaultNamedAsSuchBeforeAnyExceptionReadsAnything(t *testing.T) {
 	repository(t, map[string]string{
 		workflowPath: releaseWorkflow,
