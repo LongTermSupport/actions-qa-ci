@@ -23,7 +23,7 @@ go run ./cmd/actions-qa version --json   # the same, as the conformance declarat
 go run ./cmd/actions-qa rules            # every active rule, without running it (--json for a list)
 go run ./cmd/actions-qa rule-doc <id>    # the page for a rule identifier, offline
 go run ./cmd/actions-qa check            # every lane over the project's files (-t lane[,lane], --format, path…)
-go run ./cmd/actions-qa rule <id> <path> # one rule on one file, only its findings (--format text|agent|json)
+go run ./cmd/actions-qa rule <id> <path> # one rule on one file, only its findings (--format text|agent|json|github)
 go run ./cmd/actions-qa help
 ```
 
@@ -79,8 +79,13 @@ anywhere else it would find nothing and read as clean, so it refuses.
   move the terminal; a diagnostic that cannot be written is exit 3.
 - **`-t lane[,lane]`** runs only the named lanes (repeatable); an unknown name is refused with
   the lanes there are.
-- **`--format text|agent|json`.** With none given, `ACTIONS_QA_FORMAT`, else `text` on a
-  terminal, else `agent`.
+- **`--format text|agent|json|github`.** With none given, `ACTIONS_QA_FORMAT`, else `text` on a
+  terminal, else `agent`. `github` is for the log of a workflow step: a workflow annotation
+  (`::error file=…,line=…,col=…,title=<identifier>::message`) for each finding, at most ten of
+  each level (error, warning, notice; GitHub does not document its limit, and a lower one than
+  the real one loses nothing), then every finding as the `agent` format prints it, so the log
+  keeps what the annotations leave out. A path that starts the way a workflow command does (`::`
+  or `##[`) is printed quoted in every format, so a file name cannot become a command in the log.
 - **Exceptions.** An exception of the project record covers a finding with the same identifier
   and path, and the job and step if it names them (by id or by name, wherever in that job or step
   the finding's line falls within that job or step's own extent, so an `env:` after the steps is in

@@ -8,6 +8,7 @@ import (
 
 	actionsqaci "github.com/LongTermSupport/actions-qa-ci"
 	"github.com/LongTermSupport/actions-qa-ci/internal/cli"
+	"github.com/LongTermSupport/actions-qa-ci/internal/output"
 )
 
 func run(t *testing.T, args ...string) (int, string, string) {
@@ -108,6 +109,15 @@ func TestHelpIsNotAnError(t *testing.T) {
 		if !strings.Contains(stdout, "usage:") {
 			t.Errorf("%s: stdout should say how to use the program:\n%s", flag, stdout)
 		}
+	}
+}
+
+func TestHelpListsEveryOutputFormatForCheckAndRule(t *testing.T) {
+	code, stdout, stderr := run(t, "help")
+
+	want := "[--format " + strings.Join(output.FormatNames(), "|") + "]"
+	if code != cli.ExitOK || stderr != "" || strings.Count(stdout, want) != 2 {
+		t.Errorf("exit %d, stderr %q; help should show %q for check and for rule:\n%s", code, stderr, want, stdout)
 	}
 }
 

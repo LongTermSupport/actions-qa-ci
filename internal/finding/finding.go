@@ -108,11 +108,13 @@ func Escape(text string) string {
 
 // DisplayPath prints a path as it is when that is unambiguous, and as a double-quoted Go
 // string when it contains a space or anything that needs escaping (a quote, a backslash,
-// invalid UTF-8, a non-printable character). A trailer line always holds a space, and a
-// quoted path starts with a quote, so a file name cannot pass for a trailer.
+// invalid UTF-8, a non-printable character), or when it starts the way a workflow command
+// does. A trailer line always holds a space, and a quoted path starts with a quote, so a file
+// name cannot pass for a trailer, and the log of a workflow step, where the runner reads a line
+// that starts `::` or `##[` as a command, never holds one made of a file name.
 func DisplayPath(path string) string {
 	quoted := strconv.Quote(path)
-	if strings.Contains(path, " ") || quoted != `"`+path+`"` {
+	if strings.Contains(path, " ") || quoted != `"`+path+`"` || strings.HasPrefix(path, "::") || strings.HasPrefix(path, "##[") {
 		return quoted
 	}
 
