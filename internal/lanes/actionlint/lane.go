@@ -28,8 +28,11 @@ const Tool = "actionlint " + Version
 // (actionlint still parses the file while it locates the project, so a malformed one is an
 // error here.)
 func Lint(path string) ([]finding.Finding, error) {
-	if _, err := os.Stat(".git"); err != nil {
-		return nil, fmt.Errorf("the working directory must be the repository root, which holds .git: %w", err)
+	// actionlint takes a directory for the project root only when it holds both of these.
+	for _, marker := range []string{".git", ".github/workflows"} {
+		if _, err := os.Stat(filepath.FromSlash(marker)); err != nil {
+			return nil, fmt.Errorf("the working directory must be the repository root, which holds %s: %w", marker, err)
+		}
 	}
 
 	config, cleanup, err := emptyConfig()

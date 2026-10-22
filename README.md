@@ -38,9 +38,10 @@ The project's own actionlint configuration (`.github/actionlint.yaml`) is never 
 there would suppress findings with no recorded justification, so the lane hands actionlint an empty
 configuration. (actionlint still parses the file while locating the project, so a malformed one
 fails the lane.) Suppression belongs in the project record, which this build does not have yet, so
-a finding is fixed. The lane must be run from the repository root, which holds `.git`, and refuses
-to run anywhere else: actionlint resolves local actions and reusable workflows from the project it
-finds, and from a directory without `.git` it would find a different one. ShellCheck and pyflakes
+a finding is fixed. The lane must be run from the repository root, which holds `.git` and
+`.github/workflows`, and refuses to run anywhere else: actionlint resolves local actions and
+reusable workflows from the project it finds, and from a directory without both it would find a
+different one. ShellCheck and pyflakes
 integration inside actionlint are not enabled; ShellCheck arrives as its own backend.
 
 ### Exit codes

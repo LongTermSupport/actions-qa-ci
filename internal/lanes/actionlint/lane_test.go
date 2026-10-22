@@ -293,6 +293,25 @@ func TestLintRefusesAWorkingDirectoryThatIsNotARepositoryRoot(t *testing.T) {
 	}
 }
 
+func TestLintRefusesARepositoryRootWithNoWorkflowsDirectory(t *testing.T) {
+	// actionlint finds its project by .git together with .github/workflows; with only .git it
+	// resolves local reusable workflows against an enclosing project.
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, ".git"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "w.yml"), []byte(fixtures["glob"].green.files[workflowPath]), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(root)
+
+	_, err := actionlint.Lint("w.yml")
+
+	if err == nil || !strings.Contains(err.Error(), ".github/workflows") {
+		t.Errorf("err = %v; a root without .github/workflows must be refused, naming it", err)
+	}
+}
+
 func TestLintAcceptsARepositoryWhoseGitEntryIsAFile(t *testing.T) {
 	// A linked worktree and a submodule have a .git file, not a directory.
 	target := inProject(t, fixtures["glob"].green)
