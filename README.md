@@ -18,8 +18,16 @@ The rules arrive in later phases.
 ```bash
 go run ./cmd/actions-qa version          # the specification versions this build is audited against
 go run ./cmd/actions-qa version --json   # the same, as the conformance declaration
+go run ./cmd/actions-qa rules            # every active rule, without running it (--json for a list)
+go run ./cmd/actions-qa rule-doc <id>    # the page for a rule identifier, offline
 go run ./cmd/actions-qa help
 ```
+
+Every rule has an identifier, and every identifier has a page under `docs/rules/` that states
+the correct construction. `docs/rules/README.md` is the identifier index; it is generated from
+the registry and a test fails when it is stale (`go test . -run TestTheIdentifierIndexIsCurrent
+-update` regenerates it). A test also fails when a rule has no complete page, or a page has no
+rule. No rule ships yet: the registry is empty until the bundled backends arrive.
 
 ### Exit codes
 

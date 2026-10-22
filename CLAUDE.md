@@ -8,9 +8,9 @@ its rule backends. This file holds the binding floor; the depth is one link away
 
 - **Defence Before Fix**: found a defect? Do not fix it yet; build the detector for its class
   first. A new check is a defence: a stable identifier, a page stating the correct construction,
-  an entry in the identifier index and a place in `actions-qa rules` (the registry, the index
-  and the commands arrive in the next phase). A suppression, a baseline or a narrowing is an
-  Owner decision, never a silent edit; a gap found is closed, not accepted.
+  an entry in the identifier index (`docs/rules/README.md`, generated) and a place in
+  `actions-qa rules` (the registry in `internal/catalogue`). A suppression, a baseline or a
+  narrowing is an Owner decision, never a silent edit; a gap found is closed, not accepted.
 - **Test first**: a failing test, or a committed detector, comes before the code that satisfies
   it. A test never discards an error with the blank identifier; it reads or asserts every value
   it receives.
