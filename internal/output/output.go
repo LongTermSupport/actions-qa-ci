@@ -28,9 +28,12 @@ const (
 	Agent Format = "agent"
 	// JSON is the finding schema, every finding including the excepted ones.
 	JSON Format = "json"
+	// GitHub is for the log of a workflow step: workflow annotations, up to GitHub's limit for
+	// each level, then the full list as the agent format prints it.
+	GitHub Format = "github"
 )
 
-var formats = []Format{Text, Agent, JSON}
+var formats = []Format{Text, Agent, JSON, GitHub}
 
 // ParseFormat turns a name into a Format, or says which names exist.
 func ParseFormat(name string) (Format, error) {
@@ -73,6 +76,8 @@ func Write(w io.Writer, format Format, findings []finding.Finding) error {
 		err = renderAgent(&rendered, sorted)
 	case JSON:
 		err = renderJSON(&rendered, sorted)
+	case GitHub:
+		err = renderGitHub(&rendered, sorted)
 	default:
 		err = fmt.Errorf("cannot write format %q; the formats are %s", format, knownFormats())
 	}

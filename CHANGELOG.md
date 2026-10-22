@@ -59,6 +59,10 @@
   runs a matrix). A job's check run is its `name:` or else its id; a job that calls a reusable
   workflow produces contexts under `<name> / `. A workflow that cannot be read is a finding at
   that workflow. Comparing with the repository's real branch protection is declared as a gap.
+- The `github` output format (`--format github`, or `ACTIONS_QA_FORMAT=github`): workflow
+  annotations for the findings, ten of each level at most, then the full list as the `agent`
+  format prints it. Every format now prints a path that starts `::` or `##[` quoted, so a file
+  name cannot be read by the Actions runner as a workflow command.
 - The `rule <id> <path>` harness: runs one rule on one file and prints only that rule's
   findings, exiting 1 when it fires.
 - The `text`, `agent` and `json` output formats, and the finding model with its identifier

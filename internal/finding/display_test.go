@@ -31,6 +31,9 @@ func TestDisplayPathQuotesWhatCouldPassForAnotherLine(t *testing.T) {
 		"has space.yml":            `"has space.yml"`,
 		"new\nline.yml":            `"new\nline.yml"`,
 		"esc\x1b.yml":              `"esc\x1b.yml"`,
+		"::error::x.yml":           `"::error::x.yml"`,
+		"##[add-mask]x.yml":        `"##[add-mask]x.yml"`,
+		"a::b.yml":                 "a::b.yml",
 	}
 
 	for in, want := range cases {
