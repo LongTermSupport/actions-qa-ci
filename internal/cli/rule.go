@@ -20,6 +20,10 @@ func ruleHarness(env Env, args []string, stdout, stderr io.Writer) int {
 		return usageError(stderr, problem)
 	}
 
+	if _, listed := env.Registry.FamilyNamed(positional[0]); listed {
+		return refusal(stderr, fmt.Sprintf("%s is a family of rules, not a rule; name one code of it", positional[0]))
+	}
+
 	rule, problem := lookupRule(env, positional[0])
 	if problem != "" {
 		return refusal(stderr, problem)

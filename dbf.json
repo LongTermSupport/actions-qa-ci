@@ -7,6 +7,18 @@
       "description": "pyflakes needs Python, which this toolchain does not require of the host, so run: scripts with shell: python are not linted for Python errors."
     },
     {
+      "id": "shellcheck-inline-directive-unreported",
+      "description": "A '# shellcheck disable=' line inside a run: script suppresses a finding without a record, because the inline-suppression check of the project record (phase 5) does not exist yet."
+    },
+    {
+      "id": "shellcheck-codes-not-enumerated",
+      "description": "The ShellCheck family accepts any code from SC1000 to SC3999, including one ShellCheck never emits, because the set of codes is generated from the pinned source by the currency phase (phase 8)."
+    },
+    {
+      "id": "shellcheck-expression-runner-label",
+      "description": "A step whose runs-on: is an expression that resolves to a Windows runner is checked as bash, so a PowerShell script there can draw false ShellCheck findings; give the step an explicit shell: pwsh."
+    },
+    {
       "id": "conformance-reading-unconfirmed",
       "description": "That actions-qa-ci is the Detector and zizmor and actionlint are bundled rule backends is a reading of toolchain 4.1 the specification does not spell out; it stands until the Owner confirms it."
     }

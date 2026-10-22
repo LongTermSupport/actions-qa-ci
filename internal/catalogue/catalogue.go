@@ -7,13 +7,19 @@ import (
 	"github.com/LongTermSupport/actions-qa-ci/internal/registry"
 )
 
-// Rules returns the rules this build ships, in no particular order. The bundled backends and
-// the first-party checks add theirs here as they arrive.
+// Rules returns the individual rules this build ships, in no particular order. The bundled
+// backends and the first-party checks add theirs here as they arrive.
 func Rules() []registry.Rule {
 	return actionlint.Rules()
 }
 
+// Families returns the families of rules this build ships: sets too large to register one rule
+// at a time, which share a page.
+func Families() []registry.Family {
+	return actionlint.Families()
+}
+
 // Registry builds the registry of the rules this build ships.
 func Registry() (*registry.Registry, error) {
-	return registry.New(Rules()...)
+	return registry.NewWithFamilies(Families(), Rules()...)
 }

@@ -355,6 +355,39 @@ func TestFetchWritesNothingWhenAHashDoesNotMatch(t *testing.T) {
 	}
 }
 
+func TestVerifyRefusesABinaryThatIsNotExecutable(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "shellcheck")
+	if err := os.WriteFile(path, []byte(pinnedBinary), 0o644); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+
+	err := toolchain.Verify(path, toolchain.Asset{BinarySHA256: sum([]byte(pinnedBinary))})
+	if err == nil || !strings.Contains(err.Error(), "not executable") {
+		t.Errorf("a pinned binary that cannot run must be refused by name, got %v", err)
+	}
+}
+
+func TestVerifyAgreesWithTheKernelAboutWhetherThisUserCanExecuteTheBinary(t *testing.T) {
+	// Mode 001 is executable by others only: the owner, which is this user, cannot run it, unless
+	// this user is root, for whom any execute bit is enough. Verify must answer as the kernel does.
+	path := filepath.Join(t.TempDir(), "shellcheck")
+	if err := os.WriteFile(path, []byte(pinnedBinary), 0o644); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+	if err := os.Chmod(path, 0o001); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+
+	err := toolchain.Verify(path, toolchain.Asset{BinarySHA256: sum([]byte(pinnedBinary))})
+	canRun := syscall.Access(path, 1) == nil
+	switch {
+	case canRun && err != nil:
+		t.Errorf("the kernel lets this user execute the file but Verify refused it: %v", err)
+	case !canRun && (err == nil || !strings.Contains(err.Error(), "not executable")):
+		t.Errorf("the kernel refuses to let this user execute the file but Verify accepted it or gave the wrong reason: %v", err)
+	}
+}
+
 func TestVerifyDoesNotBlockOnAFIFO(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "shellcheck")
 	if err := syscall.Mkfifo(path, 0o600); err != nil {

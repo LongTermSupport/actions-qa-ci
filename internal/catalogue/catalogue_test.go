@@ -26,3 +26,18 @@ func TestEveryShippedRuleHasACompletePageAndEveryPageHasARule(t *testing.T) {
 		t.Error(problem)
 	}
 }
+
+func TestTheShippedRegistryResolvesEveryShellcheckCodeThroughTheFamily(t *testing.T) {
+	reg, err := catalogue.Registry()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rule, known := reg.Lookup("actionsqaci.shellcheck.SC2115")
+	if !known || rule.Check == nil || rule.Summary == "" {
+		t.Errorf("SC2115 does not resolve to a runnable rule: %+v, %v", rule, known)
+	}
+	if len(reg.Families()) != 1 {
+		t.Errorf("families = %+v, want the ShellCheck family alone", reg.Families())
+	}
+}

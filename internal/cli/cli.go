@@ -5,10 +5,12 @@
 package cli
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"io"
 	"io/fs"
+	"slices"
 	"strings"
 
 	actionsqaci "github.com/LongTermSupport/actions-qa-ci"
@@ -173,20 +175,15 @@ func rules(env Env, args []string, stdout, stderr io.Writer) int {
 		return usageError(stderr, problem)
 	}
 
-	active := env.Registry.All()
+	active := activeEntries(env.Registry)
 
 	if asJSON {
-		entries := make([]ruleEntry, 0, len(active))
-		for _, rule := range active {
-			entries = append(entries, ruleEntry{rule.ID, rule.Summary, rule.Upstream, registry.DocPath(rule.ID)})
-		}
-
-		return printJSON(stdout, stderr, entries)
+		return printJSON(stdout, stderr, active)
 	}
 
 	var out strings.Builder
-	for _, rule := range active {
-		out.WriteString(rule.ID + "  " + rule.Summary + "\n")
+	for _, entry := range active {
+		out.WriteString(entry.ID + "  " + entry.Summary + "\n")
 	}
 	if len(active) == 0 {
 		out.WriteString("no rules are active\n")
@@ -199,6 +196,21 @@ func rules(env Env, args []string, stdout, stderr io.Writer) int {
 	return ExitOK
 }
 
+// activeEntries lists every individual rule and every family, in identifier order. A family
+// is listed once, under its placeholder name, not once per member.
+func activeEntries(reg *registry.Registry) []ruleEntry {
+	entries := []ruleEntry{}
+	for _, rule := range reg.All() {
+		entries = append(entries, ruleEntry{rule.ID, rule.Summary, rule.Upstream, registry.DocPath(rule.ID)})
+	}
+	for _, family := range reg.Families() {
+		entries = append(entries, ruleEntry{family.Name, family.Summary, family.Upstream, pages.Directory + "/" + family.Page + ".md"})
+	}
+	slices.SortFunc(entries, func(a, b ruleEntry) int { return cmp.Compare(a.ID, b.ID) })
+
+	return entries
+}
+
 // suggestionLimit is how many nearest identifiers an unknown one is answered with.
 const suggestionLimit = 3
 
@@ -206,7 +218,7 @@ const suggestionLimit = 3
 // returned string says why, naming the nearest identifiers where there are any.
 func lookupRule(env Env, id string) (registry.Rule, string) {
 	if _, err := finding.ClassifyIdentifier(id); err != nil {
-		return registry.Rule{}, err.Error()
+		return registry.Rule{}, withSuggestions(env, err.Error(), id)
 	}
 
 	rule, known := env.Registry.Lookup(id)
@@ -214,12 +226,16 @@ func lookupRule(env Env, id string) (registry.Rule, string) {
 		return rule, ""
 	}
 
-	message := fmt.Sprintf("unknown rule %q", id)
+	return registry.Rule{}, withSuggestions(env, fmt.Sprintf("unknown rule %q", id), id)
+}
+
+// withSuggestions adds the nearest registered identifiers to a message, where there are any.
+func withSuggestions(env Env, message, id string) string {
 	if nearest := env.Registry.Nearest(id, suggestionLimit); len(nearest) > 0 {
 		message += "; did you mean " + strings.Join(nearest, ", ") + "?"
 	}
 
-	return registry.Rule{}, message
+	return message
 }
 
 func ruleDoc(env Env, args []string, stdout, stderr io.Writer) int {
@@ -228,13 +244,23 @@ func ruleDoc(env Env, args []string, stdout, stderr io.Writer) int {
 	}
 	id := args[0]
 
-	if _, problem := lookupRule(env, id); problem != "" {
-		return refusal(stderr, problem)
-	}
+	var page string
+	if family, listed := env.Registry.FamilyNamed(id); listed {
+		content, err := fs.ReadFile(env.Pages, pages.Directory+"/"+family.Page+".md")
+		if err != nil {
+			return fault(stderr, fmt.Errorf("family %s is registered but its page cannot be read: %w", id, err))
+		}
+		page = string(content)
+	} else {
+		if _, problem := lookupRule(env, id); problem != "" {
+			return refusal(stderr, problem)
+		}
 
-	page, err := pages.Page(env.Pages, id)
-	if err != nil {
-		return fault(stderr, fmt.Errorf("rule %s is registered but its page cannot be read: %w", id, err))
+		var err error
+		page, err = pages.Page(env.Pages, id)
+		if err != nil {
+			return fault(stderr, fmt.Errorf("rule %s is registered but its page cannot be read: %w", id, err))
+		}
 	}
 
 	if _, err := io.WriteString(stdout, page); err != nil {

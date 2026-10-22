@@ -186,7 +186,7 @@ func TestFindingsCarryTheLaneIdentity(t *testing.T) {
 }
 
 func TestConvertRefusesAKindItDoesNotKnow(t *testing.T) {
-	for _, kind := range []string{"brand-new", "", "shellcheck", "pyflakes"} {
+	for _, kind := range []string{"brand-new", "", "pyflakes"} {
 		_, err := actionlint.Convert(workflowPath, []*upstream.Error{{Message: "m", Line: 1, Column: 1, Kind: kind}})
 
 		if err == nil || !strings.Contains(err.Error(), "kind") {
