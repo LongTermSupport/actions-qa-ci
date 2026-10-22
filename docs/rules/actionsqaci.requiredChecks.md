@@ -29,10 +29,14 @@ A requirement is a finding, reported at its entry in the record, when:
   plain name is never one.
 
 A job that calls a reusable workflow (`uses:`) produces contexts named `<its name> / <the called
-job>`; a context under that prefix is accepted, as the called workflow is not read here.
+job>`; a context under that prefix is accepted, as the called workflow is not read here. A
+context a matrix job would carry, such as `Tests (8.5)`, is reported with the matrix reason.
 
-A workflow that cannot be read as YAML, or is a link, a pipe or too large, is a finding at the
-workflow itself, since the checks it produces are then unknown. Only files directly in
+A context that an app or a commit status reports (code scanning, a coverage service) is not
+produced by any workflow, so it is a finding; accept it with an exception.
+
+A workflow that cannot be read as YAML, has no mapping of jobs, or is a link, a pipe or too
+large, is a finding at the workflow itself, since the checks it produces are then unknown. Only files directly in
 `.github/workflows` ending `.yml` or `.yaml` are workflows, as GitHub reads them.
 
 Comparing the requirement with the branch protection a repository actually has needs the network

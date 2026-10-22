@@ -227,6 +227,93 @@ func TestOnlyTheWorkflowsGitHubReadsAreConsidered(t *testing.T) {
 	}
 }
 
+func TestAMatrixJobsSuffixedContextIsReportedWithTheMatrixReason(t *testing.T) {
+	workflow := "on: pull_request\njobs:\n  test:\n    runs-on: ubuntu-latest\n    strategy:\n      matrix:\n        os: [ubuntu]\n    steps:\n      - run: echo\n"
+
+	got, err := checksIn(t, map[string]string{recordPath: requiredRecord("'test (ubuntu)'"), ".github/workflows/ci.yml": workflow})
+
+	if err != nil || len(got) != 1 || !strings.Contains(got[0].Message, "matrix") {
+		t.Errorf("findings %+v, error %v; want one that says the matrix is why a name with a suffix is not stable", got, err)
+	}
+}
+
+func TestAReusableCallerWithAnExpressionNameIsReportedWithTheExpressionReason(t *testing.T) {
+	workflow := "on: pull_request\njobs:\n  call:\n    name: ${{ github.ref }}\n    uses: ./.github/workflows/inner.yml\n"
+
+	got, err := checksIn(t, map[string]string{recordPath: requiredRecord("'${{ github.ref }} / inner'"), ".github/workflows/ci.yml": workflow})
+
+	if err != nil || len(got) != 1 || !strings.Contains(got[0].Message, "expression") {
+		t.Errorf("findings %+v, error %v; want one that says the name has an expression", got, err)
+	}
+}
+
+func TestAliasesAreFollowedWhereverAJobValueIsRead(t *testing.T) {
+	cases := map[string]struct{ workflow, context, mention string }{
+		"a name": {
+			"on: pull_request\nenv:\n  N: &n Build\njobs:\n  b:\n    name: *n\n    runs-on: x\n", "Build", "",
+		},
+		"a matrix through strategy": {
+			"on: pull_request\nx: &s\n  matrix:\n    os: [a, b]\njobs:\n  m:\n    strategy: *s\n    runs-on: x\n", "m", "matrix",
+		},
+		"the jobs": {
+			"on: pull_request\nx: &j\n  b:\n    runs-on: x\njobs: *j\n", "b", "",
+		},
+	}
+
+	for name, c := range cases {
+		got, err := checksIn(t, map[string]string{recordPath: requiredRecord(c.context), ".github/workflows/ci.yml": c.workflow})
+
+		switch {
+		case err != nil:
+			t.Errorf("%s: %v", name, err)
+		case c.mention == "" && len(got) != 0:
+			t.Errorf("%s: findings %+v; want none", name, got)
+		case c.mention != "" && (len(got) != 1 || !strings.Contains(got[0].Message, c.mention)):
+			t.Errorf("%s: findings %+v; want one mentioning %q", name, got, c.mention)
+		}
+	}
+}
+
+func TestANullJobNameFallsBackToTheJobID(t *testing.T) {
+	for _, written := range []string{"~", "null", ""} {
+		workflow := "on: pull_request\njobs:\n  build:\n    name: " + written + "\n    runs-on: x\n"
+
+		got, err := checksIn(t, map[string]string{recordPath: requiredRecord("build"), ".github/workflows/ci.yml": workflow})
+
+		if err != nil || len(got) != 0 {
+			t.Errorf("name %q: findings %+v, error %v; want none: the check run is named by the id", written, got, err)
+		}
+	}
+}
+
+func TestAWorkflowThatIsNotAWorkflowIsAFindingNamingIt(t *testing.T) {
+	cases := map[string]string{
+		"empty":            "",
+		"a list":           "- a\n",
+		"a scalar":         "just text\n",
+		"no jobs":          "on: pull_request\n",
+		"null jobs":        "on: pull_request\njobs:\n",
+		"jobs as a list":   "on: pull_request\njobs:\n  - a\n",
+		"jobs as a scalar": "on: pull_request\njobs: x\n",
+	}
+
+	for name, workflow := range cases {
+		got, err := checksIn(t, map[string]string{
+			recordPath:                  requiredRecord("QA"),
+			".github/workflows/ci.yml":  pullRequestWorkflow,
+			".github/workflows/odd.yml": workflow,
+		})
+
+		var named bool
+		for _, f := range got {
+			named = named || (f.Path == ".github/workflows/odd.yml" && strings.Contains(f.Message, "jobs"))
+		}
+		if err != nil || !named {
+			t.Errorf("%s: findings %+v, error %v; want one at the workflow saying it has no jobs", name, got, err)
+		}
+	}
+}
+
 func TestRequiredChecksIsARegisteredRuleWithASummary(t *testing.T) {
 	for _, rule := range firstparty.Rules(everythingIsKnown) {
 		if rule.ID == firstparty.RequiredChecks {

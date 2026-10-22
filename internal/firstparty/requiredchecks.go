@@ -54,6 +54,15 @@ func (j job) produces(context string) bool {
 	return context == j.label()
 }
 
+// near says whether a context is the job's label as it stands, or with the suffix a matrix puts
+// in parentheses, or under it as a reusable workflow's check runs are: the contexts a reader
+// would take for this job's.
+func (j job) near(context string) bool {
+	label := j.label()
+
+	return context == label || strings.HasPrefix(context, label+" (") || strings.HasPrefix(context, label+" / ")
+}
+
 // CheckRequiredChecks is the check on the project record at a path: a finding at the record's
 // entry for each required status check that no job of a pull request workflow produces, with
 // the reason when a job nearly does. It reads the workflows directly in .github/workflows, as
@@ -115,9 +124,9 @@ func unproducedBecause(context string, jobs []job) string {
 			return ""
 		case !j.pullRequest && !j.expression && !j.matrix && j.produces(context):
 			notPullRequest = append(notPullRequest, fmt.Sprintf("job %s in %s", j.id, j.workflow))
-		case j.pullRequest && j.expression && (j.id == context || j.name == context):
+		case j.pullRequest && j.expression && (j.id == context || j.near(context)):
 			expression = append(expression, fmt.Sprintf("job %s in %s", j.id, j.workflow))
-		case j.pullRequest && j.matrix && j.label() == context:
+		case j.pullRequest && j.matrix && j.near(context):
 			matrix = append(matrix, fmt.Sprintf("job %s in %s", j.id, j.workflow))
 		}
 	}
@@ -163,9 +172,9 @@ func workflowJobs(root string) ([]job, map[string]string, error) {
 			continue
 		}
 
-		read, err := jobsOf(name, data)
-		if err != nil {
-			unread[name] = "is not valid YAML or not a workflow (" + err.Error() + ")"
+		read, why := jobsOf(name, data)
+		if why != "" {
+			unread[name] = why
 
 			continue
 		}
@@ -175,33 +184,35 @@ func workflowJobs(root string) ([]job, map[string]string, error) {
 	return jobs, unread, nil
 }
 
-// jobsOf reads the jobs of one workflow.
-func jobsOf(workflow string, data []byte) ([]job, error) {
+// jobsOf reads the jobs of one workflow. The second result says why it cannot: the file is not
+// YAML, or is not a workflow with a mapping of jobs.
+func jobsOf(workflow string, data []byte) ([]job, string) {
 	var document yaml.Node
 	if err := yaml.Unmarshal(data, &document); err != nil {
-		return nil, errors.New(strings.SplitN(err.Error(), "\n", 2)[0])
+		return nil, "is not valid YAML (" + strings.SplitN(err.Error(), "\n", 2)[0] + ")"
 	}
 	if len(document.Content) == 0 || document.Content[0].Kind != yaml.MappingNode {
-		return nil, nil
+		return nil, "is not a workflow: it is not a mapping with a jobs mapping"
 	}
 
 	top := document.Content[0]
 	pullRequest := triggersOnPullRequest(valueOf(top, "on"))
 
-	var jobs []job
 	jobsNode := valueOf(top, "jobs")
 	if jobsNode == nil || jobsNode.Kind != yaml.MappingNode {
-		return nil, nil
+		return nil, "is not a workflow: it has no jobs mapping"
 	}
+
+	var jobs []job
 	for i := 0; i+1 < len(jobsNode.Content); i += 2 {
 		body := resolve(jobsNode.Content[i+1])
 		j := job{workflow: workflow, id: jobsNode.Content[i].Value, pullRequest: pullRequest}
 		if body.Kind == yaml.MappingNode {
-			if name := valueOf(body, "name"); name != nil && name.Kind == yaml.ScalarNode {
+			if name := valueOf(body, "name"); name != nil && name.Kind == yaml.ScalarNode && name.ShortTag() != "!!null" {
 				j.name = name.Value
 				j.expression = strings.Contains(name.Value, "${{")
 			}
-			if strategy := valueOf(body, "strategy"); strategy != nil && strategy.Kind == yaml.MappingNode && valueOf(strategy, "matrix") != nil {
+			if strategy := valueOf(body, "strategy"); strategy != nil && valueOf(strategy, "matrix") != nil {
 				j.matrix = true
 			}
 			j.reusable = valueOf(body, "uses") != nil
@@ -209,7 +220,7 @@ func jobsOf(workflow string, data []byte) ([]job, error) {
 		jobs = append(jobs, j)
 	}
 
-	return jobs, nil
+	return jobs, ""
 }
 
 // triggersOnPullRequest reads the value of a workflow's `on` key.
@@ -239,14 +250,16 @@ func triggersOnPullRequest(on *yaml.Node) bool {
 	return false
 }
 
-// valueOf is the value of a key of a mapping, or nil.
+// valueOf is the value of a key of a mapping, or nil. An alias, as the mapping or as the value,
+// is followed to what it stands for.
 func valueOf(mapping *yaml.Node, key string) *yaml.Node {
+	mapping = resolve(mapping)
 	if mapping == nil || mapping.Kind != yaml.MappingNode {
 		return nil
 	}
 	for i := 0; i+1 < len(mapping.Content); i += 2 {
 		if mapping.Content[i].Value == key {
-			return mapping.Content[i+1]
+			return resolve(mapping.Content[i+1])
 		}
 	}
 
