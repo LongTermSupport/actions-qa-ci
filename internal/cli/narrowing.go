@@ -8,6 +8,7 @@ import (
 
 	"github.com/LongTermSupport/actions-qa-ci/internal/exceptions"
 	"github.com/LongTermSupport/actions-qa-ci/internal/finding"
+	"github.com/LongTermSupport/actions-qa-ci/internal/listing"
 	"github.com/LongTermSupport/actions-qa-ci/internal/record"
 )
 
@@ -15,7 +16,7 @@ import (
 // everywhere. A narrowing of the method's standard is the Owner's, so wherever the defences are
 // listed it is shown beside the defence it narrows. A record that is not valid is refused here
 // as it is by `check`: listing as if it were not there would hide the narrowing.
-func narrowByRecord(env Env, entries []ruleEntry, stderr io.Writer) int {
+func narrowByRecord(env Env, entries []listing.Entry, stderr io.Writer) int {
 	rec, code := validateRecord(env, stderr)
 	if code != ExitOK {
 		return code
