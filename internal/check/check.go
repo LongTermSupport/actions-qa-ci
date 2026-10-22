@@ -33,8 +33,9 @@ type LaneError struct {
 	Err  error
 }
 
+// Error is one line: the file's name and the tool's own words are not ours to let start another.
 func (e *LaneError) Error() string {
-	return fmt.Sprintf("lane %s failed on %s: %v", e.Lane, e.Path, e.Err)
+	return finding.Escape(fmt.Sprintf("lane %s failed on %s: %v", e.Lane, e.Path, e.Err))
 }
 
 func (e *LaneError) Unwrap() error { return e.Err }
@@ -111,6 +112,23 @@ var yamlName = regexp.MustCompile(`\.ya?ml$`)
 // .github/actions and at the root, .github/dependabot.yml and the project record. A symlink
 // or any other thing that is not a plain file, where the set looks, is an error.
 func Discover(fsys fs.FS) ([]string, error) {
+	found, err := discover(fsys)
+	if err != nil {
+		return nil, escapedError{err}
+	}
+
+	return found, nil
+}
+
+// escapedError is an error whose text cannot start a line or move a terminal, whatever the
+// names of the files in it were.
+type escapedError struct{ err error }
+
+func (e escapedError) Error() string { return finding.Escape(e.err.Error()) }
+
+func (e escapedError) Unwrap() error { return e.err }
+
+func discover(fsys fs.FS) ([]string, error) {
 	var found []string
 
 	add := func(file string, entry fs.DirEntry) error {
@@ -189,10 +207,10 @@ func discoverActions(fsys fs.FS, add func(string, fs.DirEntry) error) error {
 		switch {
 		case entry.Type()&fs.ModeSymlink != 0:
 			return fmt.Errorf("%w %s: a symbolic link under .github/actions", ErrNotAnalysable, file)
-		case entry.IsDir():
-			return nil
 		case isActionName(path.Base(file)):
 			return add(file, entry)
+		case entry.IsDir():
+			return nil
 		}
 
 		return nil

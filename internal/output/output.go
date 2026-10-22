@@ -176,18 +176,7 @@ func column(f finding.Finding) int {
 	return max(f.Col, 1)
 }
 
-// displayPath prints a path as it is when that is unambiguous, and as a double-quoted Go
-// string when it contains a space or anything that needs escaping (a quote, a backslash,
-// invalid UTF-8, a non-printable character). A trailer line always holds a space, and a
-// quoted path starts with a quote, so a file name cannot pass for a trailer.
-func displayPath(path string) string {
-	quoted := strconv.Quote(path)
-	if strings.Contains(path, " ") || quoted != `"`+path+`"` {
-		return quoted
-	}
-
-	return path
-}
+func displayPath(path string) string { return finding.DisplayPath(path) }
 
 var crlf = strings.NewReplacer("\r\n", "\n")
 

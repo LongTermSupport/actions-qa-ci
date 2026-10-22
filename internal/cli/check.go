@@ -10,6 +10,7 @@ import (
 	"syscall"
 
 	"github.com/LongTermSupport/actions-qa-ci/internal/check"
+	"github.com/LongTermSupport/actions-qa-ci/internal/finding"
 	"github.com/LongTermSupport/actions-qa-ci/internal/output"
 	"github.com/LongTermSupport/actions-qa-ci/internal/record"
 )
@@ -244,6 +245,9 @@ func noteUnanalysed(lanes []check.Lane, files []string, stderr io.Writer) error 
 		return nil
 	}
 
+	for i, file := range skipped {
+		skipped[i] = finding.DisplayPath(file)
+	}
 	_, err := fmt.Fprintf(stderr, "actions-qa: no lane in this build analyses %s\n", strings.Join(skipped, ", "))
 
 	return err

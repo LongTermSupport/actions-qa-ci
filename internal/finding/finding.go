@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"unicode"
 )
@@ -77,6 +78,37 @@ func (f Finding) Validate() error {
 // line or paragraph separator.
 func IsControlOrSeparator(r rune) bool {
 	return unicode.IsControl(r) || r == ' ' || r == ' '
+}
+
+// Escape makes every control character and line or paragraph separator in text visible as a Go
+// escape (\n, \x1b,  ) and changes nothing else, so a name that came from a repository can
+// be put in a diagnostic without starting a line or reaching the terminal as a command.
+func Escape(text string) string {
+	var escaped strings.Builder
+	for _, r := range text {
+		if !IsControlOrSeparator(r) {
+			escaped.WriteRune(r)
+
+			continue
+		}
+		quoted := strconv.QuoteToASCII(string(r))
+		escaped.WriteString(quoted[1 : len(quoted)-1])
+	}
+
+	return escaped.String()
+}
+
+// DisplayPath prints a path as it is when that is unambiguous, and as a double-quoted Go
+// string when it contains a space or anything that needs escaping (a quote, a backslash,
+// invalid UTF-8, a non-printable character). A trailer line always holds a space, and a
+// quoted path starts with a quote, so a file name cannot pass for a trailer.
+func DisplayPath(path string) string {
+	quoted := strconv.Quote(path)
+	if strings.Contains(path, " ") || quoted != `"`+path+`"` {
+		return quoted
+	}
+
+	return path
 }
 
 func blank(text string) bool {
