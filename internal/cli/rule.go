@@ -113,13 +113,23 @@ func repositoryPath(typed string) (string, string, error) {
 		return "", "", fmt.Errorf("cannot find the working directory: %w", err)
 	}
 
+	realRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return "", "", fmt.Errorf("cannot resolve the working directory: %w", err)
+	}
+
 	absolute := typed
 	if !filepath.IsAbs(typed) {
 		absolute = filepath.Join(root, typed)
 	}
+	absolute = filepath.Clean(absolute)
 
-	relative, err := filepath.Rel(root, filepath.Clean(absolute))
-	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+	// A working directory reached through a symlink can be named by either spelling.
+	relative, inside := relativeTo(root, absolute)
+	if !inside {
+		relative, inside = relativeTo(realRoot, absolute)
+	}
+	if !inside {
 		return "", fmt.Sprintf("%s is outside the repository (the working directory)", typed), nil
 	}
 
@@ -131,5 +141,26 @@ func repositoryPath(typed string) (string, string, error) {
 		return "", fmt.Sprintf("%s is not a file", typed), nil
 	}
 
+	// The name stays the one typed, but what it leads to must also be inside: a link in the
+	// repository must not hand a rule a file from outside it.
+	resolved, err := filepath.EvalSymlinks(absolute)
+	if err != nil {
+		return "", fmt.Sprintf("cannot use %s: %v", typed, err), nil
+	}
+	if _, inside := relativeTo(realRoot, resolved); !inside {
+		return "", fmt.Sprintf("%s leads outside the repository (the working directory)", typed), nil
+	}
+
 	return filepath.ToSlash(relative), "", nil
+}
+
+// relativeTo is target relative to base, and whether target is base or inside it. A name that
+// merely begins with two dots, such as ..hidden, is inside.
+func relativeTo(base, target string) (string, bool) {
+	relative, err := filepath.Rel(base, target)
+	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+		return "", false
+	}
+
+	return relative, true
 }

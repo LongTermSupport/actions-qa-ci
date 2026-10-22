@@ -160,7 +160,8 @@ type section struct {
 func parseSections(content string) ([]section, bool) {
 	var sections []section
 	var body strings.Builder
-	fence := ""
+	var fenceChar byte // 0 outside a fence
+	fenceLength := 0
 
 	flush := func() {
 		if len(sections) > 0 {
@@ -172,16 +173,19 @@ func parseSections(content string) ([]section, bool) {
 	for _, line := range strings.Split(content, "\n") {
 		line = strings.TrimSuffix(line, "\r")
 		trimmed := strings.TrimLeft(line, " ")
-		switch {
-		case fence != "":
-			if strings.HasPrefix(trimmed, fence) {
-				fence = ""
+
+		if fenceChar != 0 {
+			if closesFence(trimmed, fenceChar, fenceLength) {
+				fenceChar = 0
 			}
-		case strings.HasPrefix(trimmed, "```"):
-			fence = "```"
-		case strings.HasPrefix(trimmed, "~~~"):
-			fence = "~~~"
-		case strings.HasPrefix(line, "## "):
+			body.WriteString(line + "\n")
+
+			continue
+		}
+
+		if char, length := openingFence(trimmed); length > 0 {
+			fenceChar, fenceLength = char, length
+		} else if strings.HasPrefix(line, "## ") {
 			flush()
 			sections = append(sections, section{heading: strings.TrimRight(line, " \t")})
 
@@ -191,5 +195,28 @@ func parseSections(content string) ([]section, bool) {
 	}
 	flush()
 
-	return sections, fence == ""
+	return sections, fenceChar == 0
+}
+
+// openingFence reads a line that opens a fenced code block: three or more backticks or
+// tildes. The length is 0 for any other line.
+func openingFence(trimmed string) (byte, int) {
+	if trimmed == "" || (trimmed[0] != '`' && trimmed[0] != '~') {
+		return 0, 0
+	}
+
+	length := len(trimmed) - len(strings.TrimLeft(trimmed, trimmed[:1]))
+	if length < 3 {
+		return 0, 0
+	}
+
+	return trimmed[0], length
+}
+
+// closesFence is true for a line made only of the opening character, at least as many of
+// them as opened the fence: a shorter run, another character or trailing text do not close it.
+func closesFence(trimmed string, char byte, length int) bool {
+	run := strings.TrimRight(trimmed, " \t")
+
+	return len(run) >= length && strings.Trim(run, string(char)) == ""
 }

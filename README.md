@@ -39,7 +39,7 @@ rule. No rule ships yet: the registry is empty until the bundled backends arrive
 | 0    | analysed, nothing to report                                          |
 | 1    | analysed, findings reported                                          |
 | 2    | the command line or a project record was wrong; nothing was analysed |
-| 3    | the toolchain itself failed: a bundled tool or its pinned binary, a page the build should hold, or output that could not be written |
+| 3    | the toolchain itself failed: a rule, a bundled tool or its pinned binary, a page the build should hold, or output that could not be written |
 | 4    | the analysis could not reach a verdict                               |
 
 A usage error writes nothing to standard output: it is not a verdict.
