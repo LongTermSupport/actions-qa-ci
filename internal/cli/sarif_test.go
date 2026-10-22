@@ -127,15 +127,28 @@ func TestSARIFNeedsAFileAndIsGivenOnce(t *testing.T) {
 	env := checkEnv(t, run.lane("fake", yml, findsAlways))
 
 	for name, args := range map[string][]string{
-		"no value":                      {"check", "--sarif"},
-		"twice":                         {"check", "--sarif", "a.sarif", "--sarif", "b.sarif"},
-		"empty":                         {"check", "--sarif", ""},
-		"a flag where the file belongs": {"check", "--sarif", "--format", "json"},
+		"no value": {"check", "--sarif"},
+		"twice":    {"check", "--sarif", "a.sarif", "--sarif", "b.sarif"},
+		"empty":    {"check", "--sarif", ""},
 	} {
 		got := runWith(t, env, args...)
 
 		if got.code != cli.ExitUsage || got.stdout != "" || len(run.ran) != 0 {
 			t.Errorf("%s: exit %d, stdout %q, ran %v", name, got.code, got.stdout, run.ran)
+		}
+	}
+}
+
+func TestSARIFDoesNotTakeAFlagForItsFile(t *testing.T) {
+	repository(t, map[string]string{workflowPath: "on: push\n"})
+	var run laneRun
+	env := checkEnv(t, run.lane("fake", yml, findsAlways))
+
+	for _, args := range [][]string{{"check", "--sarif", "--format", "json"}, {"check", "--sarif", "-x"}} {
+		got := runWith(t, env, args...)
+
+		if got.code != cli.ExitUsage || !strings.Contains(got.stderr, "--sarif needs the file to write") || len(run.ran) != 0 {
+			t.Errorf("%v: exit %d, stderr %q, ran %v; want the refusal that names the missing file", args, got.code, got.stderr, run.ran)
 		}
 	}
 }
