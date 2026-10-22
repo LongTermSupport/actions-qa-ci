@@ -58,6 +58,7 @@ const Path = ".github/actions-qa-ci.yml"
 // document is a record as the YAML decoder reads it, before its entries are checked.
 type document struct {
 	Version    string       `yaml:"version"`
+	Templates  []*Template  `yaml:"templates"`
 	Exceptions []*Exception `yaml:"exceptions"`
 }
 
@@ -68,8 +69,23 @@ const maxSize = 1 << 20
 // record never states something that is silently ignored.
 type Record struct {
 	// Version is the actions-qa-ci version the project pins.
-	Version    string      `yaml:"version"`
+	Version string `yaml:"version"`
+	// Templates declare the copies that have to stay byte-identical to a source.
+	Templates  []Template  `yaml:"templates"`
 	Exceptions []Exception `yaml:"exceptions"`
+}
+
+// Template is a source file and the copies of it the project keeps, each of which has to be
+// byte-identical to it.
+type Template struct {
+	Source string   `yaml:"source"`
+	Copies []string `yaml:"copies"`
+
+	// Line is where the entry starts in the record file.
+	Line int `yaml:"-"`
+
+	// null marks an entry written as nothing at all, which Parse reports once.
+	null bool
 }
 
 // Exception is one accepted finding, or, with no path, one defence disabled everywhere.
@@ -162,17 +178,28 @@ func Parse(data []byte, known func(id string) bool) (*Record, error) {
 		return nil, invalid("it has more than one document")
 	}
 
-	if len(layout.lines) != len(doc.Exceptions) {
-		return nil, invalid(fmt.Sprintf("cannot match %d entries to their %d lines", len(doc.Exceptions), len(layout.lines)))
+	if len(layout.lines) != len(doc.Exceptions) || len(layout.templateLines) != len(doc.Templates) {
+		return nil, invalid(fmt.Sprintf("cannot match %d exceptions and %d templates to their %d and %d lines",
+			len(doc.Exceptions), len(doc.Templates), len(layout.lines), len(layout.templateLines)))
 	}
 
-	rec := &Record{Version: doc.Version, Exceptions: make([]Exception, 0, len(doc.Exceptions))}
+	rec := &Record{Version: doc.Version, Exceptions: make([]Exception, 0, len(doc.Exceptions)), Templates: make([]Template, 0, len(doc.Templates))}
 	var faults []string
 	if layout.versionTag != "" && layout.versionTag != "!!int" && layout.versionTag != "!!str" {
 		faults = append(faults, fmt.Sprintf("version must be a whole number or text, not %s", layout.versionTag))
 	}
 	if layout.versionTag == "!!int" && !wholeNumber.MatchString(doc.Version) {
 		faults = append(faults, fmt.Sprintf("version %q must be written as plain digits", doc.Version))
+	}
+	for i, entry := range doc.Templates {
+		if entry == nil {
+			faults = append(faults, fmt.Sprintf("template %d (line %d) is empty", i+1, layout.templateLines[i]))
+			rec.Templates = append(rec.Templates, Template{Line: layout.templateLines[i], null: true})
+
+			continue
+		}
+		entry.Line = layout.templateLines[i]
+		rec.Templates = append(rec.Templates, *entry)
 	}
 	for i, entry := range doc.Exceptions {
 		if entry == nil {
@@ -196,8 +223,9 @@ func Parse(data []byte, known func(id string) bool) (*Record, error) {
 // layout is what the decoder does not keep: where each entry starts and what kind of scalar
 // the version was written as.
 type layout struct {
-	lines      []int
-	versionTag string
+	lines         []int
+	templateLines []int
+	versionTag    string
 }
 
 func readLayout(data []byte) (layout, error) {
@@ -226,6 +254,13 @@ func readLayout(data []byte) (layout, error) {
 			}
 			for _, item := range top[i+1].Content {
 				found.lines = append(found.lines, item.Line)
+			}
+		case "templates":
+			if top[i+1].Kind != yaml.SequenceNode {
+				continue
+			}
+			for _, item := range top[i+1].Content {
+				found.templateLines = append(found.templateLines, item.Line)
 			}
 		}
 	}
@@ -287,6 +322,8 @@ func (r *Record) faults(known func(id string) bool) []string {
 	if strings.TrimSpace(r.Version) == "" {
 		faults = append(faults, "version is missing: state the actions-qa-ci version the project pins")
 	}
+
+	faults = append(faults, templateFaults(r.Templates)...)
 
 	for i, e := range r.Exceptions {
 		if e.null {

@@ -25,4 +25,5 @@ Generated from the registry; do not edit. Regenerate it with
 | `actionsqaci.nativeSuppressionConfig` | No tool's own configuration file suppresses a finding: zizmor's file, an actionlint ignore, a pinact ignore_actions | [page](actionsqaci.nativeSuppressionConfig.md) |
 | `actionsqaci.shellcheck.SC<nnnn>` | Shell in a run: step has no ShellCheck error or warning | [page](actionsqaci.shellcheck.md) |
 | `actionsqaci.staleException` | Every exception in the project record matches a finding in a full run | [page](actionsqaci.staleException.md) |
+| `actionsqaci.templateDrift` | Each declared copy of a template is byte-identical to its source, and a missing source or copy is a finding | [page](actionsqaci.templateDrift.md) |
 | `actionsqaci.unjustifiedException` | Every exception in the project record states a hazard, a scope and a decision, none of them generic | [page](actionsqaci.unjustifiedException.md) |
