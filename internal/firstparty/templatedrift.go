@@ -136,14 +136,13 @@ func readTemplateFile(root, name string) ([]byte, string, error) {
 	return data, "", nil
 }
 
-// withinRoot says whether a directory, with its links resolved, is the root or inside it.
+// withinRoot says whether a directory, with its links resolved, is the root or inside it. root
+// is itself resolved; a directory that is not absolute is relative to the working directory,
+// which is the root, so it is joined to the resolved root and not to a working directory
+// reached through a link.
 func withinRoot(root, directory string) bool {
 	if !filepath.IsAbs(directory) {
-		absolute, err := filepath.Abs(directory)
-		if err != nil {
-			return false
-		}
-		directory = absolute
+		directory = filepath.Join(root, directory)
 	}
 	relative, err := filepath.Rel(root, directory)
 

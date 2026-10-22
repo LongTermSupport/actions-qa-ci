@@ -215,6 +215,34 @@ func TestAPathThroughALinkedDirectoryIsFollowedOnlyInsideTheRepository(t *testin
 	}
 }
 
+func TestAWorkingDirectoryReachedThroughALinkDoesNotMakeEveryPathLeaveTheRepository(t *testing.T) {
+	real := t.TempDir()
+	for name, content := range map[string]string{
+		recordPath:        templateRecord("templates/t.yml", "sub/dir/c.yml"),
+		"templates/t.yml": "same\n",
+		"sub/dir/c.yml":   "same\n",
+	} {
+		full := filepath.Join(real, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(full), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	linked := filepath.Join(t.TempDir(), "checkout")
+	if err := os.Symlink(real, linked); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(linked)
+
+	got, err := firstparty.CheckTemplateDrift(everythingIsKnown)(recordPath)
+
+	if err != nil || len(got) != 0 {
+		t.Errorf("findings %+v, error %v; a clean record is clean wherever the checkout is reached from", got, err)
+	}
+}
+
 func TestTemplateDriftReportsEveryPairInOrder(t *testing.T) {
 	got, err := driftIn(t, map[string]string{
 		recordPath: templateRecord("a.yml", "a-copy.yml", "b.yml", "b-copy.yml"),
