@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"unicode"
 )
 
 // Severity is how serious a finding is.
@@ -48,6 +49,8 @@ func (f Finding) Validate() error {
 		return errors.New("finding names no tool")
 	case blank(f.Path):
 		return fmt.Errorf("finding %s names no path", f.ID)
+	case strings.ContainsFunc(f.Path, IsControlOrSeparator):
+		return fmt.Errorf("finding %s names %q, which has a control character; a path must print on one line", f.ID, f.Path)
 	case !repositoryRelative(f.Path):
 		return fmt.Errorf("finding %s names %q; a path must be repository-relative and stay inside the repository", f.ID, f.Path)
 	case blank(f.Message):
@@ -67,6 +70,13 @@ func (f Finding) Validate() error {
 	}
 
 	return nil
+}
+
+// IsControlOrSeparator reports a character that can start another line or move a cursor
+// when printed: a control character (including NUL, tab, escape and the C1 set) or a Unicode
+// line or paragraph separator.
+func IsControlOrSeparator(r rune) bool {
+	return unicode.IsControl(r) || r == ' ' || r == ' '
 }
 
 func blank(text string) bool {

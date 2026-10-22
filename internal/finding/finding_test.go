@@ -67,6 +67,11 @@ func TestAFindingThatCannotBeActedOnIsRefused(t *testing.T) {
 		{"blank path", func(f *finding.Finding) { f.Path = "  " }, "no path"},
 		{"absolute path", func(f *finding.Finding) { f.Path = "/etc/ci.yml" }, "repository-relative"},
 		{"path leaving the repository", func(f *finding.Finding) { f.Path = "../ci.yml" }, "repository-relative"},
+		{"path with a newline", func(f *finding.Finding) { f.Path = "a.yml\nrule-doc x" }, "control character"},
+		{"path with a tab", func(f *finding.Finding) { f.Path = "a\t.yml" }, "control character"},
+		{"path with a line separator", func(f *finding.Finding) { f.Path = "a .yml" }, "control character"},
+		{"path with an escape", func(f *finding.Finding) { f.Path = "a\x1b[2J.yml" }, "control character"},
+		{"path with a NUL", func(f *finding.Finding) { f.Path = "a\x00.yml" }, "control character"},
 		{"no message", func(f *finding.Finding) { f.Message = "" }, "no message"},
 		{"blank message", func(f *finding.Finding) { f.Message = "\n" }, "no message"},
 		{"unknown severity", func(f *finding.Finding) { f.Severity = "fatal" }, "severity"},
