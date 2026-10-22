@@ -113,6 +113,19 @@ func TestAnnotationsAreCappedPerLevelAndTheFullListStaysInTheLog(t *testing.T) {
 	}
 }
 
+func TestTheOmissionLineAgreesWithTheNumberLeftOut(t *testing.T) {
+	findings := append(manyFindings(finding.SeverityError, 12), manyFindings(finding.SeverityWarning, 11)...)
+	for i := range findings[12:] {
+		findings[12+i].Path = "other.yml"
+	}
+
+	got := render(t, output.GitHub, findings)
+
+	if !strings.Contains(got, "2 error annotations were left out and 1 warning annotation was left out") {
+		t.Errorf("the omission line is not worded for its counts:\n%s", got)
+	}
+}
+
 func TestAnExceptedFindingIsCountedAndNotAnnotated(t *testing.T) {
 	active := at(ciPath, 1, 1, templateDrift, "active")
 	accepted := at(ciPath, 2, 1, templateDrift, "accepted")

@@ -65,7 +65,7 @@ func realEnv(t *testing.T, isolation *cli.Isolation) cli.Env {
 		return ok
 	}
 
-	return cli.Env{Registry: reg, Pages: actionsqaci.Pages, Lanes: catalogue.Lanes(known), DefaultFormat: "agent", Isolation: isolation}
+	return cli.Env{Registry: reg, Pages: actionsqaci.Pages, Lanes: catalogue.Lanes(known), DefaultFormat: "agent", Isolation: isolation, Extensions: catalogue.Extensions()}
 }
 
 func thisProgram(t *testing.T, limits check.Limits, environment ...string) *cli.Isolation {

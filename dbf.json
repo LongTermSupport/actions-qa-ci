@@ -31,6 +31,10 @@
       "description": "actionsqaci.requiredChecks compares the record's required contexts with the workflows in the repository, offline. It does not read the branch protection or rulesets a repository actually has, which needs the network and a token, so a protection that requires a context the record does not list, or omits one it does, is not found. A job that calls a reusable workflow is accepted for any context under its name, because the called workflow is not read."
     },
     {
+      "id": "sarif-help-uri-not-at-release-tag",
+      "description": "The SARIF log gives each rule's helpUri as its page on the default branch, where the design puts it at the release tag, because the program has no release version to name a tag with until the distribution phase (phase 7). The log names no driver version either."
+    },
+    {
       "id": "workflow-second-document-unread",
       "description": "A workflow file holding a second YAML document is analysed on its first document only, and the second is not read; whether GitHub accepts such a file is not confirmed, so it stays a gap until the lint-coverage check (phase 6) decides it."
     },
