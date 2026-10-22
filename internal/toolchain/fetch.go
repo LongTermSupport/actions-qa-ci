@@ -229,8 +229,10 @@ func closeBody(closer io.Closer) {
 
 // FetchAll fetches every tool the manifest pins for a platform into dir, in name order, and
 // returns where each was placed. A tool with no asset for the platform is an error, not a skip.
-// Every tool is downloaded and checked before any is written, and a failure while writing
-// removes what this call had written, so a failed call leaves nothing behind.
+// Every tool is downloaded and checked, and every executable is staged under a hidden name,
+// before any final name is touched; a failure up to then leaves the directory as it was, and a
+// file that was already there is never removed. If a rename fails part way through, the tools
+// already renamed stay in place and the error names them.
 func FetchAll(ctx context.Context, client *http.Client, m Manifest, platform, dir string) ([]string, error) {
 	names := make([]string, 0, len(m.Tools))
 	for name := range m.Tools {
