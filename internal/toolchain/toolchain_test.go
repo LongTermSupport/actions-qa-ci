@@ -13,7 +13,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
 
 	"github.com/LongTermSupport/actions-qa-ci/internal/toolchain"
 )
@@ -125,6 +127,9 @@ func TestParseRefusesWhatIsNotAWellFormedManifest(t *testing.T) {
 		"platform not shipped":   {strings.Replace(validManifest(), `linux_amd64`, `linux_386`, 1), "linux_386"},
 		"tool name with a slash": {strings.Replace(validManifest(), `"shellcheck":{"version"`, `"../evil":{"version"`, 1), "../evil"},
 		"empty tool name":        {strings.Replace(validManifest(), `"shellcheck":{"version"`, `"":{"version"`, 1), "tool name"},
+		"member with a NUL":      {strings.Replace(validManifest(), member, `"a\u0000b"`, 1), "member"},
+		"blank version":          {strings.Replace(validManifest(), `"v0.11.0"`, `" "`, 1), "version"},
+		"URL with credentials":   {strings.Replace(validManifest(), "https://example.invalid", "https://user:pw@example.invalid", 1), "credentials"},
 		"upper case tool name":   {strings.Replace(validManifest(), `"shellcheck":{"version"`, `"ShellCheck":{"version"`, 1), "ShellCheck"},
 	}
 
@@ -316,20 +321,28 @@ func TestFetchWritesTheVerifiedExecutable(t *testing.T) {
 }
 
 func TestFetchWritesNothingWhenAHashDoesNotMatch(t *testing.T) {
-	cases := map[string]func(*toolchain.Asset){
-		"archive hash": func(a *toolchain.Asset) { a.ArchiveSHA256 = sum([]byte("other")) },
-		"binary hash":  func(a *toolchain.Asset) { a.BinarySHA256 = sum([]byte("other")) },
-		"member name":  func(a *toolchain.Asset) { a.Member = "shellcheck-v0.11.0/other" },
+	type refusal struct {
+		tamper   func(*toolchain.Asset)
+		mismatch bool
+		mention  string
+	}
+	cases := map[string]refusal{
+		"archive hash": {func(a *toolchain.Asset) { a.ArchiveSHA256 = sum([]byte("other")) }, true, "archive"},
+		"binary hash":  {func(a *toolchain.Asset) { a.BinarySHA256 = sum([]byte("other")) }, true, "shellcheck-v0.11.0/shellcheck"},
+		"member name":  {func(a *toolchain.Asset) { a.Member = "shellcheck-v0.11.0/other" }, false, "no member"},
 	}
 
-	for name, tamper := range cases {
+	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
-			server, asset := fetchFixture(t, tamper)
+			server, asset := fetchFixture(t, c.tamper)
 			dir := t.TempDir()
 
 			path, err := toolchain.Fetch(context.Background(), server.Client(), asset, dir, "shellcheck")
 			if err == nil {
 				t.Fatalf("Fetch accepted a wrong %s and wrote %s", name, path)
+			}
+			if errors.Is(err, toolchain.ErrMismatch) != c.mismatch || !strings.Contains(err.Error(), c.mention) {
+				t.Errorf("the refusal for a wrong %s must be a mismatch=%v mentioning %q, got %v", name, c.mismatch, c.mention, err)
 			}
 			entries, readErr := os.ReadDir(dir)
 			if readErr != nil {
@@ -339,6 +352,62 @@ func TestFetchWritesNothingWhenAHashDoesNotMatch(t *testing.T) {
 				t.Errorf("a refused fetch left %d entries behind", len(entries))
 			}
 		})
+	}
+}
+
+func TestVerifyDoesNotBlockOnAFIFO(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "shellcheck")
+	if err := syscall.Mkfifo(path, 0o600); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+
+	done := make(chan error, 1)
+	go func() { done <- toolchain.Verify(path, toolchain.Asset{BinarySHA256: sum(nil)}) }()
+
+	select {
+	case err := <-done:
+		if err == nil || !strings.Contains(err.Error(), "not a regular file") {
+			t.Errorf("a FIFO must be refused as not a regular file, got %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Verify blocked on a FIFO instead of refusing it")
+	}
+}
+
+func TestFetchAllNeverDestroysAFileThatWasAlreadyThere(t *testing.T) {
+	server, good := fetchFixture(t, nil)
+	entry := `{"url":"` + good.URL + `","archiveSha256":"` + good.ArchiveSHA256 + `",` +
+		`"member":"` + good.Member + `","binarySha256":"` + good.BinarySHA256 + `"}`
+	data := `{"tools":{` +
+		`"alpha":{"version":"v1","assets":{"linux_amd64":` + entry + `}},` +
+		`"beta":{"version":"v1","assets":{"linux_amd64":` + entry + `}}}}`
+	manifest, err := toolchain.Parse([]byte(data))
+	if err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+	dir := t.TempDir()
+	earlier := filepath.Join(dir, "alpha")
+	if err := os.WriteFile(earlier, []byte("an earlier alpha"), 0o755); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+	if err := os.Mkdir(filepath.Join(dir, "beta"), 0o755); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+
+	paths, err := toolchain.FetchAll(context.Background(), server.Client(), manifest, "linux_amd64", dir)
+	if err == nil {
+		t.Fatalf("FetchAll wrote over a directory: %v", paths)
+	}
+	kept, readErr := os.ReadFile(earlier)
+	if readErr != nil || string(kept) != "an earlier alpha" {
+		t.Errorf("the file that was already there was changed or removed: %q, %v", kept, readErr)
+	}
+	entries, readErr := os.ReadDir(dir)
+	if readErr != nil {
+		t.Fatalf("cannot read the destination: %v", readErr)
+	}
+	if len(entries) != 2 {
+		t.Errorf("staged files were left behind: %d entries", len(entries))
 	}
 }
 

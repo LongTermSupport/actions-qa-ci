@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 )
 
 // maxDownload bounds both the archive and the executable taken out of it, and maxExpanded
@@ -125,41 +126,81 @@ func archiveFault(expanding *io.LimitedReader, err error) error {
 }
 
 func install(binary []byte, dir, name string) (string, error) {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return "", fmt.Errorf("cannot create %s: %w", dir, err)
-	}
-
-	staged, err := os.CreateTemp(dir, "."+name+"-")
+	staged, err := stage(binary, dir, name)
 	if err != nil {
-		return "", fmt.Errorf("cannot stage %s in %s: %w", name, dir, err)
-	}
-	stagedPath := staged.Name()
-
-	fail := func(cause error) (string, error) {
-		if removeErr := os.Remove(stagedPath); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
-			cause = errors.Join(cause, removeErr)
-		}
-
-		return "", cause
+		return "", err
 	}
 
-	written, err := staged.Write(binary)
+	return commit(staged)
+}
+
+// staged is an executable written under a hidden name, waiting to take its final name.
+type staged struct {
+	path  string
+	final string
+}
+
+// stage writes the executable beside its final name without touching it.
+func stage(binary []byte, dir, name string) (staged, error) {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return staged{}, fmt.Errorf("cannot create %s: %w", dir, err)
+	}
+
+	file, err := os.CreateTemp(dir, "."+name+"-")
+	if err != nil {
+		return staged{}, fmt.Errorf("cannot stage %s in %s: %w", name, dir, err)
+	}
+	waiting := staged{path: file.Name(), final: filepath.Join(dir, name)}
+
+	written, err := file.Write(binary)
 	if err != nil || written != len(binary) {
-		return fail(errors.Join(fmt.Errorf("cannot write %s", stagedPath), err, staged.Close()))
+		return staged{}, discard(waiting, errors.Join(fmt.Errorf("cannot write %s", waiting.path), err, file.Close()))
 	}
-	if err := staged.Close(); err != nil {
-		return fail(fmt.Errorf("cannot write %s: %w", stagedPath, err))
+	if err := file.Close(); err != nil {
+		return staged{}, discard(waiting, fmt.Errorf("cannot write %s: %w", waiting.path, err))
 	}
-	if err := os.Chmod(stagedPath, 0o755); err != nil {
-		return fail(fmt.Errorf("cannot make %s executable: %w", stagedPath, err))
-	}
-
-	final := filepath.Join(dir, name)
-	if err := os.Rename(stagedPath, final); err != nil {
-		return fail(fmt.Errorf("cannot place %s: %w", final, err))
+	if err := os.Chmod(waiting.path, 0o755); err != nil {
+		return staged{}, discard(waiting, fmt.Errorf("cannot make %s executable: %w", waiting.path, err))
 	}
 
-	return final, nil
+	return waiting, nil
+}
+
+// refuseIfNotReplaceable says why the final name cannot be taken: only a regular file, or
+// nothing, may be replaced.
+func (s staged) refuseIfNotReplaceable() error {
+	info, err := os.Lstat(s.final)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("cannot inspect %s: %w", s.final, err)
+	}
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("%s exists and is not a regular file", s.final)
+	}
+
+	return nil
+}
+
+func commit(waiting staged) (string, error) {
+	if err := waiting.refuseIfNotReplaceable(); err != nil {
+		return "", discard(waiting, err)
+	}
+	if err := os.Rename(waiting.path, waiting.final); err != nil {
+		return "", discard(waiting, fmt.Errorf("cannot place %s: %w", waiting.final, err))
+	}
+
+	return waiting.final, nil
+}
+
+// discard removes a staged file and returns the cause with any failure to remove it.
+func discard(waiting staged, cause error) error {
+	if err := os.Remove(waiting.path); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return errors.Join(cause, err)
+	}
+
+	return cause
 }
 
 func readLimited(source io.Reader, what string) ([]byte, error) {
@@ -210,17 +251,34 @@ func FetchAll(ctx context.Context, client *http.Client, m Manifest, platform, di
 		binaries = append(binaries, binary)
 	}
 
-	paths := make([]string, 0, len(names))
+	waiting := make([]staged, 0, len(names))
 	for i, name := range names {
-		placed, err := install(binaries[i], dir, name)
+		ready, err := stage(binaries[i], dir, name)
+		if err == nil {
+			err = ready.refuseIfNotReplaceable()
+			if err != nil {
+				err = discard(ready, err)
+			}
+		}
 		if err != nil {
-			for _, earlier := range paths {
-				if removeErr := os.Remove(earlier); removeErr != nil {
-					err = errors.Join(err, removeErr)
-				}
+			for _, earlier := range waiting {
+				err = discard(earlier, err)
 			}
 
 			return nil, fmt.Errorf("cannot place %s: %w", name, err)
+		}
+		waiting = append(waiting, ready)
+	}
+
+	paths := make([]string, 0, len(names))
+	for i, ready := range waiting {
+		placed, err := commit(ready)
+		if err != nil {
+			for _, later := range waiting[i+1:] {
+				err = discard(later, err)
+			}
+
+			return nil, fmt.Errorf("cannot place %s (already placed: %s): %w", names[i], strings.Join(paths, ", "), err)
 		}
 		paths = append(paths, placed)
 	}

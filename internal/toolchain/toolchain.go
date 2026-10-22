@@ -19,6 +19,8 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+	"syscall"
+	"unicode"
 )
 
 // ErrMismatch marks a binary whose content is not the one the manifest pins.
@@ -185,7 +187,7 @@ func (t Tool) validate(name string) error {
 	if !toolName.MatchString(name) {
 		return fmt.Errorf("tool name %q must be lower-case letters, digits and hyphens, starting with a letter", name)
 	}
-	if t.Version == "" {
+	if strings.TrimSpace(t.Version) == "" {
 		return fmt.Errorf("tool %s has no version", name)
 	}
 	if len(t.Assets) == 0 {
@@ -212,6 +214,8 @@ func (a Asset) validate(where string) error {
 		return fmt.Errorf("%s: the download must be an https URL, got %q", where, a.URL)
 	case address.Host == "":
 		return fmt.Errorf("%s: the download URL %q has no host", where, a.URL)
+	case address.User != nil:
+		return fmt.Errorf("%s: the download URL must not carry credentials", where)
 	case !sha256Hex.MatchString(a.ArchiveSHA256):
 		return fmt.Errorf("%s: archiveSha256 must be 64 lower-case hex digits", where)
 	case !sha256Hex.MatchString(a.BinarySHA256):
@@ -224,7 +228,8 @@ func (a Asset) validate(where string) error {
 }
 
 func safeMember(member string) bool {
-	if member == "" || member == "." || path.IsAbs(member) || strings.ContainsRune(member, '\\') {
+	if member == "" || member == "." || path.IsAbs(member) || strings.ContainsRune(member, '\\') ||
+		strings.ContainsFunc(member, unicode.IsControl) {
 		return false
 	}
 
@@ -261,8 +266,12 @@ func Verify(binary string, asset Asset) error {
 	if link.Mode()&os.ModeSymlink != 0 {
 		return fmt.Errorf("%s is a symbolic link; the pinned binary must be the file itself", binary)
 	}
+	if !link.Mode().IsRegular() {
+		return fmt.Errorf("%s is not a regular file", binary)
+	}
 
-	file, err := os.Open(binary)
+	// O_NONBLOCK keeps an entry swapped for a FIFO after the check above from blocking the open.
+	file, err := os.OpenFile(binary, os.O_RDONLY|syscall.O_NONBLOCK, 0)
 	if err != nil {
 		return fmt.Errorf("cannot read %s: %w", binary, err)
 	}
