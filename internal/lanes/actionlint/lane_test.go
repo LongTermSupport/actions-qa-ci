@@ -274,6 +274,42 @@ func TestTheVersionIsTheOneGoModRequires(t *testing.T) {
 	}
 }
 
+func TestLintRefusesAWorkingDirectoryThatIsNotARepositoryRoot(t *testing.T) {
+	// Without a .git here, actionlint walks up to whatever enclosing project it finds, so a
+	// local reusable workflow is looked for in the wrong place and findings go missing.
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, ".github", "workflows"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, workflowPath), []byte(fixtures["glob"].green.files[workflowPath]), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(root)
+
+	_, err := actionlint.Lint(workflowPath)
+
+	if err == nil || !strings.Contains(err.Error(), ".git") {
+		t.Errorf("err = %v; a directory with no .git must be refused, naming .git", err)
+	}
+}
+
+func TestLintAcceptsARepositoryWhoseGitEntryIsAFile(t *testing.T) {
+	// A linked worktree and a submodule have a .git file, not a directory.
+	target := inProject(t, fixtures["glob"].green)
+	if err := os.RemoveAll(".git"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(".git", []byte("gitdir: elsewhere\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	found, err := actionlint.Lint(target)
+
+	if err != nil || len(found) != 0 {
+		t.Errorf("found %+v, err %v", found, err)
+	}
+}
+
 func TestLintOfAFileThatIsNotThereIsAnError(t *testing.T) {
 	inProject(t, fixtures["glob"].green)
 

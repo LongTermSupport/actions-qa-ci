@@ -2,13 +2,14 @@
 
 ## What it forbids or requires
 
-A job that calls a reusable workflow passes every input and secret the callee requires, passes no
-input or secret it does not declare, and reads only outputs it declares.
+A job that calls a reusable workflow passes every input and secret the callee requires and passes no
+input or secret it does not declare. (Reading an output the callee does not declare is reported as
+`actionsqaci.actionlint.expression`.)
 
 ## Hazard
 
 A missing required input fails the called workflow at run time, and an undeclared one is rejected or
-ignored.
+has no effect.
 
 ## Correct construction
 

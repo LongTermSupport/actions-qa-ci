@@ -2,8 +2,9 @@
 
 ## What it forbids or requires
 
-The `credentials` of a job container or service container take their password from a secret, never
-from a literal in the workflow file.
+The `credentials` of a job container or service container take their password from an expression,
+in practice a secret, and never from a literal in the workflow file. (The rule accepts any
+expression, so it does not check that the expression names a secret.)
 
 ## Hazard
 

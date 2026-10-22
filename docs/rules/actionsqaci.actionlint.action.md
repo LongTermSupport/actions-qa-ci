@@ -7,8 +7,8 @@ path, and the `with:` inputs it passes are inputs the action declares.
 
 ## Hazard
 
-A reference without a version fails at run time, and an undeclared input is silently ignored by the
-action, so the step does not do what the author believes.
+A reference without a version fails at run time, and an input the action does not declare has no
+effect, so the step does not do what the author believes.
 
 ## Correct construction
 

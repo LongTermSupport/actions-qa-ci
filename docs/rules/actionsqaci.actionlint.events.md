@@ -7,7 +7,8 @@
 
 ## Hazard
 
-A misspelled or unsupported trigger never fires, so the workflow silently never runs.
+A misspelled or unsupported event can never trigger the workflow, so it does not run when the
+author expects it to.
 
 ## Correct construction
 

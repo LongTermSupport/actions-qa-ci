@@ -2,12 +2,14 @@
 
 ## What it forbids or requires
 
-`permissions:` names scopes GitHub defines and gives each `read`, `write` or `none`.
+`permissions:` is `read-all`, `write-all`, an empty mapping, or a mapping of scopes GitHub defines,
+each with a value that scope accepts: `read`, `write` or `none`, except that `id-token` takes only
+`write` or `none` and `models` only `read` or `none`.
 
 ## Hazard
 
-An invalid scope or value makes the workflow invalid, or leaves the job token with different access
-from the one intended.
+An invalid scope or value makes the workflow invalid, so the job token does not get the access the
+author declared.
 
 ## Correct construction
 

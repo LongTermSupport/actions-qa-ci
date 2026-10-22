@@ -6,8 +6,8 @@ The branch, tag and path filters under `on:` are valid GitHub filter patterns.
 
 ## Hazard
 
-An invalid pattern never matches what the author meant, so the filter silently includes or excludes
-the wrong refs and paths.
+An invalid pattern does not select what the author meant, so the filter includes or excludes the
+wrong refs and paths.
 
 ## Correct construction
 

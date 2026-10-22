@@ -23,9 +23,15 @@ const Tool = "actionlint " + Version
 // Lint runs actionlint over the workflow at a repository-relative path, with the working
 // directory as the repository root, and returns its findings in a stable order.
 //
-// The project's own actionlint configuration is never read: an ignore pattern there would
+// The project's own actionlint configuration is never applied: an ignore pattern there would
 // suppress findings without a recorded justification. Suppression is the project record's job.
+// (actionlint still parses the file while it locates the project, so a malformed one is an
+// error here.)
 func Lint(path string) ([]finding.Finding, error) {
+	if _, err := os.Stat(".git"); err != nil {
+		return nil, fmt.Errorf("the working directory must be the repository root, which holds .git: %w", err)
+	}
+
 	config, cleanup, err := emptyConfig()
 	if err != nil {
 		return nil, err

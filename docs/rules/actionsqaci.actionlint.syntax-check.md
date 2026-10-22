@@ -7,8 +7,7 @@ required key is present, and no key or mapping is empty, duplicated or of the wr
 
 ## Hazard
 
-GitHub rejects the workflow, or silently ignores the misplaced key, so the job does not behave as
-written.
+GitHub rejects a workflow that is not valid, so the job does not run as written.
 
 ## Correct construction
 

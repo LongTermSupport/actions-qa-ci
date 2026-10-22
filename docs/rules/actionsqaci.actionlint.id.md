@@ -2,12 +2,13 @@
 
 ## What it forbids or requires
 
-Job IDs and step IDs are unique within their scope, start with a letter or `_`, and contain only
-letters, digits, `-` and `_`.
+Step IDs are unique within their job, ignoring case, and job and step IDs start with a letter or
+`_` and contain only letters, digits, `-` and `_`. (A duplicate job ID is reported as
+`actionsqaci.actionlint.syntax-check`.)
 
 ## Hazard
 
-A duplicate or malformed ID makes `needs:` and `steps.<id>.outputs` references invalid or
+A duplicate or malformed ID makes `steps.<id>.outputs` and `needs:` references invalid or
 ambiguous.
 
 ## Correct construction

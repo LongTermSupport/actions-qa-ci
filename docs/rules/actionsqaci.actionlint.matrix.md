@@ -7,8 +7,9 @@ matrix defines.
 
 ## Hazard
 
-A repeated value runs the same job twice, and an `exclude` that matches nothing leaves in a
-combination the author believed was removed.
+A repeated value is a mistake in the matrix: it wastes a job or stands where another value was
+meant, and an `exclude` that matches nothing leaves in a combination the author believed was
+removed.
 
 ## Correct construction
 
