@@ -344,7 +344,7 @@ func TestCheckRefusesAFormatItDoesNotHave(t *testing.T) {
 func TestCheckRefusesWhatItDoesNotUnderstand(t *testing.T) {
 	repository(t, map[string]string{workflowPath: "on: push\n"})
 	cases := map[string][]string{
-		"an unknown flag":         {"check", "--sarif", "out.sarif"},
+		"an unknown flag":         {"check", "--xml", "out.xml"},
 		"-t without a value":      {"check", "-t"},
 		"an empty lane name":      {"check", "-t", ""},
 		"an empty name in a list": {"check", "-t", "fake,"},

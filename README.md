@@ -86,6 +86,18 @@ anywhere else it would find nothing and read as clean, so it refuses.
   the real one loses nothing), then every finding as the `agent` format prints it, so the log
   keeps what the annotations leave out. A path that starts the way a workflow command does (`::`
   or `##[`) is printed quoted in every format, so a file name cannot become a command in the log.
+- **`--sarif <file>`.** Also writes every finding as one SARIF 2.1.0 log with a single run, which
+  GitHub code scanning accepts: the driver is `actions-qa-ci`, the bundled tools (actionlint,
+  ShellCheck) are its extensions with their versions, each result carries our identifier as
+  `ruleId` with the upstream identifier in its properties, and a finding covered by an exception
+  stays in the log with an external suppression, so code scanning shows it as suppressed and does
+  not drop it. The log is written whatever the findings are, so a clean run replaces an old log.
+  The file is not written when nothing was analysed (a usage error, a refused record, no
+  verdict); one that is asked for and cannot be written is exit 3. It is never written through a
+  symbolic link or to a pipe, and a path inside the repository must not leave it through a
+  link in one of its directories; an absolute path elsewhere is the operator's own. The address
+  of a rule's page in the log is on the default branch until the program has a release to name
+  (`dbf.json`, `sarif-help-uri-not-at-release-tag`).
 - **Exceptions.** An exception of the project record covers a finding with the same identifier
   and path, and the job and step if it names them (by id or by name, wherever in that job or step
   the finding's line falls within that job or step's own extent, so an `env:` after the steps is in

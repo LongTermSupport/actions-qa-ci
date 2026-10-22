@@ -42,7 +42,7 @@ commands:
   version [--json]   print the specification versions this build is audited against
   rules [--json]     list every active rule without running it
   rule-doc <id>      print the page for a rule identifier, offline
-  check [-t lane[,lane…]] [--format FORMATS] [--] [path…]
+  check [-t lane[,lane…]] [--format FORMATS] [--sarif file] [--] [path…]
                      run the lanes over the project's files, or over the files named
   rule [--format FORMATS] <id> <path>
                      run one rule on one file and print only its findings
@@ -63,6 +63,8 @@ type Env struct {
 	// Isolation says how `check` runs the lanes that ask to be isolated; nil runs every lane in
 	// this process.
 	Isolation *Isolation
+	// Extensions are the bundled tools, with their versions, that a SARIF log names.
+	Extensions []output.Extension
 }
 
 // Isolation is the child process a lane runs in: this program again, started with the hidden
@@ -104,6 +106,7 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		Pages:         actionsqaci.Pages,
 		Lanes:         catalogue.Lanes(known),
 		DefaultFormat: defaultFormat(stdout),
+		Extensions:    catalogue.Extensions(),
 		Isolation:     &Isolation{Executable: executable, Limits: check.Limits{Timeout: laneTimeout, MaxOutput: laneMaxOutput, MaxStderr: laneMaxStderr}},
 	}
 

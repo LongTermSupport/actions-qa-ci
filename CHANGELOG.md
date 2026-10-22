@@ -63,6 +63,12 @@
   annotations for the findings, ten of each level at most, then the full list as the `agent`
   format prints it. Every format now prints a path that starts `::` or `##[` quoted, so a file
   name cannot be read by the Actions runner as a workflow command.
+- `check --sarif <file>`: writes the findings as one SARIF 2.1.0 log with a single run (driver
+  `actions-qa-ci`, actionlint and ShellCheck as extensions with their versions, the upstream
+  identifier in each result's properties). A finding covered by an exception stays in the log with
+  an external suppression. The file is never written through a symbolic link or to a pipe, and a
+  link in the repository cannot send it outside; a log that is asked for and cannot be written is
+  exit 3. The `github` format says "1 warning annotation was left out" in the singular.
 - The `rule <id> <path>` harness: runs one rule on one file and prints only that rule's
   findings, exiting 1 when it fires.
 - The `text`, `agent` and `json` output formats, and the finding model with its identifier

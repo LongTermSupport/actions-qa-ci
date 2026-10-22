@@ -6,6 +6,7 @@ import (
 	"github.com/LongTermSupport/actions-qa-ci/internal/check"
 	"github.com/LongTermSupport/actions-qa-ci/internal/firstparty"
 	"github.com/LongTermSupport/actions-qa-ci/internal/lanes/actionlint"
+	"github.com/LongTermSupport/actions-qa-ci/internal/output"
 	"github.com/LongTermSupport/actions-qa-ci/internal/record"
 	"github.com/LongTermSupport/actions-qa-ci/internal/registry"
 )
@@ -57,6 +58,15 @@ func Lanes(known func(id string) bool) []check.Lane {
 			Run:     firstparty.CheckNativeSuppressionConfig,
 			Guard:   true,
 		},
+	}
+}
+
+// Extensions returns the bundled tools this build runs, with the releases they are at, for a
+// SARIF log to name.
+func Extensions() []output.Extension {
+	return []output.Extension{
+		{Name: "actionlint", Version: actionlint.Version},
+		{Name: "shellcheck", Version: actionlint.ShellcheckVersion},
 	}
 }
 

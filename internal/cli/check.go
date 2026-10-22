@@ -81,6 +81,11 @@ func checkCommand(env Env, args []string, stdout, stderr io.Writer) int {
 		}
 	}
 
+	if arguments.sarif != "" {
+		if err := writeSARIF(env, arguments.sarif, found, stderr); err != nil {
+			return fault(stderr, err)
+		}
+	}
 	if err := output.Write(stdout, format, found); err != nil {
 		return fault(stderr, fmt.Errorf("cannot write output: %w", err))
 	}
@@ -99,10 +104,11 @@ func checkCommand(env Env, args []string, stdout, stderr io.Writer) int {
 type checkArguments struct {
 	lanes  []string
 	format string
+	sarif  string
 	files  []string
 }
 
-// parseCheckArguments reads `[-t lane[,lane…]]… [--format F] [--] [path…]`.
+// parseCheckArguments reads `[-t lane[,lane…]]… [--format F] [--sarif file] [--] [path…]`.
 func parseCheckArguments(args []string) (checkArguments, string) {
 	var parsed checkArguments
 
@@ -128,6 +134,15 @@ func parseCheckArguments(args []string) (checkArguments, string) {
 				return checkArguments{}, "--format needs a value"
 			}
 			parsed.format = args[1]
+			args = args[2:]
+		case args[0] == "--sarif":
+			if len(args) < 2 || args[1] == "" {
+				return checkArguments{}, "--sarif needs the file to write"
+			}
+			if parsed.sarif != "" {
+				return checkArguments{}, "--sarif is given once"
+			}
+			parsed.sarif = args[1]
 			args = args[2:]
 		case strings.HasPrefix(args[0], "-"):
 			return checkArguments{}, fmt.Sprintf("unknown flag %q for check", args[0])

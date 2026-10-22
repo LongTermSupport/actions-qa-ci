@@ -46,7 +46,7 @@ func renderGitHub(out *bytes.Buffer, findings []finding.Finding) error {
 			out.WriteString(annotation(level.level, f))
 		}
 		if left > 0 {
-			omitted = append(omitted, fmt.Sprintf("%d %s annotations were left out", left, level.level))
+			omitted = append(omitted, omission(left, level.level))
 		}
 	}
 	if len(omitted) > 0 {
@@ -59,6 +59,15 @@ func renderGitHub(out *bytes.Buffer, findings []finding.Finding) error {
 	writeTrailer(out, active, excepted)
 
 	return nil
+}
+
+// omission says how many annotations of a level were left out, in the number the count needs.
+func omission(left int, level string) string {
+	if left == 1 {
+		return "1 " + level + " annotation was left out"
+	}
+
+	return fmt.Sprintf("%d %s annotations were left out", left, level)
 }
 
 // annotation is the workflow command that shows one finding on its line. The message goes
