@@ -94,14 +94,24 @@ func loopback(host string) bool {
 	return ip != nil && ip.IsLoopback()
 }
 
+// ValidRepository says whether text is an owner/name a request can be made for.
+func ValidRepository(repository string) error {
+	parts := strings.Split(repository, "/")
+	if !repositoryName.MatchString(repository) || onlyDots.MatchString(parts[0]) || onlyDots.MatchString(parts[1]) {
+		return fmt.Errorf("the repository %q is not owner/name", finding.Escape(repository))
+	}
+
+	return nil
+}
+
 // RequiredContexts reads the contexts the branch of the repository (owner/name) requires. The
 // branch DefaultBranch means the repository's default branch, which is looked up.
 func (c *Client) RequiredContexts(repository, branch string) (Result, error) {
-	parts := strings.Split(repository, "/")
-	if !repositoryName.MatchString(repository) || onlyDots.MatchString(parts[0]) || onlyDots.MatchString(parts[1]) {
-		return Result{}, fmt.Errorf("the repository %q is not owner/name", finding.Escape(repository))
+	if err := ValidRepository(repository); err != nil {
+		return Result{}, err
 	}
-	if strings.TrimSpace(branch) == "" || strings.ContainsFunc(branch, unicode.IsControl) {
+	if strings.TrimSpace(branch) == "" || strings.ContainsFunc(branch, unicode.IsControl) || strings.Contains(branch, "..") ||
+		slices.Contains(strings.Split(branch, "/"), ".") {
 		return Result{}, fmt.Errorf("the branch %q is not a branch name", finding.Escape(branch))
 	}
 
@@ -146,7 +156,7 @@ func (c *Client) classic(path string) ([]string, error) {
 
 	err := c.get(path, nil, &protection)
 	var missing *notFoundError
-	if errors.As(err, &missing) && missing.message == "Branch not protected" {
+	if errors.As(err, &missing) && (missing.message == "Branch not protected" || missing.message == "Required status checks not enabled") {
 		return nil, nil
 	}
 	if err != nil {

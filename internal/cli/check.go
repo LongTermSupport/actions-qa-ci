@@ -101,7 +101,7 @@ func checkCommand(env Env, args []string, stdout, stderr io.Writer) int {
 		}
 		found = applied.Findings
 		if fullRun(arguments) {
-			found = append(found, exceptions.Stale(rec, applied.Matched)...)
+			found = append(found, exceptions.Stale(rec, judgeable(rec, applied.Matched, arguments.online))...)
 		}
 	}
 

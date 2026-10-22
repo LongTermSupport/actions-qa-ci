@@ -115,6 +115,46 @@ func TestABranchWithNoProtectionRequiresNothing(t *testing.T) {
 	}
 }
 
+func TestAProtectionWithoutStatusChecksRequiresNoContext(t *testing.T) {
+	a := newAPI(t, map[string]response{
+		repoPath:    {200, `{"default_branch":"main"}`},
+		classicPath: {404, `{"message":"Required status checks not enabled","documentation_url":"x"}`},
+		rulesPath:   {200, `[{"type":"required_status_checks","parameters":{"required_status_checks":[{"context":"Scan"}]}}]`},
+	})
+
+	got, err := a.client(t).RequiredContexts("owner/repo", "default")
+
+	if err != nil || !slices.Equal(got.Contexts, []string{"Scan"}) {
+		t.Errorf("got %+v, err %v; protection with reviews but no status checks requires none of its own", got, err)
+	}
+}
+
+func TestABranchNameThatCouldWalkUpTheAPIPathIsRefused(t *testing.T) {
+	a := newAPI(t, nil)
+
+	for _, branch := range []string{"..", ".", "a/../b", "a/./b", "x..y"} {
+		if _, err := a.client(t).RequiredContexts("owner/repo", branch); err == nil {
+			t.Errorf("branch %q accepted", branch)
+		}
+	}
+	if len(a.seen) != 0 {
+		t.Errorf("requests were made: %v", a.seen)
+	}
+}
+
+func TestValidRepositoryAcceptsOwnerSlashNameOnly(t *testing.T) {
+	for _, repo := range []string{"owner/repo", "a-b/c_d.e", "LongTermSupport/actions-qa-ci"} {
+		if err := branchprotection.ValidRepository(repo); err != nil {
+			t.Errorf("%q: %v", repo, err)
+		}
+	}
+	for _, repo := range []string{"", "owner", "a/b/c", "owner/..", "../x", "owner/re po", "owner/repo\n"} {
+		if err := branchprotection.ValidRepository(repo); err == nil {
+			t.Errorf("%q accepted", repo)
+		}
+	}
+}
+
 func TestWhatCannotBeReadIsAnErrorNotAnEmptyAnswer(t *testing.T) {
 	ok := response{200, `{"default_branch":"main"}`}
 	cases := map[string]map[string]response{

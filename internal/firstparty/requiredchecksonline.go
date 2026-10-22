@@ -29,35 +29,44 @@ func CheckRequiredChecksOnline(known func(id string) bool, read ReadProtection) 
 			return nil, err
 		}
 
-		var branches []string
+		// The protection is read once for each way the record spells a branch, and entries are
+		// grouped by the branch it turns out to be: "default" and the default branch's own name
+		// are one branch, and one protection.
+		bySpelling := map[string]branchprotection.Result{}
+		byBranch := map[string]branchprotection.Result{}
+		var order []string
+		groups := map[string][]record.RequiredCheck{}
 		for _, required := range rec.RequiredChecks {
-			if !slices.Contains(branches, required.EffectiveBranch()) {
-				branches = append(branches, required.EffectiveBranch())
+			spelling := required.EffectiveBranch()
+			protection, done := bySpelling[spelling]
+			if !done {
+				var err error
+				protection, err = read(spelling)
+				if err != nil {
+					return nil, fmt.Errorf("%w: the required checks on branch %s cannot be compared with its protection: %w", check.ErrNotAnalysable, spelling, err)
+				}
+				bySpelling[spelling] = protection
+				byBranch[protection.Branch] = protection
 			}
+			if _, seen := groups[protection.Branch]; !seen {
+				order = append(order, protection.Branch)
+			}
+			groups[protection.Branch] = append(groups[protection.Branch], required)
 		}
 
 		var found []finding.Finding
-		for _, branch := range branches {
-			protection, err := read(branch)
-			if err != nil {
-				return nil, fmt.Errorf("%w: the required checks on branch %s cannot be compared with its protection: %w", check.ErrNotAnalysable, branch, err)
-			}
+		for _, branch := range order {
+			protection := byBranch[branch]
+			entries := groups[branch]
 
 			listed := map[string]bool{}
-			firstLine := 0
-			for _, required := range rec.RequiredChecks {
-				if required.EffectiveBranch() != branch {
-					continue
-				}
-				if firstLine == 0 {
-					firstLine = required.Line
-				}
+			for _, required := range entries {
 				listed[required.Context] = true
 				if slices.Contains(protection.Contexts, required.Context) {
 					continue
 				}
 				message := fmt.Sprintf("the record requires %q on branch %s, but the protection of %s does not require it (it requires %s)",
-					required.Context, branch, protection.Branch, quoted(protection.Contexts))
+					required.Context, required.EffectiveBranch(), branch, quoted(protection.Contexts))
 				f, err := newFinding(RequiredChecks, recordFile, required.Line, 1, message)
 				if err != nil {
 					return nil, err
@@ -69,9 +78,9 @@ func CheckRequiredChecksOnline(known func(id string) bool, read ReadProtection) 
 				if listed[context] {
 					continue
 				}
-				message := fmt.Sprintf("the protection of %s requires %q, which the record does not list for branch %s: list it, or remove it from the protection",
-					protection.Branch, context, branch)
-				f, err := newFinding(RequiredChecks, recordFile, firstLine, 1, message)
+				message := fmt.Sprintf("the protection of %s requires %q, which the record does not list for that branch: list it, or remove it from the protection",
+					branch, context)
+				f, err := newFinding(RequiredChecks, recordFile, entries[0].Line, 1, message)
 				if err != nil {
 					return nil, err
 				}

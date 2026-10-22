@@ -121,6 +121,42 @@ func TestOnlineNeedsATokenAndARepository(t *testing.T) {
 	}
 }
 
+func TestAnExceptionForTheOnlineComparisonIsStaleOnlyWhenTheComparisonRan(t *testing.T) {
+	fake := newFakeGitHub(t, `"CI"`)
+	onlineProject(t, fake.server.URL)
+	accepting := "version: 1\nrequiredChecks:\n  - context: CI\nexceptions:\n" +
+		"  - id: actionsqaci.requiredChecks\n    path: " + record.Path + "\n" +
+		"    hazard: \"The protection may require a context the record has not yet been taught about\"\n" +
+		"    scope: \"Only the record itself, and only until the protection and the record agree\"\n" +
+		"    decision: \"Owner: https://github.com/LongTermSupport/php-qa-ci/issues/310\"\n"
+	repository(t, map[string]string{
+		".github/workflows/ci.yml": pullRequestWorkflow,
+		record.Path:                accepting,
+	})
+
+	offline := runWith(t, realEnv(t, nil), "check", "--format", "agent")
+	online := runWith(t, realEnv(t, nil), "check", "--online", "--format", "agent")
+
+	if offline.code != cli.ExitOK || strings.Contains(offline.stdout, "staleException") {
+		t.Errorf("offline: exit %d, stdout %q; the exception may be for a finding only the comparison makes, which was not made", offline.code, offline.stdout)
+	}
+	if online.code != cli.ExitFindings || !strings.Contains(online.stdout, "actionsqaci.staleException") {
+		t.Errorf("online: exit %d, stdout %q, stderr %q; the comparison ran and found nothing for it to accept", online.code, online.stdout, online.stderr)
+	}
+}
+
+func TestOnlineRefusesARepositoryThatIsNotOwnerSlashName(t *testing.T) {
+	fake := newFakeGitHub(t, `"CI"`)
+	onlineProject(t, fake.server.URL)
+	t.Setenv("GITHUB_REPOSITORY", "not a repository")
+
+	got := runWith(t, realEnv(t, nil), "check", "--online")
+
+	if got.code != cli.ExitUsage || !strings.Contains(got.stderr, "GITHUB_REPOSITORY") || fake.requests.Load() != 0 {
+		t.Errorf("exit %d, stderr %q, requests %d; a wrong setting is a usage error, not a protection that could not be read", got.code, got.stderr, fake.requests.Load())
+	}
+}
+
 func TestOnlineWithAProtectionItCannotReadIsNoVerdictAndNeverShowsTheToken(t *testing.T) {
 	denied := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		reply(t, w, http.StatusForbidden, `{"message":"bad token secret-token"}`)

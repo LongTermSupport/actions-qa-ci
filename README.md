@@ -161,7 +161,10 @@ protection and rulesets the repository really has (the token in `GITHUB_TOKEN` o
 repository in `GITHUB_REPOSITORY`, the API at `GITHUB_API_URL`, https only): a context the
 record requires that the protection does not, and one the protection requires that the record
 does not list, are findings. Nothing reaches the network without `--online`, and a protection
-that cannot be read is exit 4 (`dbf.json`, `required-checks-online-comparison`).
+that cannot be read is exit 4 (`dbf.json`, `required-checks-online-comparison`). An exception
+for `actionsqaci.requiredChecks` at the record is called stale only by a run that went online, as
+it may accept a finding only the comparison makes. A branch the record spells two ways (`default`
+and its name) is one branch.
 
 Its `analyse.unanalysed` section lists patterns of paths (`path`, with a `justification` holding a
 `hazard` and a `scope`) of workflow-shaped files the project deliberately leaves out of the

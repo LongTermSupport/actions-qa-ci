@@ -95,6 +95,36 @@ func TestEachBranchTheRecordNamesIsComparedWithItsOwnProtection(t *testing.T) {
 	}
 }
 
+func TestTwoSpellingsOfTheSameBranchAreOneBranch(t *testing.T) {
+	got, err := compare(t, onlineRecord("{context: CI, branch: default}", "{context: Lint, branch: main}"),
+		protections{
+			"default": {Branch: "main", Contexts: []string{"CI", "Lint"}},
+			"main":    {Branch: "main", Contexts: []string{"CI", "Lint"}},
+		})
+
+	if err != nil || len(got) != 0 {
+		t.Errorf("findings %+v, error %v; the default branch and its name are one protection, and both entries are listed", got, err)
+	}
+}
+
+func TestAProtectionIsReadOncePerBranchWhateverTheSpelling(t *testing.T) {
+	reads := 0
+	read := func(branch string) (branchprotection.Result, error) {
+		reads++
+
+		return branchprotection.Result{Branch: "main", Contexts: []string{"CI"}}, nil
+	}
+	inTree(t, map[string]string{recordPath: onlineRecord("{context: CI}", "{context: CI, branch: main}")})
+
+	if _, err := firstparty.CheckRequiredChecksOnline(everythingIsKnown, read)(recordPath); err != nil {
+		t.Fatal(err)
+	}
+
+	if reads != 2 {
+		t.Errorf("reads = %d; one for each spelling, none repeated", reads)
+	}
+}
+
 func TestAProjectWithNoRequiredChecksHasNothingToCompare(t *testing.T) {
 	got, err := compare(t, "version: 1\n", protections{})
 
