@@ -56,26 +56,33 @@ func (f failingFS) ReadDir(name string) ([]fs.DirEntry, error) {
 	return f.MapFS.ReadDir(name)
 }
 
-func TestDiscoverStopsOnADirectoryItCannotListAndEscapesItsName(t *testing.T) {
-	evil := ".github/actions/evil\nactions-qa: forged\x1b[2J"
+func TestDiscoverStopsOnADirectoryItCannotListAtAnyLevel(t *testing.T) {
 	tree := fstest.MapFS{
-		".github/workflows/ci.yml": file("on: push\n"),
-		evil + "/action.yml":       file("runs: {}\n"),
+		".github/workflows/ci.yml":      file("on: push\n"),
+		".github/actions/x/action.yml":  file("runs: {}\n"),
+		".github/actions/x/y/other.txt": file("x\n"),
 	}
 
 	for name, broken := range map[string]string{
-		"the root": ".", "dot github": ".github", "workflows": ".github/workflows", "actions": ".github/actions", "a nested action directory": evil,
+		"the root": ".", "dot github": ".github", "workflows": ".github/workflows",
+		"actions": ".github/actions", "an action directory": ".github/actions/x", "a nested one": ".github/actions/x/y",
 	} {
 		got, err := check.Discover(failingFS{tree, broken})
 
 		if err == nil {
 			t.Errorf("%s: Discover = %v; a directory that cannot be listed is not an empty one", name, got)
+		}
+	}
+}
 
-			continue
-		}
-		if strings.ContainsAny(err.Error(), "\n\x1b") {
-			t.Errorf("%s: error = %q; the name must not reach a terminal as it is", name, err)
-		}
+func TestDiscoverEscapesTheNameOfADirectoryItCannotList(t *testing.T) {
+	evil := ".github/actions/evil\nactions-qa: forged\x1b[2J"
+	tree := fstest.MapFS{evil + "/inner.txt": file("x\n")}
+
+	got, err := check.Discover(failingFS{tree, evil})
+
+	if err == nil || strings.ContainsAny(err.Error(), "\n\x1b") {
+		t.Errorf("Discover = %v, %v; the name must not reach a terminal as it is", got, err)
 	}
 }
 

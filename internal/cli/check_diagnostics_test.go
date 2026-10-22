@@ -86,7 +86,7 @@ func TestAProjectRecordThatIsNotAPlainFileInsideTheRepositoryIsNoVerdict(t *test
 	}
 }
 
-func TestARecordPathThatCannotBeLookedAtIsAToolchainFault(t *testing.T) {
+func TestARecordPathThatCannotBeLookedAtIsNoVerdict(t *testing.T) {
 	repository(t, map[string]string{workflowPath: "on: push\n"})
 	if err := os.RemoveAll(".github"); err != nil {
 		t.Fatal(err)
@@ -98,7 +98,7 @@ func TestARecordPathThatCannotBeLookedAtIsAToolchainFault(t *testing.T) {
 
 	got := runWith(t, checkEnv(t, run.lane("fake", yml, findsNothing)), "check")
 
-	if got.code != cli.ExitToolchainFault || got.stdout != "" || len(run.ran) != 0 {
+	if got.code != cli.ExitNoVerdict || got.stdout != "" || len(run.ran) != 0 {
 		t.Errorf("exit %d, stdout %q, stderr %q, ran %v", got.code, got.stdout, got.stderr, run.ran)
 	}
 }

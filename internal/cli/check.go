@@ -185,7 +185,9 @@ func validateRecord(env Env, stderr io.Writer) int {
 		// .github is not a directory: the same fault Discover reports for it.
 		return noVerdict(stderr, fmt.Errorf("cannot look for the project record: %w", err))
 	case err != nil:
-		return fault(stderr, fmt.Errorf("cannot look for the project record: %w", err))
+		// A project record that cannot be looked at is a file that cannot be read, like every
+		// other one the default set holds: there is no verdict.
+		return noVerdict(stderr, fmt.Errorf("cannot look for the project record: %w", err))
 	case !info.Mode().IsRegular():
 		return noVerdict(stderr, fmt.Errorf("cannot analyse %s: it is not a regular file", record.Path))
 	}
