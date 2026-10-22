@@ -3,8 +3,7 @@
 ## What it forbids or requires
 
 `on:` names real webhook events, and each event's configuration (activity types, filters,
-`schedule`) is valid for that event. (A malformed `workflow_dispatch` input is reported as
-`actionsqaci.actionlint.syntax-check`.)
+`schedule`) is valid for that event.
 
 ## Hazard
 
