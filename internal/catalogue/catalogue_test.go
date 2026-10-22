@@ -58,7 +58,7 @@ func TestTheJustificationCheckIsShippedAndKnowsEveryShippedIdentifier(t *testing
 	record := "version: 1\nexceptions:\n" +
 		"  - id: actionsqaci.shellcheck.SC2115\n    hazard: legacy\n    scope: legacy\n    decision: x\n" +
 		"  - id: actionsqaci.actionlint.glob\n    hazard: legacy\n    scope: legacy\n    decision: x\n" +
-		"  - id: actionsqaci.unjustifiedException\n    hazard: legacy\n    scope: legacy\n    decision: x\n"
+		"  - id: actionsqaci.actionlint.id\n    hazard: legacy\n    scope: legacy\n    decision: x\n"
 	if err := os.WriteFile(filepath.Join(root, "record.yml"), []byte(record), 0o600); err != nil {
 		t.Fatal(err)
 	}

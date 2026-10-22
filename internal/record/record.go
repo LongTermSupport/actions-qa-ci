@@ -45,6 +45,13 @@ func (e *InvalidError) Is(target error) bool { return target == ErrInvalid }
 
 func invalid(reasons ...string) *InvalidError { return &InvalidError{Reasons: reasons} }
 
+// Unexceptable says whether an identifier belongs to a check on the record itself. Such a
+// check cannot be excepted: an exception that silenced the judge of exceptions would be one
+// nobody could judge.
+func Unexceptable(id string) bool {
+	return id == finding.ToolPrefix+".unjustifiedException" || id == finding.ToolPrefix+".staleException"
+}
+
 // Path is where a project keeps its record, relative to the repository root.
 const Path = ".github/actions-qa-ci.yml"
 
@@ -305,6 +312,8 @@ func (e Exception) shapeFaults(known func(id string) bool) []string {
 			faults = append(faults, err.Error())
 		} else if !known(e.ID) {
 			faults = append(faults, fmt.Sprintf("id %q is unknown: no defence in this build has it", e.ID))
+		} else if Unexceptable(e.ID) {
+			faults = append(faults, fmt.Sprintf("id %q is a check on the record itself and cannot be excepted; fix the record", e.ID))
 		}
 	}
 

@@ -155,7 +155,7 @@ func TestCheckAcceptsARecordNamingAnIdentifierTheRegistryHas(t *testing.T) {
 	})
 	var run laneRun
 
-	got := runWith(t, checkEnv(t, run.lane("fake", yml, findsNothing)), "check")
+	got := runWith(t, checkEnv(t, run.lane("fake", yml, findsNothing)), "check", "-t", "fake")
 
 	if got.code != cli.ExitOK {
 		t.Errorf("exit %d, stdout %q, stderr %q", got.code, got.stdout, got.stderr)

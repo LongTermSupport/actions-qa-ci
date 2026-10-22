@@ -77,6 +77,24 @@ anywhere else it would find nothing and read as clean, so it refuses.
   the lanes there are.
 - **`--format text|agent|json`.** With none given, `ACTIONS_QA_FORMAT`, else `text` on a
   terminal, else `agent`.
+- **Exceptions.** An exception of the project record covers a finding with the same identifier
+  and path, and the job and step if it names them (by id or by name, wherever in that job or step
+  the finding's line falls within that job or step's own extent, so an `env:` after the steps is in
+  the job and in no step); with no path it turns the defence off everywhere. A name that is the id
+  of one job is that job, whatever else is named so; a name two jobs (or two steps of a job) share
+  names none of them, so use the id. A covered finding stays in the output as excepted: counted,
+  not listed, and in `--format json` with the exception that covers it. A job or step is found by
+  reading the workflow. A workflow that cannot be read that way, or that uses a YAML alias, is not
+  placed at all; jobs that share a line are not placed, and steps that share a line are placed in
+  their job and in no step. An exception that names what is not placed matches nothing there. An
+  id that two jobs (or two steps of a job) share names neither. In a full run (no `-t`, no file named) an exception that covers no finding is
+  itself a finding, `actionsqaci.staleException`, at its line in the record.
+- **`rules` shows the narrowing.** It reads the project record in the working directory, which is
+  the repository root (run below it, with a record above, it says on standard error that it did
+  not look), and refuses an invalid one with exit 2. Beside a defence the record turns off
+  everywhere, the text format adds a `    narrowed: …` line and `rules --json` adds a `narrowedBy`
+  array to that entry; an entry without one has no such key, so a consumer that reads entries as
+  string maps breaks only when a record narrows something.
 - **Failure stops the run.** A lane that fails stops it with exit 3 and prints no findings: a
   partial list would read as a verdict.
 
@@ -90,9 +108,10 @@ them, and each is a way for a value to arrive from somewhere it is not written),
 not plain text, an identifier no defence has and a path that is not a plain file path inside the
 repository, and reports every fault at once. `actionsqaci.unjustifiedException` holds the three
 justification fields to a standard (see its page); `rule actionsqaci.unjustifiedException
-.github/actions-qa-ci.yml` runs it, and `check` runs it with the other lanes. This build reads
-and checks the record; it does not yet apply an exception to a finding, and the other sections the design gives the record arrive with the
-checks that use them.
+.github/actions-qa-ci.yml` runs it, and `check` runs it with the other lanes and applies the
+exceptions (see above). The checks on the record itself, `actionsqaci.unjustifiedException` and
+`actionsqaci.staleException`, cannot be excepted. The other sections the design gives the record
+arrive with the checks that use them.
 
 ### Exit codes
 

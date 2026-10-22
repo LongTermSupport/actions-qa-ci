@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"syscall"
 
 	"github.com/LongTermSupport/actions-qa-ci/internal/check"
+	"github.com/LongTermSupport/actions-qa-ci/internal/exceptions"
 	"github.com/LongTermSupport/actions-qa-ci/internal/finding"
 	"github.com/LongTermSupport/actions-qa-ci/internal/output"
 	"github.com/LongTermSupport/actions-qa-ci/internal/record"
@@ -38,7 +40,8 @@ func checkCommand(env Env, args []string, stdout, stderr io.Writer) int {
 		return refusal(stderr, fmt.Sprintf("the working directory must be the repository root, which holds .git: %v", err))
 	}
 
-	if code := validateRecord(env, stderr); code != ExitOK {
+	rec, code := validateRecord(env, stderr)
+	if code != ExitOK {
 		return code
 	}
 
@@ -57,6 +60,20 @@ func checkCommand(env Env, args []string, stdout, stderr io.Writer) int {
 	for _, f := range found {
 		if _, known := env.Registry.Lookup(f.ID); !known {
 			return fault(stderr, fmt.Errorf("a lane reported a finding for %s, which this build has no rule for", f.ID))
+		}
+		if err := f.Validate(); err != nil {
+			return fault(stderr, fmt.Errorf("a lane reported a finding that cannot be reported: %w", err))
+		}
+	}
+
+	if rec != nil {
+		applied, err := exceptions.Apply(rec, found, readRepositoryFile)
+		if err != nil {
+			return fault(stderr, err)
+		}
+		found = applied.Findings
+		if fullRun(arguments) {
+			found = append(found, exceptions.Stale(rec, applied.Matched)...)
 		}
 	}
 
@@ -168,36 +185,47 @@ func chooseLanes(all []check.Lane, wanted []string) ([]check.Lane, string) {
 	return chosen, ""
 }
 
+// fullRun says whether the run is every lane over every file the project has, the only kind
+// against which an exception can be called stale.
+func fullRun(arguments checkArguments) bool {
+	return len(arguments.lanes) == 0 && len(arguments.files) == 0
+}
+
+// readRepositoryFile reads a file of the repository by its repository-relative path.
+func readRepositoryFile(path string) ([]byte, error) {
+	return os.ReadFile(filepath.FromSlash(path))
+}
+
 // validateRecord loads the project record if there is one, so that a mistake in it stops the
-// run before anything is analysed.
-func validateRecord(env Env, stderr io.Writer) int {
+// run before anything is analysed. It returns the record, or nil when the project has none.
+func validateRecord(env Env, stderr io.Writer) (*record.Record, int) {
 	// The record has one name. A copy under another extension would be read by nothing, and a
 	// project with one would look like a project with no record.
 	if _, err := os.Lstat(".github/actions-qa-ci.yaml"); err == nil {
-		return refusal(stderr, fmt.Sprintf("found .github/actions-qa-ci.yaml; the project record is %s", record.Path))
+		return nil, refusal(stderr, fmt.Sprintf("found .github/actions-qa-ci.yaml; the project record is %s", record.Path))
 	}
 
 	info, err := os.Lstat(record.Path)
 	switch {
 	case errors.Is(err, os.ErrNotExist):
-		return ExitOK
+		return nil, ExitOK
 	case errors.Is(err, syscall.ENOTDIR):
 		// .github is not a directory: the same fault Discover reports for it.
-		return noVerdict(stderr, fmt.Errorf("cannot look for the project record: %w", err))
+		return nil, noVerdict(stderr, fmt.Errorf("cannot look for the project record: %w", err))
 	case err != nil:
 		// A project record that cannot be looked at is a file that cannot be read, like every
 		// other one the default set holds: there is no verdict.
-		return noVerdict(stderr, fmt.Errorf("cannot look for the project record: %w", err))
+		return nil, noVerdict(stderr, fmt.Errorf("cannot look for the project record: %w", err))
 	case !info.Mode().IsRegular():
-		return noVerdict(stderr, fmt.Errorf("cannot analyse %s: it is not a regular file", record.Path))
+		return nil, noVerdict(stderr, fmt.Errorf("cannot analyse %s: it is not a regular file", record.Path))
 	}
 
 	path, problem, err := repositoryPath(record.Path)
 	if err != nil {
-		return fault(stderr, err)
+		return nil, fault(stderr, err)
 	}
 	if problem != "" {
-		return noVerdict(stderr, errors.New(problem))
+		return nil, noVerdict(stderr, errors.New(problem))
 	}
 
 	known := func(id string) bool {
@@ -205,13 +233,15 @@ func validateRecord(env Env, stderr io.Writer) int {
 
 		return ok
 	}
-	if _, err := record.Load(path, known); errors.Is(err, record.ErrInvalid) {
-		return refuseInvalid(stderr, err)
-	} else if err != nil {
-		return fault(stderr, err)
+	rec, err := record.Load(path, known)
+	if errors.Is(err, record.ErrInvalid) {
+		return nil, refuseInvalid(stderr, err)
+	}
+	if err != nil {
+		return nil, fault(stderr, err)
 	}
 
-	return ExitOK
+	return rec, ExitOK
 }
 
 // filesToCheck is the files named on the command line, each of which some chosen lane must

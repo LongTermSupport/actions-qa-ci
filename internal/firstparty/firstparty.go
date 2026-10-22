@@ -16,6 +16,7 @@ const Tool = "actions-qa-ci"
 // The identifiers of the first-party checks.
 const (
 	UnjustifiedException = finding.ToolPrefix + ".unjustifiedException"
+	StaleException       = finding.ToolPrefix + ".staleException"
 )
 
 // Rules returns the first-party checks. known says whether an identifier belongs to a defence
@@ -25,6 +26,11 @@ func Rules(known func(id string) bool) []registry.Rule {
 		ID:      UnjustifiedException,
 		Summary: "Every exception in the project record states a hazard, a scope and a decision, none of them generic",
 		Check:   CheckRecord(known),
+	}, {
+		// Reported by `check` when it has run every lane over every file: an exception can be
+		// judged stale only against a whole run, so this rule cannot run on one file.
+		ID:      StaleException,
+		Summary: "Every exception in the project record matches a finding in a full run",
 	}}
 }
 

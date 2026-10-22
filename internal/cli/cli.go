@@ -230,6 +230,9 @@ type ruleEntry struct {
 	Summary  string `json:"summary"`
 	Upstream string `json:"upstream"`
 	DocPath  string `json:"docPath"`
+	// NarrowedBy says how the project record turns the defence off, which is a narrowing of the
+	// method's standard and has to be visible wherever the defences are listed.
+	NarrowedBy []string `json:"narrowedBy,omitempty"`
 }
 
 func rules(env Env, args []string, stdout, stderr io.Writer) int {
@@ -239,6 +242,9 @@ func rules(env Env, args []string, stdout, stderr io.Writer) int {
 	}
 
 	active := activeEntries(env.Registry)
+	if code := narrowByRecord(env, active, stderr); code != ExitOK {
+		return code
+	}
 
 	if asJSON {
 		return printJSON(stdout, stderr, active)
@@ -247,6 +253,9 @@ func rules(env Env, args []string, stdout, stderr io.Writer) int {
 	var out strings.Builder
 	for _, entry := range active {
 		out.WriteString(entry.ID + "  " + entry.Summary + "\n")
+		for _, narrowing := range entry.NarrowedBy {
+			out.WriteString("    narrowed: " + narrowing + "\n")
+		}
 	}
 	if len(active) == 0 {
 		out.WriteString("no rules are active\n")
@@ -264,10 +273,10 @@ func rules(env Env, args []string, stdout, stderr io.Writer) int {
 func activeEntries(reg *registry.Registry) []ruleEntry {
 	entries := []ruleEntry{}
 	for _, rule := range reg.All() {
-		entries = append(entries, ruleEntry{rule.ID, rule.Summary, rule.Upstream, registry.DocPath(rule.ID)})
+		entries = append(entries, ruleEntry{ID: rule.ID, Summary: rule.Summary, Upstream: rule.Upstream, DocPath: registry.DocPath(rule.ID)})
 	}
 	for _, family := range reg.Families() {
-		entries = append(entries, ruleEntry{family.Name, family.Summary, family.Upstream, pages.Directory + "/" + family.Page + ".md"})
+		entries = append(entries, ruleEntry{ID: family.Name, Summary: family.Summary, Upstream: family.Upstream, DocPath: pages.Directory + "/" + family.Page + ".md"})
 	}
 	slices.SortFunc(entries, func(a, b ruleEntry) int { return cmp.Compare(a.ID, b.ID) })
 
