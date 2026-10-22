@@ -210,7 +210,9 @@ func TestACommandWhoseOutputCannotBeWrittenIsAToolchainFault(t *testing.T) {
 	}
 }
 
-func TestTheProgramRunsAgainstTheRulesAndPagesItShips(t *testing.T) {
+// No rule ships yet, so this shows the production entry point wires the built-in registry; it
+// cannot show the embedded pages are read until a rule has one.
+func TestTheProgramRunsAgainstTheRulesItShips(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 
 	if code := cli.Run([]string{"rules"}, &stdout, &stderr); code != cli.ExitOK {

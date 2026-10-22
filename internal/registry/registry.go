@@ -19,6 +19,10 @@ type Rule struct {
 	Summary string
 	// Upstream names the tool and version a bundled rule comes from; empty for first-party rules.
 	Upstream string
+	// Check runs the rule on one file, given its repository-relative path, and returns only
+	// findings carrying this rule's identifier. It is nil for a rule that cannot run on its
+	// own, such as one a bundled backend reports only as part of its lane.
+	Check func(path string) ([]finding.Finding, error)
 }
 
 // Registry is an immutable set of rules.

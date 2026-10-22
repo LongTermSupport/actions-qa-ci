@@ -225,6 +225,52 @@ func TestAuditDoesNotAcceptAHeadingThatOnlyStartsWithTheRequiredOne(t *testing.T
 	}
 }
 
+func TestAuditAcceptsAPageWithWindowsLineEndings(t *testing.T) {
+	page := strings.ReplaceAll(completePage, "\n", "\r\n")
+
+	if problems := auditOf(t, page); len(problems) != 0 {
+		t.Errorf("a CRLF page was refused: %v", problems)
+	}
+}
+
+func TestAuditSaysSoWhenACodeFenceIsNeverClosed(t *testing.T) {
+	page := strings.Replace(completePage, "```yaml\nrun: echo ok\n```", "```yaml\nrun: echo ok", 1)
+
+	problems := auditOf(t, page)
+
+	if len(problems) == 0 || !strings.Contains(problems[0], "never closed") {
+		t.Errorf("an unclosed fence should be named as the cause, not left to look like missing sections: %v", problems)
+	}
+}
+
+func TestALongerFenceIsNotClosedByAShorterRunInsideIt(t *testing.T) {
+	page := strings.Replace(completePage, "```yaml\nrun: echo ok\n```", "````markdown\n```yaml\nrun: echo ok\n```\n````", 1)
+
+	if problems := auditOf(t, page); len(problems) != 0 {
+		t.Errorf("a four-backtick fence holding a three-backtick block was misread: %v", problems)
+	}
+}
+
+func TestAFenceIsNotClosedByADifferentCharacterOrByTextAfterTheMarker(t *testing.T) {
+	for _, closer := range []string{"~~~", "``` yaml", "```x"} {
+		page := strings.Replace(completePage, "```yaml\nrun: echo ok\n```", "```yaml\nrun: echo ok\n"+closer, 1)
+
+		problems := auditOf(t, page)
+
+		if len(problems) == 0 || !strings.Contains(problems[0], "never closed") {
+			t.Errorf("%q closed a backtick fence: %v", closer, problems)
+		}
+	}
+}
+
+func TestAFenceMayBeClosedByALongerRun(t *testing.T) {
+	page := strings.Replace(completePage, "```yaml\nrun: echo ok\n```", "```yaml\nrun: echo ok\n`````", 1)
+
+	if problems := auditOf(t, page); len(problems) != 0 {
+		t.Errorf("a longer closing run was refused: %v", problems)
+	}
+}
+
 func TestAuditAcceptsTrailingSpacesOnAHeading(t *testing.T) {
 	page := strings.Replace(completePage, "## Hazard\n", "## Hazard  \n", 1)
 

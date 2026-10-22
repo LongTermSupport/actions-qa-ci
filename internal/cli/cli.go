@@ -1,6 +1,7 @@
 // Package cli is the actions-qa command line: argument handling, exit codes and the
-// commands themselves. It reads no process state, so a test drives it with plain writers
-// and an Env holding fakes.
+// commands themselves. Apart from the working directory and the file a command is pointed
+// at, it reads no process state, so a test drives it with plain writers and an Env holding
+// fakes.
 package cli
 
 import (
@@ -23,7 +24,7 @@ const (
 	ExitOK             = 0 // analysed, nothing to report
 	ExitFindings       = 1 // analysed, findings reported
 	ExitUsage          = 2 // the command line or a project record was wrong; nothing analysed
-	ExitToolchainFault = 3 // a bundled tool failed or its pinned binary did not verify
+	ExitToolchainFault = 3 // the toolchain itself failed: a rule, a bundled tool, a page, or unwritable output
 	ExitNoVerdict      = 4 // the analysis could not reach a verdict
 )
 
@@ -33,6 +34,8 @@ commands:
   version [--json]   print the specification versions this build is audited against
   rules [--json]     list every active rule without running it
   rule-doc <id>      print the page for a rule identifier, offline
+  rule [--format text|agent|json] <id> <path>
+                     run one rule on one file and print only its findings
   help               print this text
 `
 
@@ -70,6 +73,8 @@ func RunWith(env Env, args []string, stdout, stderr io.Writer) int {
 		return rules(env, args[1:], stdout, stderr)
 	case "rule-doc":
 		return ruleDoc(env, args[1:], stdout, stderr)
+	case "rule":
+		return ruleHarness(env, args[1:], stdout, stderr)
 	default:
 		return usageError(stderr, fmt.Sprintf("unknown command %q", args[0]))
 	}
@@ -197,23 +202,34 @@ func rules(env Env, args []string, stdout, stderr io.Writer) int {
 // suggestionLimit is how many nearest identifiers an unknown one is answered with.
 const suggestionLimit = 3
 
+// lookupRule resolves an identifier a person typed to a registered rule. When it cannot, the
+// returned string says why, naming the nearest identifiers where there are any.
+func lookupRule(env Env, id string) (registry.Rule, string) {
+	if _, err := finding.ClassifyIdentifier(id); err != nil {
+		return registry.Rule{}, err.Error()
+	}
+
+	rule, known := env.Registry.Lookup(id)
+	if known {
+		return rule, ""
+	}
+
+	message := fmt.Sprintf("unknown rule %q", id)
+	if nearest := env.Registry.Nearest(id, suggestionLimit); len(nearest) > 0 {
+		message += "; did you mean " + strings.Join(nearest, ", ") + "?"
+	}
+
+	return registry.Rule{}, message
+}
+
 func ruleDoc(env Env, args []string, stdout, stderr io.Writer) int {
 	if len(args) != 1 {
 		return usageError(stderr, "rule-doc takes exactly one rule identifier")
 	}
 	id := args[0]
 
-	if _, err := finding.ClassifyIdentifier(id); err != nil {
-		return refusal(stderr, err.Error())
-	}
-
-	if _, known := env.Registry.Lookup(id); !known {
-		message := fmt.Sprintf("unknown rule %q", id)
-		if nearest := env.Registry.Nearest(id, suggestionLimit); len(nearest) > 0 {
-			message += "; did you mean " + strings.Join(nearest, ", ") + "?"
-		}
-
-		return refusal(stderr, message)
+	if _, problem := lookupRule(env, id); problem != "" {
+		return refusal(stderr, problem)
 	}
 
 	page, err := pages.Page(env.Pages, id)
