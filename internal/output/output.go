@@ -22,8 +22,8 @@ const (
 	// Text is grouped by file, for a person at a terminal.
 	Text Format = "text"
 	// Agent is one line per finding, for a reader that parses lines rather than layout. A path
-	// is printed as it is, so a path containing a space is ambiguous to a whitespace split; the
-	// json format is the one to parse when paths are not known to be plain.
+	// that is plain prints as it is; any other path prints as a double-quoted Go string, so a
+	// file name can never pass for a trailer line or split a finding line.
 	Agent Format = "agent"
 	// JSON is the finding schema, every finding including the excepted ones.
 	JSON Format = "json"
@@ -115,7 +115,7 @@ func renderAgent(out *bytes.Buffer, findings []finding.Finding) error {
 	active, excepted := split(findings)
 
 	for _, f := range active {
-		fmt.Fprintf(out, "%s:%d:%d %s %s\n", f.Path, f.Line, column(f), f.ID, oneLine(f.Message))
+		fmt.Fprintf(out, "%s:%d:%d %s %s\n", displayPath(f.Path), f.Line, column(f), f.ID, oneLine(f.Message))
 	}
 	writeTrailer(out, active, excepted)
 
@@ -131,7 +131,7 @@ func renderText(out *bytes.Buffer, findings []finding.Finding) error {
 			if index > 0 {
 				out.WriteString("\n")
 			}
-			out.WriteString(f.Path + "\n")
+			out.WriteString(displayPath(f.Path) + "\n")
 			previous = f.Path
 		}
 		fmt.Fprintf(out, "  %d:%d  %s  %s  %s\n", f.Line, column(f), f.Severity, oneLine(f.Message), f.ID)
@@ -174,6 +174,19 @@ func writeTrailer(out *bytes.Buffer, active []finding.Finding, excepted int) {
 // column is 1-based; a lane that did not know the column reports the start of the line.
 func column(f finding.Finding) int {
 	return max(f.Col, 1)
+}
+
+// displayPath prints a path as it is when that is unambiguous, and as a double-quoted Go
+// string when it contains a space or anything that needs escaping (a quote, a backslash,
+// invalid UTF-8, a non-printable character). A trailer line always holds a space, and a
+// quoted path starts with a quote, so a file name cannot pass for a trailer.
+func displayPath(path string) string {
+	quoted := strconv.Quote(path)
+	if strings.Contains(path, " ") || quoted != `"`+path+`"` {
+		return quoted
+	}
+
+	return path
 }
 
 var crlf = strings.NewReplacer("\r\n", "\n")

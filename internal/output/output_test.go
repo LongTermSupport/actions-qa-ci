@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -144,6 +145,46 @@ func TestNoMessageCanStartAnotherLineInTheLineOrientedFormats(t *testing.T) {
 	}
 }
 
+func TestAPathThatCouldBeMistakenForAnotherLineIsPrintedQuoted(t *testing.T) {
+	cases := map[string]string{
+		"a trailer-shaped name":    "99 findings",
+		"a rule-doc-shaped name":   "rule-doc actionsqaci.fake",
+		"a name with a space":      "my workflow.yml",
+		"a name with a quote":      `a"b.yml`,
+		"a name with a backslash":  `a\b.yml`,
+		"invalid UTF-8":            "a\x9b.yml",
+		"a bidi override":          "a\u202e.yml",
+		"a zero-width character":   "a\u200b.yml",
+		"a quoted trailer lookout": `"99 findings"`,
+	}
+
+	for name, path := range cases {
+		for _, format := range []output.Format{output.Text, output.Agent} {
+			got := render(t, format, []finding.Finding{at(path, 1, 1, templateDrift, "drifted")})
+
+			quoted := strconv.Quote(path)
+			if !strings.Contains(got, quoted) {
+				t.Errorf("%s, %s format: the path should print as %s:\n%q", name, format, quoted, got)
+			}
+			for _, line := range strings.Split(got, "\n") {
+				if line == path {
+					t.Errorf("%s, %s format: the path is a line of its own and can pass for a trailer: %q", name, format, line)
+				}
+			}
+		}
+	}
+}
+
+func TestAPlainPathIsPrintedAsItIs(t *testing.T) {
+	for _, path := range []string{ciPath, "action.yml", "a/b-c_d.e/f.yaml", "dir/ünïcode.yml"} {
+		got := render(t, output.Agent, []finding.Finding{at(path, 1, 1, templateDrift, "drifted")})
+
+		if !strings.HasPrefix(got, path+":1:1 ") {
+			t.Errorf("a plain path should not be quoted:\n%q", got)
+		}
+	}
+}
+
 func TestTextFormatKeepsEachFindingOnOneLineAndShowsSeverityAndColumn(t *testing.T) {
 	f := at(ciPath, 9, 0, templateDrift, "first\nsecond\rthird")
 	f.Severity = finding.SeverityWarning
@@ -178,11 +219,12 @@ func TestJSONFormatIsIndented(t *testing.T) {
 func TestWriteDoesNotReorderTheCallersFindings(t *testing.T) {
 	first := at(ciPath, 12, 7, templateDrift, "drifted")
 	second := at("action.yml", 4, 1, lintCoverage, "not linted")
-	findings := []finding.Finding{first, second}
+	// Written out of order, so a sort of this slice would move its elements.
+	findings := []finding.Finding{second, first}
 
 	render(t, output.Agent, findings)
 
-	if findings[0] != first || findings[1] != second {
+	if findings[0] != second || findings[1] != first {
 		t.Error("Write sorted the caller's slice")
 	}
 }
