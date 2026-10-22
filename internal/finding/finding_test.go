@@ -95,6 +95,37 @@ func TestAFindingThatCannotBeActedOnIsRefused(t *testing.T) {
 	}
 }
 
+func TestEveryFieldBreaksATieInSort(t *testing.T) {
+	later := map[string]func(*finding.Finding){
+		"col":          func(f *finding.Finding) { f.Col++ },
+		"endLine":      func(f *finding.Finding) { f.EndLine++ },
+		"tool":         func(f *finding.Finding) { f.Tool += "z" },
+		"upstreamId":   func(f *finding.Finding) { f.UpstreamID += "z" },
+		"severity":     func(f *finding.Finding) { f.Severity = finding.SeverityWarning },
+		"docPath":      func(f *finding.Finding) { f.DocPath += "z" },
+		"exceptionKey": func(f *finding.Finding) { f.ExceptionKey = "k" },
+		"excepted":     func(f *finding.Finding) { f.Excepted = true },
+	}
+
+	for field, mutate := range later {
+		base := sample()
+		other := sample()
+		mutate(&other)
+
+		forward := []finding.Finding{base, other}
+		backward := []finding.Finding{other, base}
+		finding.Sort(forward)
+		finding.Sort(backward)
+
+		if forward[0] != backward[0] || forward[1] != backward[1] {
+			t.Errorf("%s does not break a tie: the order depends on the input order", field)
+		}
+		if forward[0] != base {
+			t.Errorf("%s: the finding with the larger value sorted first", field)
+		}
+	}
+}
+
 func TestFindingsThatTieOnPositionAreOrderedByTheRestOfTheirContent(t *testing.T) {
 	first, second := sample(), sample()
 	first.Message = "alpha"
