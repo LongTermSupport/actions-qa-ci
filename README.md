@@ -95,7 +95,9 @@ anywhere else it would find nothing and read as clean, so it refuses.
   The file is not written when nothing was analysed (a usage error, a refused record, no
   verdict); one that is asked for and cannot be written is exit 3. It is never written through a
   symbolic link or to a pipe, and a path inside the repository must not leave it through a
-  link in one of its directories; an absolute path elsewhere is the operator's own. The address
+  link in one of its directories; a path outside the repository (absolute, or reaching out with
+  `..`) is the operator's own and is only refused a symbolic link or a pipe at its end. A value
+  that starts with `-` is refused, so a missing file name cannot swallow the next flag. The address
   of a rule's page in the log is on the default branch until the program has a release to name
   (`dbf.json`, `sarif-help-uri-not-at-release-tag`).
 - **Exceptions.** An exception of the project record covers a finding with the same identifier

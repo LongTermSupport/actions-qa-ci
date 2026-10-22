@@ -127,9 +127,10 @@ func TestSARIFNeedsAFileAndIsGivenOnce(t *testing.T) {
 	env := checkEnv(t, run.lane("fake", yml, findsAlways))
 
 	for name, args := range map[string][]string{
-		"no value": {"check", "--sarif"},
-		"twice":    {"check", "--sarif", "a.sarif", "--sarif", "b.sarif"},
-		"empty":    {"check", "--sarif", ""},
+		"no value":                      {"check", "--sarif"},
+		"twice":                         {"check", "--sarif", "a.sarif", "--sarif", "b.sarif"},
+		"empty":                         {"check", "--sarif", ""},
+		"a flag where the file belongs": {"check", "--sarif", "--format", "json"},
 	} {
 		got := runWith(t, env, args...)
 
@@ -185,6 +186,20 @@ func TestADirectoryLinkThatLeadsOutsideTheRepositoryIsNeverWrittenThrough(t *tes
 	entries, err := os.ReadDir(outside)
 	if got.code != cli.ExitToolchainFault || err != nil || len(entries) != 0 {
 		t.Errorf("exit %d, err %v, outside holds %d entries", got.code, err, len(entries))
+	}
+}
+
+func TestADirectoryAtTheSARIFPathIsRefusedForWhatItIs(t *testing.T) {
+	repository(t, map[string]string{workflowPath: "on: push\n"})
+	var run laneRun
+	env := checkEnv(t, run.lane("fake", yml, findsNothing))
+
+	for _, typed := range []string{".", ".github"} {
+		got := runWith(t, env, "check", "--sarif", typed)
+
+		if got.code != cli.ExitToolchainFault || got.stdout != "" || !strings.Contains(got.stderr, "directory") || strings.Contains(got.stderr, "link") {
+			t.Errorf("%s: exit %d, stdout %q, stderr %q; want a refusal that says it is a directory", typed, got.code, got.stdout, got.stderr)
+		}
 	}
 }
 

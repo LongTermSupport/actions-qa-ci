@@ -67,6 +67,10 @@ func writeOutputFile(typed string, data []byte) error {
 	}
 	absolute = filepath.Clean(absolute)
 
+	if info, err := os.Lstat(absolute); err == nil && info.IsDir() {
+		return fmt.Errorf("cannot write %s: it is a directory", finding.DisplayPath(typed))
+	}
+
 	_, insideWorking := relativeTo(working, absolute)
 	_, insideReal := relativeTo(realRoot, absolute)
 	inside := insideWorking || insideReal

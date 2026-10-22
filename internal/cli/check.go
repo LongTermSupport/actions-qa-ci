@@ -136,8 +136,8 @@ func parseCheckArguments(args []string) (checkArguments, string) {
 			parsed.format = args[1]
 			args = args[2:]
 		case args[0] == "--sarif":
-			if len(args) < 2 || args[1] == "" {
-				return checkArguments{}, "--sarif needs the file to write"
+			if len(args) < 2 || args[1] == "" || strings.HasPrefix(args[1], "-") {
+				return checkArguments{}, "--sarif needs the file to write (a name that starts with - is written ./-name)"
 			}
 			if parsed.sarif != "" {
 				return checkArguments{}, "--sarif is given once"
