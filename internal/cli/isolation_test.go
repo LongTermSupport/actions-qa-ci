@@ -59,13 +59,8 @@ func realEnv(t *testing.T, isolation *cli.Isolation) cli.Env {
 	if err != nil {
 		t.Fatal(err)
 	}
-	known := func(id string) bool {
-		_, ok := reg.Lookup(id)
 
-		return ok
-	}
-
-	return cli.Env{Registry: reg, Pages: actionsqaci.Pages, Lanes: catalogue.Lanes(known), DefaultFormat: "agent", Isolation: isolation, Extensions: catalogue.Extensions()}
+	return cli.Env{Registry: reg, Pages: actionsqaci.Pages, Lanes: catalogue.Lanes(reg), DefaultFormat: "agent", Isolation: isolation, Extensions: catalogue.Extensions()}
 }
 
 func thisProgram(t *testing.T, limits check.Limits, environment ...string) *cli.Isolation {
@@ -163,10 +158,10 @@ func TestOnlyTheLaneThatRunsAThirdPartyBackendIsIsolated(t *testing.T) {
 		isolated[lane.Name] = lane.Isolated
 	}
 
-	if len(isolated) != 7 || !isolated["actionlint"] {
+	if len(isolated) != 8 || !isolated["actionlint"] {
 		t.Errorf("isolated lanes = %v; actionlint runs a third-party parser and is isolated", isolated)
 	}
-	for _, name := range []string{"firstParty", "templateDrift", "requiredChecks", "lintCoverage", "inlineSuppression", "nativeSuppressionConfig"} {
+	for _, name := range []string{"firstParty", "templateDrift", "requiredChecks", "lintCoverage", "agentSummaryCurrent", "inlineSuppression", "nativeSuppressionConfig"} {
 		if isolated[name] {
 			t.Errorf("lane %s is this program's own code and is not isolated", name)
 		}

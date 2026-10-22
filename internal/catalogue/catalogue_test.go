@@ -81,7 +81,11 @@ func TestTheJustificationCheckIsShippedAndKnowsEveryShippedIdentifier(t *testing
 }
 
 func TestTheShippedLanesSelectExactlyWhatTheyAnalyse(t *testing.T) {
-	lanes := catalogue.Lanes(func(string) bool { return true })
+	reg, err := catalogue.Registry()
+	if err != nil {
+		t.Fatal(err)
+	}
+	lanes := catalogue.Lanes(reg)
 	selects := map[string]func(string) bool{}
 	for _, lane := range lanes {
 		selects[lane.Name] = lane.Selects
@@ -111,6 +115,9 @@ func TestTheShippedLanesSelectExactlyWhatTheyAnalyse(t *testing.T) {
 		{"lintCoverage", ".github/actions-qa-ci.yml", true},
 		{"lintCoverage", ".github/workflows/ci.yml", false},
 		{"lintCoverage", "sub/.github/actions-qa-ci.yml", false},
+		{"agentSummaryCurrent", ".github/actions-qa-ci.yml", true},
+		{"agentSummaryCurrent", "CLAUDE.md", false},
+		{"agentSummaryCurrent", "sub/.github/actions-qa-ci.yml", false},
 		{"inlineSuppression", ".github/workflows/ci.yml", true},
 		{"inlineSuppression", "action.yml", true},
 		{"inlineSuppression", ".github/actions/x/action.yaml", true},
@@ -129,7 +136,7 @@ func TestTheShippedLanesSelectExactlyWhatTheyAnalyse(t *testing.T) {
 			t.Errorf("lane %s selects %s = %v, want %v", c.lane, c.path, got, c.want)
 		}
 	}
-	if len(lanes) != 7 {
+	if len(lanes) != 8 {
 		t.Errorf("lanes = %d; a lane added here needs cases above", len(lanes))
 	}
 }

@@ -177,6 +177,21 @@ func TestExtractGivesTheRegionWithPlainLineEndingsWhateverTheFileUses(t *testing
 	}
 }
 
+func TestBeginLineSaysWhereTheRegionStartsCountingFromOne(t *testing.T) {
+	file := "# Project\n\ntext\r\n" + region(t) + "\n"
+
+	line, found, err := agentsummary.BeginLine([]byte(file))
+	if err != nil || !found || line != 4 {
+		t.Errorf("line %d, found %v, err %v", line, found, err)
+	}
+	if _, found, err := agentsummary.BeginLine([]byte("# Project\n")); found || err != nil {
+		t.Errorf("a file with no region: found %v, err %v", found, err)
+	}
+	if _, _, err := agentsummary.BeginLine([]byte(agentsummary.End + "\n")); err == nil {
+		t.Error("markers that do not form a region must be an error")
+	}
+}
+
 func TestExtractFindsTheRegionAndCurrentComparesIt(t *testing.T) {
 	file, err := agentsummary.Splice([]byte("# Project\n"), region(t))
 	if err != nil {

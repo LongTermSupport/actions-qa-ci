@@ -21,6 +21,7 @@ Generated from the registry; do not edit. Regenerate it with
 | `actionsqaci.actionlint.shell-name` | A step's shell is one GitHub provides | [page](actionsqaci.actionlint.shell-name.md) |
 | `actionsqaci.actionlint.syntax-check` | A workflow file is valid GitHub Actions workflow syntax | [page](actionsqaci.actionlint.syntax-check.md) |
 | `actionsqaci.actionlint.workflow-call` | A reusable-workflow call passes the inputs and secrets the callee declares | [page](actionsqaci.actionlint.workflow-call.md) |
+| `actionsqaci.agentSummaryCurrent` | The generated region of CLAUDE.md or AGENTS.md lists the defences this build has and what the project record narrows | [page](actionsqaci.agentSummaryCurrent.md) |
 | `actionsqaci.inlineSuppression` | No comment tells zizmor, ratchet or ShellCheck to leave a finding out | [page](actionsqaci.inlineSuppression.md) |
 | `actionsqaci.lintCoverage` | Every git-tracked file that is workflow-shaped or action-shaped is analysed, or declared unanalysed with a justification | [page](actionsqaci.lintCoverage.md) |
 | `actionsqaci.nativeSuppressionConfig` | No tool's own configuration file suppresses a finding: zizmor's file, an actionlint ignore, a pinact ignore_actions | [page](actionsqaci.nativeSuppressionConfig.md) |

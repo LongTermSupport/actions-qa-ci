@@ -13,15 +13,25 @@ import (
 
 // Rules returns the individual rules this build ships, in no particular order. The bundled
 // backends and the first-party checks add theirs here as they arrive. known says whether an
-// identifier belongs to a defence of this build, for the checks that read the project record.
-func Rules(known func(id string) bool) []registry.Rule {
-	return append(actionlint.Rules(), firstparty.Rules(known)...)
+// identifier belongs to a defence of this build, for the checks that read the project record;
+// current gives the registry these rules are in, for the check that lists them.
+func Rules(known func(id string) bool, current func() *registry.Registry) []registry.Rule {
+	rules := append(actionlint.Rules(), firstparty.Rules(known)...)
+
+	return append(rules, firstparty.AgentSummaryRule(known, current))
 }
 
 // Lanes returns the analyses `check` runs, in the order it runs them. The actionlint lane
-// carries ShellCheck's findings on the shell in run: steps; the first-party lane checks the
-// project record. known says whether an identifier belongs to a defence of this build.
-func Lanes(known func(id string) bool) []check.Lane {
+// carries ShellCheck's findings on the shell in run: steps; the first-party lanes check the
+// project record and what is written from it. reg is the registry of this build's rules.
+func Lanes(reg *registry.Registry) []check.Lane {
+	known := func(id string) bool {
+		_, ok := reg.Lookup(id)
+
+		return ok
+	}
+	current := func() *registry.Registry { return reg }
+
 	return []check.Lane{
 		{
 			Name:     "actionlint",
@@ -51,6 +61,14 @@ func Lanes(known func(id string) bool) []check.Lane {
 			Subject: record.Path,
 			Selects: func(path string) bool { return path == record.Path },
 			Run:     firstparty.CheckLintCoverage(known),
+		},
+		{
+			// About the project's agent files, not one file: a stale summary is stale whether or
+			// not the project has a record.
+			Name:    "agentSummaryCurrent",
+			Subject: record.Path,
+			Selects: func(path string) bool { return path == record.Path },
+			Run:     firstparty.CheckAgentSummaryCurrent(known, current),
 		},
 		{
 			// A comment that tells a tool to leave a finding out: a suppression the project
@@ -98,7 +116,7 @@ func Registry() (*registry.Registry, error) {
 		return ok
 	}
 
-	built, err := registry.NewWithFamilies(Families(), Rules(known)...)
+	built, err := registry.NewWithFamilies(Families(), Rules(known, func() *registry.Registry { return reg })...)
 	if err != nil {
 		return nil, err
 	}

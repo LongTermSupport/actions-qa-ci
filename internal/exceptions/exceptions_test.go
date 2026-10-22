@@ -210,16 +210,3 @@ func TestStaleFindsTheExceptionsThatMatchedNothing(t *testing.T) {
 		t.Error("an exception that matched is not stale")
 	}
 }
-
-func TestDisabledListsTheExceptionsThatTurnADefenceOffEverywhere(t *testing.T) {
-	rec := &record.Record{Version: "1", Exceptions: []record.Exception{
-		exception(glob, release, "", "", 4),
-		exception(syntax, "", "", "", 9),
-	}}
-
-	got := exceptions.Disabled(rec)
-
-	if len(got) != 1 || got[0].ID != syntax || got[0].Line != 9 {
-		t.Errorf("disabled = %+v", got)
-	}
-}

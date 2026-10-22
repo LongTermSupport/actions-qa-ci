@@ -112,15 +112,3 @@ func describe(e record.Exception) string {
 
 	return strings.Join(parts, ", ")
 }
-
-// Disabled is the exceptions that turn a defence off everywhere, in the order of the record.
-func Disabled(rec *record.Record) []record.Exception {
-	var disabled []record.Exception
-	for _, e := range rec.Exceptions {
-		if e.DisablesDefence() {
-			disabled = append(disabled, e)
-		}
-	}
-
-	return disabled
-}
