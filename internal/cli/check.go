@@ -45,9 +45,18 @@ func checkCommand(env Env, args []string, stdout, stderr io.Writer) int {
 		return code
 	}
 
+	included, code := includedFiles(rec, stderr)
+	if code != ExitOK {
+		return code
+	}
+	lanes = check.Widen(lanes, included)
+
 	files, code := filesToCheck(lanes, arguments.files, stderr)
 	if code != ExitOK {
 		return code
+	}
+	if len(arguments.files) == 0 {
+		files = append(files, included.Files()...)
 	}
 
 	run := check.RunProject
@@ -94,7 +103,7 @@ func checkCommand(env Env, args []string, stdout, stderr io.Writer) int {
 		return fault(stderr, fmt.Errorf("cannot write output: %w", err))
 	}
 	if len(arguments.files) == 0 {
-		if err := noteUnanalysed(env.Lanes, files, stderr); err != nil {
+		if err := noteUnanalysed(check.Widen(env.Lanes, included), files, stderr); err != nil {
 			return fault(stderr, fmt.Errorf("cannot write output: %w", err))
 		}
 	}

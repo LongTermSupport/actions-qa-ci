@@ -1,11 +1,13 @@
 package firstparty_test
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/LongTermSupport/actions-qa-ci/internal/check"
 	"github.com/LongTermSupport/actions-qa-ci/internal/finding"
 	"github.com/LongTermSupport/actions-qa-ci/internal/firstparty"
 	"github.com/LongTermSupport/actions-qa-ci/internal/gitindex/gitindextest"
@@ -170,6 +172,89 @@ func TestADeclarationThatExcusesNothingIsAFindingAtItsEntry(t *testing.T) {
 	}
 	if got[1].Path != recordPath || got[1].Line != 8 || !strings.Contains(got[1].Message, ".github/workflows/*.yml") {
 		t.Errorf("second finding %+v; an entry that names only files that are analysed anyway turns nothing off and excuses nothing", got[1])
+	}
+}
+
+func includeRecord(patterns ...string) string {
+	text := "version: 1\nanalyse:\n  include:\n"
+	for _, pattern := range patterns {
+		text += "    - '" + pattern + "'\n"
+	}
+
+	return text
+}
+
+func TestAnIncludedFileIsAnalysedSoItNeedsNoDeclaration(t *testing.T) {
+	files := map[string]string{
+		recordPath:               includeRecord("templates/**"),
+		"templates/ci.yml":       shapedWorkflow,
+		"templates/x/action.yml": shapedAction,
+		"other/ci.yml":           shapedWorkflow,
+	}
+
+	got, err := covered(t, files, "templates/ci.yml", "templates/x/action.yml", "other/ci.yml")
+
+	if err != nil || len(got) != 1 || got[0].Path != "other/ci.yml" {
+		t.Errorf("findings %+v, error %v; want one, for the file no pattern names", got, err)
+	}
+}
+
+func TestAnIncludedPatternThatNamesNothingIsAFindingAtItsEntry(t *testing.T) {
+	files := map[string]string{
+		recordPath:                 includeRecord("gone/**", "docs/*.md", ".github/workflows/*.yml"),
+		".github/workflows/ci.yml": shapedWorkflow,
+		"docs/notes.md":            "# notes\n",
+	}
+
+	got, err := covered(t, files, ".github/workflows/ci.yml", "docs/notes.md")
+
+	if err != nil || len(got) != 3 {
+		t.Fatalf("findings %+v, error %v; want one for each entry", got, err)
+	}
+	for i, pattern := range []string{"gone/**", "docs/*.md", ".github/workflows/*.yml"} {
+		if got[i].Path != recordPath || got[i].Line != 4+i || !strings.Contains(got[i].Message, pattern) || !strings.Contains(got[i].Message, "includes no") {
+			t.Errorf("finding %d: %+v; want one at line %d naming %s", i, got[i], 4+i, pattern)
+		}
+	}
+}
+
+func TestAnIncludedFileIsAnalysedWhateverItLooksLike(t *testing.T) {
+	files := map[string]string{
+		recordPath:        includeRecord("templates/*.yml"),
+		"templates/a.yml": "name: broken\n",
+	}
+
+	got, err := covered(t, files, "templates/a.yml")
+
+	if err != nil || len(got) != 0 {
+		t.Errorf("findings %+v, error %v; the lanes judge a file the project asked for, not the shape check", got, err)
+	}
+}
+
+func TestADeclarationThatNamesOnlyAnIncludedFileExcusesNothing(t *testing.T) {
+	files := map[string]string{
+		recordPath: "version: 1\nanalyse:\n  include: [templates/**]\n  unanalysed:\n    - path: 'templates/**'\n" +
+			"      justification:\n        hazard: \"Fixture workflows hold the very mistakes the rules are tested against\"\n" +
+			"        scope: \"Only these files, which no workflow of the project ever runs\"\n",
+		"templates/ci.yml": shapedWorkflow,
+	}
+
+	got, err := covered(t, files, "templates/ci.yml")
+
+	if err != nil || len(got) != 1 || got[0].Path != recordPath || got[0].Line != 5 || !strings.Contains(got[0].Message, "excuses no") {
+		t.Errorf("findings %+v, error %v; an included file is analysed, so excusing it is contradictory", got, err)
+	}
+}
+
+func TestAnIncludedFileThatCannotBeAnalysedStopsTheCheck(t *testing.T) {
+	files := map[string]string{recordPath: includeRecord("templates/**")}
+	inTree(t, files)
+	gitindextest.Write(t, ".", gitindextest.Files("templates/gone.yml")...)
+
+	_, err := firstparty.CheckLintCoverage(everythingIsKnown)(recordPath)
+
+	if !errors.Is(err, check.ErrNotAnalysable) {
+		t.Errorf("error = %v; a file asked for and absent is no verdict", err)
 	}
 }
 

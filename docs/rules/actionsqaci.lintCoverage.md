@@ -38,6 +38,26 @@ nothing (a typo, a directory since removed) would excuse a file added later with
 deciding, and one that names only files analysed anyway turns nothing off. A declaration never
 removes a file of the default set from the analysis.
 
+A file the project wants analysed, though GitHub never reads it where it is (a template that
+consumers copy), is named in `analyse.include` instead:
+
+```yaml
+version: 1
+analyse:
+  include:
+    - templates/github-actions/**
+```
+
+An included pattern uses the same small pattern language. Every tracked `.yml` or `.yaml` file it
+names, outside the default set, is analysed whatever it looks like: a file named `action.yml` or
+`action.yaml` as an action, any other as a workflow, so a template that is broken enough to lose
+its `jobs` is reported by actionlint and not passed over for not looking like a workflow. An
+included file is no longer uncovered, so it needs no declaration, and a declaration that names only
+included files excuses nothing. An included pattern that names no such file is a finding at its
+entry, for the reason a declaration that excuses nothing is. An included file that is a link or a
+submodule, or is not on disk, or has a name that cannot be printed, is no verdict (exit 4): a file
+the project asked for and nobody could check.
+
 The check reads the repository's own index, so it covers the files `git` tracks and no others: a
 file that is not yet added is not seen, and a link, a submodule or a file deleted from the work
 tree has nothing to look at. A file over 1 MiB, or that is not valid YAML, is not examined and

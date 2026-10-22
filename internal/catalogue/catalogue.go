@@ -28,6 +28,7 @@ func Lanes(known func(id string) bool) []check.Lane {
 			Selects:  check.IsWorkflow,
 			Run:      actionlint.Lint,
 			Isolated: true,
+			Covers:   check.Workflows,
 		},
 		{
 			Name:    "firstParty",
@@ -57,6 +58,7 @@ func Lanes(known func(id string) bool) []check.Lane {
 			Name:    "inlineSuppression",
 			Selects: func(path string) bool { return check.IsWorkflow(path) || check.IsActionFile(path) },
 			Run:     firstparty.CheckInlineSuppression,
+			Covers:  check.Workflows | check.Actions,
 			Guard:   true,
 		},
 		{

@@ -156,9 +156,14 @@ index (no `git` is run, and no other tool is needed), so a file not yet added is
 index it cannot read completely is exit 3. It is about the project, not one file, so `check` runs
 it once whether or not the project has a record, and naming files on the command line runs only
 the lanes that cover them. The patterns are the small glob of `internal/glob` (`*`, `?`, `**` as
-a whole segment); `analyse.include`, for extra files to analyse, is not built, and a record that
-states it is refused. The other sections the design gives the record arrive with the checks
-that use them.
+a whole segment).
+
+Its `analyse.include` section lists patterns of tracked `.yml` and `.yaml` files outside the
+default set that the project wants analysed, such as a template it ships. Each file a pattern
+names is linted by actionlint and guarded against inline suppression as a workflow, or only
+guarded as an action when it is named `action.yml` or `action.yaml`. A pattern that names no
+such file is an `actionsqaci.lintCoverage` finding. The other sections the design gives the
+record arrive with the checks that use them.
 
 ### Exit codes
 
