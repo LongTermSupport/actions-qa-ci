@@ -17,8 +17,18 @@ import (
 	"github.com/LongTermSupport/actions-qa-ci/internal/finding"
 )
 
+// ErrInvalid marks a record that was read and is not a valid one, as opposed to a file that
+// could not be read: the first is a mistake in the record, the second a fault of the machine.
+var ErrInvalid = errors.New("the project record is not valid")
+
 // Path is where a project keeps its record, relative to the repository root.
 const Path = ".github/actions-qa-ci.yml"
+
+// document is a record as the YAML decoder reads it, before its entries are checked.
+type document struct {
+	Version    string       `yaml:"version"`
+	Exceptions []*Exception `yaml:"exceptions"`
+}
 
 // maxSize bounds a record: a file a person wrote is nowhere near it.
 const maxSize = 1 << 20
@@ -86,63 +96,90 @@ func Load(path string, known func(id string) bool) (*Record, error) {
 }
 
 // Parse reads a record and refuses anything that is not exactly well-formed, reporting every
-// fault at once. known says whether an identifier belongs to a defence this build has.
+// fault at once. known says whether an identifier belongs to a defence this build has. A
+// refusal wraps ErrInvalid.
 func Parse(data []byte, known func(id string) bool) (*Record, error) {
 	if len(data) > maxSize {
-		return nil, fmt.Errorf("the project record is larger than %d bytes", maxSize)
+		return nil, fmt.Errorf("%w: it is larger than %d bytes", ErrInvalid, maxSize)
 	}
 
-	rec := &Record{}
+	doc := document{}
 	decoder := yaml.NewDecoder(bytes.NewReader(data))
 	decoder.KnownFields(true)
-	if err := decoder.Decode(rec); err != nil && !errors.Is(err, io.EOF) {
-		return nil, fmt.Errorf("the project record is not valid: %w", err)
+	if err := decoder.Decode(&doc); err != nil && !errors.Is(err, io.EOF) {
+		return nil, fmt.Errorf("%w: %w", ErrInvalid, err)
 	}
 	if err := decoder.Decode(&yaml.Node{}); !errors.Is(err, io.EOF) {
-		return nil, errors.New("the project record is not valid: it has more than one document")
+		return nil, fmt.Errorf("%w: it has more than one document", ErrInvalid)
 	}
 
-	lines, err := entryLines(data)
+	layout, err := readLayout(data)
 	if err != nil {
 		return nil, err
 	}
-	for i := range rec.Exceptions {
-		if i < len(lines) {
-			rec.Exceptions[i].Line = lines[i]
-		}
+	if len(layout.lines) != len(doc.Exceptions) {
+		return nil, fmt.Errorf("%w: cannot match %d entries to their %d lines", ErrInvalid, len(doc.Exceptions), len(layout.lines))
 	}
 
-	if faults := rec.faults(known); len(faults) > 0 {
-		return nil, fmt.Errorf("the project record is not valid:\n  - %s", strings.Join(faults, "\n  - "))
+	rec := &Record{Version: doc.Version, Exceptions: make([]Exception, 0, len(doc.Exceptions))}
+	var faults []string
+	if layout.versionTag != "" && layout.versionTag != "!!int" && layout.versionTag != "!!str" {
+		faults = append(faults, fmt.Sprintf("version must be a whole number or text, not %s", layout.versionTag))
+	}
+	for i, entry := range doc.Exceptions {
+		if entry == nil {
+			faults = append(faults, fmt.Sprintf("exception %d (line %d) is empty", i+1, layout.lines[i]))
+			rec.Exceptions = append(rec.Exceptions, Exception{Line: layout.lines[i]})
+
+			continue
+		}
+		entry.Line = layout.lines[i]
+		rec.Exceptions = append(rec.Exceptions, *entry)
+	}
+
+	faults = append(faults, rec.faults(known)...)
+	if len(faults) > 0 {
+		return nil, fmt.Errorf("%w:\n  - %s", ErrInvalid, strings.Join(faults, "\n  - "))
 	}
 
 	return rec, nil
 }
 
-// entryLines finds the line each exception starts on.
-func entryLines(data []byte) ([]int, error) {
+// layout is what the decoder does not keep: where each entry starts and what kind of scalar
+// the version was written as.
+type layout struct {
+	lines      []int
+	versionTag string
+}
+
+func readLayout(data []byte) (layout, error) {
 	var root yaml.Node
 	if err := yaml.Unmarshal(data, &root); err != nil {
-		return nil, fmt.Errorf("the project record is not valid: %w", err)
+		return layout{}, fmt.Errorf("%w: %w", ErrInvalid, err)
 	}
 	if len(root.Content) == 0 || root.Content[0].Kind != yaml.MappingNode {
-		return nil, nil
+		return layout{}, nil
 	}
 
+	var found layout
 	top := root.Content[0].Content
 	for i := 0; i+1 < len(top); i += 2 {
-		if top[i].Value != "exceptions" || top[i+1].Kind != yaml.SequenceNode {
-			continue
+		switch top[i].Value {
+		case "version":
+			if top[i+1].Kind == yaml.ScalarNode {
+				found.versionTag = top[i+1].ShortTag()
+			}
+		case "exceptions":
+			if top[i+1].Kind != yaml.SequenceNode {
+				continue
+			}
+			for _, item := range top[i+1].Content {
+				found.lines = append(found.lines, item.Line)
+			}
 		}
-		lines := make([]int, 0, len(top[i+1].Content))
-		for _, item := range top[i+1].Content {
-			lines = append(lines, item.Line)
-		}
-
-		return lines, nil
 	}
 
-	return nil, nil
+	return found, nil
 }
 
 func (r *Record) faults(known func(id string) bool) []string {
@@ -153,6 +190,9 @@ func (r *Record) faults(known func(id string) bool) []string {
 	}
 
 	for i, e := range r.Exceptions {
+		if e == (Exception{Line: e.Line}) {
+			continue // an empty entry is reported once, by Parse
+		}
 		where := fmt.Sprintf("exception %d (line %d)", i+1, e.Line)
 		for _, fault := range e.shapeFaults(known) {
 			faults = append(faults, where+": "+fault)

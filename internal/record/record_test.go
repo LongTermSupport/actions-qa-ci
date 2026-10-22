@@ -1,6 +1,7 @@
 package record_test
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -78,7 +79,7 @@ func TestParseRefusesWhatIsNotAWellFormedRecord(t *testing.T) {
 		"unknown entry field":  {exception("    reason: because\n"), "reason"},
 		"duplicate key":        {"version: 1\nversion: 2\n", "already defined"},
 		"second document":      {"version: 1\n---\nversion: 2\n", "more than one document"},
-		"no id":                {"version: 1\nexceptions:\n  - path: a.yml\n", "id"},
+		"no id":                {"version: 1\nexceptions:\n  - path: a.yml\n", "id is missing"},
 		"unknown id":           {"version: 1\nexceptions:\n  - id: actionsqaci.nonsense\n    hazard: a\n    scope: b\n    decision: c\n", "unknown"},
 		"id not in the scheme": {"version: 1\nexceptions:\n  - id: Not An Identifier\n", "scheme"},
 		"absolute path":        {exception("    path: /etc/passwd\n"), "path"},
@@ -89,6 +90,11 @@ func TestParseRefusesWhatIsNotAWellFormedRecord(t *testing.T) {
 		"step without a path":  {exception("    step: build\n"), "path"},
 		"scalar exceptions":    {"version: 1\nexceptions: yes\n", "not valid"},
 		"a number for an id":   {"version: 1\nexceptions:\n  - id: 7\n", "scheme"},
+		"a bare dash":          {"version: 1\nexceptions:\n  -\n", "empty"},
+		"a null entry":         {"version: 1\nexceptions:\n  - null\n  - ~\n", "empty"},
+		"a boolean version":    {"version: true\n", "version"},
+		"a float version":      {"version: 1.0\n", "version"},
+		"a list version":       {"version: [1]\n", "not valid"},
 	}
 
 	for name, c := range cases {
@@ -162,5 +168,60 @@ func TestLoadReadsTheRecordFileAndNamesItInAnError(t *testing.T) {
 func TestTheRecordLivesAtOneFixedPath(t *testing.T) {
 	if record.Path != ".github/actions-qa-ci.yml" {
 		t.Errorf("Path = %q", record.Path)
+	}
+}
+
+func TestAnInvalidRecordIsMarkedInvalidAndAnUnreadableFileIsNot(t *testing.T) {
+	_, err := record.Parse([]byte("version: 1\nsurprise: 1\n"), everythingIsKnown)
+	if !errors.Is(err, record.ErrInvalid) {
+		t.Errorf("a record with an unknown field must be marked invalid, got %v", err)
+	}
+	_, err = record.Parse([]byte("version: 1\nexceptions:\n  - id: actionsqaci.nonsense\n"), func(string) bool { return false })
+	if !errors.Is(err, record.ErrInvalid) {
+		t.Errorf("a record naming an unknown identifier must be marked invalid, got %v", err)
+	}
+
+	_, err = record.Load(filepath.Join(t.TempDir(), "absent.yml"), everythingIsKnown)
+	if err == nil || errors.Is(err, record.ErrInvalid) {
+		t.Errorf("a file that cannot be read is not an invalid record, got %v", err)
+	}
+}
+
+func TestEachEntryKeepsItsOwnLineWhateverFormItIsWrittenIn(t *testing.T) {
+	data := "version: 1\n" + // 1
+		"exceptions:\n" + // 2
+		"  # a comment\n" + // 3
+		"  - id: actionsqaci.actionlint.glob\n" + // 4
+		"    hazard: a\n" + // 5
+		"\n" + // 6
+		"  - {id: actionsqaci.actionlint.glob, hazard: b}\n" + // 7
+		"  - id: actionsqaci.actionlint.glob\n" // 8
+
+	rec, err := record.Parse([]byte(data), everythingIsKnown)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var lines []int
+	for _, e := range rec.Exceptions {
+		lines = append(lines, e.Line)
+	}
+	if len(lines) != 3 || lines[0] != 4 || lines[1] != 7 || lines[2] != 8 {
+		t.Errorf("lines = %v, want [4 7 8]", lines)
+	}
+}
+
+func TestAnEmptyEntryIsReportedAtItsOwnLineAndShiftsNothingAfterIt(t *testing.T) {
+	data := "version: 1\nexceptions:\n  -\n  - id: actionsqaci.nonsense\n"
+
+	_, err := record.Parse([]byte(data), func(string) bool { return false })
+	if err == nil {
+		t.Fatal("accepted")
+	}
+
+	for _, want := range []string{"exception 1 (line 3) is empty", "exception 2 (line 4): id \"actionsqaci.nonsense\" is unknown"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("the error lacks %q: %q", want, err.Error())
+		}
 	}
 }

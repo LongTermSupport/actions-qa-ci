@@ -7,16 +7,18 @@ of them is a stand-in:
 
 - `hazard`: what the defence would report at that place.
 - `scope`: where the exception applies, and why it is accepted only there.
-- `decision`: where the acceptance was made, either an `https://` URL (an issue, a pull request)
-  or `Owner:` followed by what was decided.
+- `decision`: where the acceptance was made, either an `https://` URL (an issue, a pull request:
+  one address with a dotted host name or an IP address, no space or control character, no
+  credentials) or `Owner:` followed by what was decided (at least one letter or digit).
 
 A `hazard` or `scope` is refused when it is missing, when it is one of the phrases that fit any
 entry (`needed for now`, `for now`, `legacy`, `legacy code`, `todo`, `fixme`, `wip`, `temporary`,
 `temp`, `will fix later`, `fix later`, `too noisy`, `noisy`, `known issue`, `ignore`,
-`false positive`), when it points at another entry (`see above`, `as above`, `same as above`,
-`as before`, `see below`, `ditto`), when it only repeats the identifier, when it is shorter than
-40 characters or has fewer than 6 words (white space counted once), or, for the `scope`, when it
-is the same sentence as the `hazard`.
+`false positive`), when it points at another entry (a sentence that opens, or the text that ends, with `see above`,
+`as above`, `same as above`, `as before`, `same as before`, `see below` or `ditto`), when every
+word of it is a word of the identifier, when it is shorter than 40 characters or has fewer than
+6 words (white space counted once), or, for the `scope`, when it is the same sentence as the
+`hazard` (case and punctuation do not make it a different one).
 
 An exception with no `path` disables its defence everywhere and is held to the same standard.
 

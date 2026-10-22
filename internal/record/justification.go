@@ -2,9 +2,11 @@ package record
 
 import (
 	"fmt"
+	"net"
 	"net/url"
 	"regexp"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -18,8 +20,10 @@ const (
 // generic is the documented list of reasons that fit any entry unchanged.
 var generic = regexp.MustCompile(`(?i)^(needed for now|for now|legacy( code)?|todo|fixme|wip|temporary|temp|will fix later|fix later|too noisy|noisy|known issue|ignore|false positive)\W*$`)
 
-// pointsElsewhere matches a reason that refers to another entry instead of stating itself.
-var pointsElsewhere = regexp.MustCompile(`(?i)\b(see (above|below)|as (above|before)|same as (above|before)|ditto)\b`)
+// pointsElsewhere matches a reason that refers to another entry instead of stating itself: one
+// of the phrases opening a sentence or closing the text. The same words in the middle of a
+// sentence ("reads it as before GitHub changed it") say something.
+var pointsElsewhere = regexp.MustCompile(`(?i)((^|[.;:!?]\s*)(see (above|below)|as (above|before)|(the )?same as (above|before)|ditto)\b|\b(see (above|below)|as (above|before)|same as (above|before)|ditto)\W*$)`)
 
 // Fault is one way an exception's justification is not one.
 type Fault struct {
@@ -42,7 +46,7 @@ func (e Exception) Faults() []Fault {
 
 	scope := normalise(e.Scope)
 	reason := reasonFault(scope, e.ID)
-	if reason == "" && strings.EqualFold(scope, hazard) {
+	if reason == "" && words(scope) == words(hazard) {
 		reason = "is the same as the hazard; say where the exception applies and why it is accepted only there"
 	}
 	if reason != "" {
@@ -67,7 +71,7 @@ func reasonFault(text, id string) string {
 		return "is missing"
 	case generic.MatchString(text):
 		return fmt.Sprintf("is %q, a reason that fits any entry; say what the defence would report and why that is accepted", text)
-	case withoutIdentifier(text, id) == "":
+	case onlyIdentifier(text, id):
 		return "only repeats the identifier"
 	case pointsElsewhere.MatchString(text):
 		return "refers to another entry instead of stating the hazard or scope itself"
@@ -80,15 +84,30 @@ func reasonFault(text, id string) string {
 	return ""
 }
 
-// withoutIdentifier is the text with the identifier, and the words made of its segments, taken
-// out; what is left says nothing about the exception.
-func withoutIdentifier(text, id string) string {
-	rest := text
-	if id != "" {
-		rest = strings.ReplaceAll(strings.ToLower(rest), strings.ToLower(id), "")
+// words is the text reduced to its lower-case letters and digits, one space between runs, so
+// that punctuation and case cannot make one sentence another.
+func words(text string) string {
+	return strings.Join(wordsOf(text), " ")
+}
+
+func wordsOf(text string) []string {
+	return strings.FieldsFunc(strings.ToLower(text), func(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsDigit(r) })
+}
+
+// onlyIdentifier says whether every word of the text is a word of the identifier, which says
+// nothing about the exception.
+func onlyIdentifier(text, id string) bool {
+	known := map[string]bool{}
+	for _, word := range wordsOf(id) {
+		known[word] = true
+	}
+	for _, word := range wordsOf(text) {
+		if !known[word] {
+			return false
+		}
 	}
 
-	return strings.TrimFunc(rest, func(r rune) bool { return r == ' ' || r == '.' || r == ',' || r == ':' || r == ';' })
+	return true
 }
 
 func decisionFault(decision string) string {
@@ -96,17 +115,43 @@ func decisionFault(decision string) string {
 		return "is missing"
 	}
 	if reference, isOwner := strings.CutPrefix(decision, "Owner:"); isOwner {
-		if strings.TrimSpace(reference) == "" {
+		if !strings.ContainsFunc(reference, func(r rune) bool { return unicode.IsLetter(r) || unicode.IsDigit(r) }) {
 			return "names no decision after Owner:"
 		}
 
 		return ""
 	}
 
+	const want = "must be an https URL to where the decision was made, or Owner: and what was decided"
+	if strings.ContainsFunc(decision, func(r rune) bool { return unicode.IsSpace(r) || unicode.IsControl(r) || !unicode.IsPrint(r) }) {
+		return want + "; a URL holds no space or control character"
+	}
 	address, err := url.Parse(decision)
-	if err != nil || address.Scheme != "https" || address.Host == "" {
-		return "must be an https URL to where the decision was made, or Owner: and what was decided"
+	if err != nil || address.Scheme != "https" || address.User != nil || !plausibleHost(address.Hostname()) {
+		return want
 	}
 
 	return ""
+}
+
+// plausibleHost accepts a dotted name made of letters, digits and hyphens, or an IP address.
+func plausibleHost(host string) bool {
+	if net.ParseIP(host) != nil {
+		return true
+	}
+	if !strings.Contains(host, ".") {
+		return false
+	}
+	for _, label := range strings.Split(host, ".") {
+		if label == "" || strings.HasPrefix(label, "-") || strings.HasSuffix(label, "-") {
+			return false
+		}
+		for _, r := range label {
+			if r > unicode.MaxASCII || !(unicode.IsLetter(r) || unicode.IsDigit(r) || r == '-') {
+				return false
+			}
+		}
+	}
+
+	return true
 }
