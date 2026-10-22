@@ -162,3 +162,30 @@ func TestNearestSuggestsOnlyIndividuallyRegisteredRules(t *testing.T) {
 		t.Errorf("Nearest = %v", got)
 	}
 }
+
+func TestAFamilyIsFoundByTheNameItIsListedUnder(t *testing.T) {
+	reg, err := registry.NewWithFamilies([]registry.Family{codesFamily()})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	family, known := reg.FamilyNamed("actionsqaci.shellcheck.SC<nnnn>")
+	if !known || family.Page != "actionsqaci.shellcheck" {
+		t.Errorf("family = %+v, known = %v", family, known)
+	}
+	if other, known := reg.FamilyNamed("actionsqaci.shellcheck.SC2086"); known {
+		t.Errorf("a member is not a family: %+v", other)
+	}
+}
+
+func TestNearestSuggestsAFamilyBySomethingCloseToItsListedName(t *testing.T) {
+	reg, err := registry.NewWithFamilies([]registry.Family{codesFamily()}, rule(templateDrift))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got := reg.Nearest("actionsqaci.shellcheck.SC<nnn>", 3)
+	if !slices.Equal(got, []string{"actionsqaci.shellcheck.SC<nnnn>"}) {
+		t.Errorf("Nearest = %v", got)
+	}
+}

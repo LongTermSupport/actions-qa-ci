@@ -355,6 +355,18 @@ func TestFetchWritesNothingWhenAHashDoesNotMatch(t *testing.T) {
 	}
 }
 
+func TestVerifyRefusesABinaryThatIsNotExecutable(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "shellcheck")
+	if err := os.WriteFile(path, []byte(pinnedBinary), 0o644); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+
+	err := toolchain.Verify(path, toolchain.Asset{BinarySHA256: sum([]byte(pinnedBinary))})
+	if err == nil || !strings.Contains(err.Error(), "not executable") {
+		t.Errorf("a pinned binary that cannot run must be refused by name, got %v", err)
+	}
+}
+
 func TestVerifyDoesNotBlockOnAFIFO(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "shellcheck")
 	if err := syscall.Mkfifo(path, 0o600); err != nil {

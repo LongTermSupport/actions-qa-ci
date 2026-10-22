@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 
 	upstream "github.com/rhysd/actionlint"
 
@@ -61,6 +62,14 @@ func Lint(path string) ([]finding.Finding, error) {
 		return nil, err
 	}
 
+	// ShellCheck reads its options from this variable, and an -e there would suppress a finding
+	// with no record. The caller's value is put back afterwards.
+	restore, err := withoutEnvironment("SHELLCHECK_OPTS")
+	if err != nil {
+		return nil, err
+	}
+	defer restore()
+
 	config, cleanup, err := emptyConfig()
 	if err != nil {
 		return nil, err
@@ -82,6 +91,23 @@ func Lint(path string) ([]finding.Finding, error) {
 	}
 
 	return Convert(path, errs)
+}
+
+// withoutEnvironment unsets a variable and returns the function that puts it back as it was.
+func withoutEnvironment(name string) (func(), error) {
+	value, wasSet := os.LookupEnv(name)
+	if !wasSet {
+		return func() {}, nil
+	}
+	if err := os.Unsetenv(name); err != nil {
+		return nil, fmt.Errorf("cannot unset %s: %w", name, err)
+	}
+
+	return func() {
+		if err := os.Setenv(name, value); err != nil {
+			fmt.Fprintf(os.Stderr, "actions-qa: cannot restore %s: %v\n", name, err)
+		}
+	}, nil
 }
 
 // pinnedShellcheck finds the ShellCheck the manifest pins and verifies it.
@@ -206,7 +232,7 @@ func convertShellcheck(path string, e *upstream.Error) (finding.Finding, bool, e
 		Line:       max(e.Line, 1),
 		Col:        max(e.Column, 1),
 		Severity:   severity,
-		Message:    fmt.Sprintf("%s (script line %s, column %s)", text, line, column),
+		Message:    fmt.Sprintf("%s (script line %s, column %s)", strings.TrimRight(text, " "), line, column),
 		DocPath:    registry.DocPath(id),
 	}
 	if err := f.Validate(); err != nil {

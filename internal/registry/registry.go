@@ -133,6 +133,17 @@ func (r *Registry) All() []Rule {
 	return slices.Clone(r.rules)
 }
 
+// FamilyNamed returns the family listed under this name, such as the name `rules` prints.
+func (r *Registry) FamilyNamed(name string) (Family, bool) {
+	for _, family := range r.families {
+		if family.Name == name {
+			return family, true
+		}
+	}
+
+	return Family{}, false
+}
+
 // Families returns every family in name order.
 func (r *Registry) Families() []Family {
 	return slices.Clone(r.families)
@@ -172,10 +183,18 @@ func (r *Registry) Nearest(id string, limit int) []string {
 	wanted := strings.ToLower(id)
 	threshold := len(id) / 3
 
-	var candidates []candidate
+	names := make([]string, 0, len(r.rules)+len(r.families))
 	for _, rule := range r.rules {
-		if distance := editDistance(wanted, strings.ToLower(rule.ID)); distance <= threshold {
-			candidates = append(candidates, candidate{rule.ID, distance})
+		names = append(names, rule.ID)
+	}
+	for _, family := range r.families {
+		names = append(names, family.Name)
+	}
+
+	var candidates []candidate
+	for _, name := range names {
+		if distance := editDistance(wanted, strings.ToLower(name)); distance <= threshold {
+			candidates = append(candidates, candidate{name, distance})
 		}
 	}
 

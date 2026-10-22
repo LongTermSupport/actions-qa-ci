@@ -113,3 +113,27 @@ func TestTheHarnessRunsAFamilyMemberWithItsOwnIdentifier(t *testing.T) {
 		t.Errorf("the finding does not carry the member's identifier:\n%s", got.stdout)
 	}
 }
+
+func TestRuleDocAcceptsTheNameTheFamilyIsListedUnder(t *testing.T) {
+	got := runWith(t, familyEnv(t), "rule-doc", codesName)
+
+	if got.code != cli.ExitOK || got.stdout != codesPage {
+		t.Errorf("exit %d, output %q, stderr %q", got.code, got.stdout, got.stderr)
+	}
+}
+
+func TestTheHarnessSaysAFamilyNeedsACodeNotTheListedName(t *testing.T) {
+	got := runWith(t, familyEnv(t), "rule", codesName, "w.yml")
+
+	if got.code != cli.ExitUsage || got.stdout != "" || !strings.Contains(got.stderr, "family") || !strings.Contains(got.stderr, "code") {
+		t.Errorf("exit %d, stdout %q, stderr %q", got.code, got.stdout, got.stderr)
+	}
+}
+
+func TestRuleDocForATypedCodeNearTheFamilySuggestsTheFamily(t *testing.T) {
+	got := runWith(t, familyEnv(t), "rule-doc", "actionsqaci.shellcheck.SC<nnn>")
+
+	if got.code != cli.ExitUsage || !strings.Contains(got.stderr, codesName) {
+		t.Errorf("exit %d, stderr %q", got.code, got.stderr)
+	}
+}

@@ -1,6 +1,9 @@
 package actionlint
 
 import (
+	"strconv"
+	"strings"
+
 	"github.com/LongTermSupport/actions-qa-ci/internal/finding"
 	"github.com/LongTermSupport/actions-qa-ci/internal/registry"
 )
@@ -18,10 +21,17 @@ func Families() []registry.Family {
 	}}
 }
 
+// isShellcheckCode accepts the identifiers ShellCheck's codes can take: its parser's and
+// analyses' codes lie between SC1000 and SC3999. The exact set of codes is not enumerated yet,
+// so a code in that range that ShellCheck never emits is accepted and simply never fires.
 func isShellcheckCode(id string) bool {
 	kind, err := finding.ClassifyIdentifier(id)
+	if err != nil || kind != finding.KindShellcheck {
+		return false
+	}
+	number, err := strconv.Atoi(strings.TrimPrefix(id, finding.ToolPrefix+".shellcheck.SC"))
 
-	return err == nil && kind == finding.KindShellcheck
+	return err == nil && number >= 1000 && number <= 3999
 }
 
 func checkCode(id string) func(string) ([]finding.Finding, error) {

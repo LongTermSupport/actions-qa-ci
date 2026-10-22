@@ -143,6 +143,51 @@ func TestTheLaneFailsWhenShellcheckIsNotThePinnedBinary(t *testing.T) {
 	}
 }
 
+func TestTheLaneFailsWhenThePinnedShellcheckIsNotExecutable(t *testing.T) {
+	real, err := os.ReadFile(filepath.Join(os.Getenv(toolchain.ToolsDirectoryVariable), "shellcheck"))
+	if err != nil {
+		t.Fatalf("the pinned ShellCheck is not fetched (go run ./cmd/actions-qa-dev fetch bin): %v", err)
+	}
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "shellcheck"), real, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(toolchain.ToolsDirectoryVariable, dir)
+	target := inProject(t, shellStep(cdUnchecked))
+
+	found, lintErr := actionlint.Lint(target)
+	if lintErr == nil || !strings.Contains(lintErr.Error(), "not executable") {
+		t.Errorf("actionlint turns a ShellCheck it cannot run into no findings at all; the lane must fail instead: %+v, %v", found, lintErr)
+	}
+}
+
+func TestAShellcheckOptsVariableCannotSuppressAFinding(t *testing.T) {
+	t.Setenv("SHELLCHECK_OPTS", "-e SC2115")
+	target := inProject(t, shellStep(cdUnchecked))
+
+	found, err := actionlint.Lint(target)
+	if err != nil || len(found) != 1 || found[0].UpstreamID != "SC2115" {
+		t.Errorf("the environment suppressed a finding: %+v, %v", found, err)
+	}
+	if got := os.Getenv("SHELLCHECK_OPTS"); got != "-e SC2115" {
+		t.Errorf("the lane left SHELLCHECK_OPTS as %q; the caller's environment must be restored", got)
+	}
+}
+
+func TestAMultiLineExpressionMakesLaterScriptLinesCountOneFewerPerExtraLine(t *testing.T) {
+	// actionlint replaces a ${{ }} expression with underscores on one line, so a later line is
+	// reported as earlier than it is in the source; the page says so.
+	target := inProject(t, shellStep("echo ${{\n  github.sha\n}}\n"+cdUnchecked))
+
+	found, err := actionlint.Lint(target)
+	if err != nil || len(found) != 1 {
+		t.Fatalf("found %+v, err %v", found, err)
+	}
+	if !strings.Contains(found[0].Message, "script line 2") {
+		t.Errorf("message = %q", found[0].Message)
+	}
+}
+
 func TestTheLaneDoesNotUseAShellcheckFromPath(t *testing.T) {
 	bin := t.TempDir()
 	if err := os.WriteFile(filepath.Join(bin, "shellcheck"), []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
@@ -168,6 +213,9 @@ func TestTheShellcheckFamilyIsDeclaredWithItsMemberPattern(t *testing.T) {
 		t.Errorf("family = %+v", family)
 	}
 	for id, want := range map[string]bool{
+		"actionsqaci.shellcheck.SC1000": true, "actionsqaci.shellcheck.SC3999": true,
+		"actionsqaci.shellcheck.SC0000": false, "actionsqaci.shellcheck.SC0999": false,
+		"actionsqaci.shellcheck.SC4000": false, "actionsqaci.shellcheck.SC9999": false,
 		"actionsqaci.shellcheck.SC2115": true, "actionsqaci.shellcheck.SC208": false,
 		"actionsqaci.actionlint.glob": false, "actionsqaci.shellcheck": false,
 	} {
@@ -217,6 +265,19 @@ func TestConvertReadsTheCodeLevelAndScriptPositionOutOfShellchecksMessage(t *tes
 	}
 	if f.Message != "Use 'cd ... || exit' in case cd fails. (script line 3, column 7)" {
 		t.Errorf("message = %q", f.Message)
+	}
+}
+
+func TestConvertTrimsTheSpaceShellchecksTrailingFullStopLeavesBehind(t *testing.T) {
+	// actionlint removes the final full stop of ShellCheck's text but not the space before it.
+	text := "shellcheck reported issue in this script: SC2115:warning:1:8: Use \"${var:?}\" to ensure this never expands to /* "
+	found, err := actionlint.Convert(workflowPath, []*upstream.Error{{Message: text, Line: 4, Column: 9, Kind: "shellcheck"}})
+	if err != nil || len(found) != 1 {
+		t.Fatalf("found %+v, err %v", found, err)
+	}
+
+	if want := "Use \"${var:?}\" to ensure this never expands to /* (script line 1, column 8)"; found[0].Message != want {
+		t.Errorf("message = %q, want %q", found[0].Message, want)
 	}
 }
 

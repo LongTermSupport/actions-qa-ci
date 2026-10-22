@@ -218,7 +218,7 @@ const suggestionLimit = 3
 // returned string says why, naming the nearest identifiers where there are any.
 func lookupRule(env Env, id string) (registry.Rule, string) {
 	if _, err := finding.ClassifyIdentifier(id); err != nil {
-		return registry.Rule{}, err.Error()
+		return registry.Rule{}, withSuggestions(env, err.Error(), id)
 	}
 
 	rule, known := env.Registry.Lookup(id)
@@ -226,12 +226,16 @@ func lookupRule(env Env, id string) (registry.Rule, string) {
 		return rule, ""
 	}
 
-	message := fmt.Sprintf("unknown rule %q", id)
+	return registry.Rule{}, withSuggestions(env, fmt.Sprintf("unknown rule %q", id), id)
+}
+
+// withSuggestions adds the nearest registered identifiers to a message, where there are any.
+func withSuggestions(env Env, message, id string) string {
 	if nearest := env.Registry.Nearest(id, suggestionLimit); len(nearest) > 0 {
 		message += "; did you mean " + strings.Join(nearest, ", ") + "?"
 	}
 
-	return registry.Rule{}, message
+	return message
 }
 
 func ruleDoc(env Env, args []string, stdout, stderr io.Writer) int {
@@ -240,13 +244,23 @@ func ruleDoc(env Env, args []string, stdout, stderr io.Writer) int {
 	}
 	id := args[0]
 
-	if _, problem := lookupRule(env, id); problem != "" {
-		return refusal(stderr, problem)
-	}
+	var page string
+	if family, listed := env.Registry.FamilyNamed(id); listed {
+		content, err := fs.ReadFile(env.Pages, pages.Directory+"/"+family.Page+".md")
+		if err != nil {
+			return fault(stderr, fmt.Errorf("family %s is registered but its page cannot be read: %w", id, err))
+		}
+		page = string(content)
+	} else {
+		if _, problem := lookupRule(env, id); problem != "" {
+			return refusal(stderr, problem)
+		}
 
-	page, err := pages.Page(env.Pages, id)
-	if err != nil {
-		return fault(stderr, fmt.Errorf("rule %s is registered but its page cannot be read: %w", id, err))
+		var err error
+		page, err = pages.Page(env.Pages, id)
+		if err != nil {
+			return fault(stderr, fmt.Errorf("rule %s is registered but its page cannot be read: %w", id, err))
+		}
 	}
 
 	if _, err := io.WriteString(stdout, page); err != nil {

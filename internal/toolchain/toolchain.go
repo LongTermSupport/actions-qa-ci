@@ -284,6 +284,9 @@ func Verify(binary string, asset Asset) error {
 	if !opened.Mode().IsRegular() {
 		return fmt.Errorf("%s is not a regular file", binary)
 	}
+	if opened.Mode().Perm()&0o111 == 0 {
+		return fmt.Errorf("%s is not executable", binary)
+	}
 	if !os.SameFile(link, opened) {
 		return fmt.Errorf("%s changed while it was being verified", binary)
 	}
