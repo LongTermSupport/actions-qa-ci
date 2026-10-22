@@ -7,7 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
+	"os/signal"
 	"runtime"
 	"strings"
 	"syscall"
@@ -62,13 +64,14 @@ func runChild(name, path string, command Command, limits Limits) ([]finding.Find
 
 	// The lane process is signalled when the thread that started it ends, which is why the thread
 	// is held for as long as the process lives. A program that is killed leaves no lane process
-	// behind to run without its time limit.
+	// behind to run without its time limit. The signal is SIGTERM, not SIGKILL, so that Serve can
+	// end the tools the lane started along with itself.
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
 	cmd := command(ctx, name, path)
 	// The lane process may start tools of its own; they die with it.
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Pdeathsig: syscall.SIGKILL}
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Pdeathsig: syscall.SIGTERM}
 	cmd.Cancel = func() error {
 		if cmd.Process == nil {
 			return nil
@@ -145,6 +148,10 @@ func decode(written []byte) ([]finding.Finding, error) {
 // Serve is what the lane process does: run the lane on one file and write the findings as JSON
 // to stdout, or, when the lane fails, say why on stderr and return ChildFault.
 func Serve(lane Lane, path string, stdout, stderr io.Writer) int {
+	done := make(chan struct{})
+	defer close(done)
+	endWithParent(done)
+
 	found, err := lane.Run(path)
 	if err != nil {
 		fmt.Fprintln(stderr, err)
@@ -165,6 +172,35 @@ func Serve(lane Lane, path string, stdout, stderr io.Writer) int {
 
 	return 0
 }
+
+// endWithParent ends this process and the tools it started when it is told to stop, which is
+// what the program that isolated it does by dying. The tools are in the process group this
+// process leads; a process that does not lead its group (one a person started by hand) only
+// exits, so that it cannot end a group that is not its own.
+func endWithParent(done <-chan struct{}) {
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, syscall.SIGTERM)
+
+	go func() {
+		defer signal.Stop(stop)
+
+		select {
+		case <-done:
+		case <-stop:
+			if syscall.Getpgrp() == os.Getpid() {
+				// Ends the group, this process with it. If that fails there is nothing left
+				// to try but to exit.
+				if err := syscall.Kill(-os.Getpid(), syscall.SIGKILL); err != nil {
+					os.Exit(terminated)
+				}
+			}
+			os.Exit(terminated)
+		}
+	}()
+}
+
+// terminated is the exit code of a process that was told to stop: 128 and the signal.
+const terminated = 128 + int(syscall.SIGTERM)
 
 // limitedWriter keeps what is written to it up to a limit, and calls overflow once when more is
 // written. What came after the limit is dropped.

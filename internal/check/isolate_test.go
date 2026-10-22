@@ -90,6 +90,31 @@ func childMain(mode string) int {
 
 			return 96
 		}
+	case "orphan-parent-serving":
+		if _, err := isolated("serve-hang-with-tool", generous).Run(hereAndNow); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+
+			return 96
+		}
+	case "serve-hang-with-tool":
+		// A lane that starts a tool of its own, as actionlint starts ShellCheck, and waits for it.
+		waiting := check.Lane{
+			Name:    "child",
+			Selects: func(string) bool { return true },
+			Run: func(string) ([]finding.Finding, error) {
+				tool := exec.Command("sleep", "60")
+				if err := tool.Start(); err != nil {
+					return nil, err
+				}
+				if err := os.WriteFile(os.Getenv(pidFileEnvironment), []byte(strconv.Itoa(tool.Process.Pid)), 0o600); err != nil {
+					return nil, err
+				}
+
+				return nil, tool.Wait()
+			},
+		}
+
+		return check.Serve(waiting, os.Args[len(os.Args)-1], os.Stdout, os.Stderr)
 	case "grandchild":
 		// A process of its own that keeps the pipes open and outlives this one.
 		grandchild := exec.Command("sleep", "60")
@@ -260,11 +285,42 @@ func TestAProcessTheLaneProcessLeftBehindDiesWithIt(t *testing.T) {
 }
 
 func TestALaneProcessDoesNotOutliveTheProgramThatStartedIt(t *testing.T) {
+	pid := pidOfWhatSurvivesAKilledProgram(t, "orphan-parent")
+
+	waitUntilGone(t, pid, "lane process")
+}
+
+func TestWhatALaneProcessStartedDoesNotOutliveTheProgramThatStartedItEither(t *testing.T) {
+	pid := pidOfWhatSurvivesAKilledProgram(t, "orphan-parent-serving")
+
+	waitUntilGone(t, pid, "process the lane process started")
+}
+
+func waitUntilGone(t *testing.T, pid int, what string) {
+	t.Helper()
+
+	deadline := time.Now().Add(10 * time.Second)
+	for !gone(t, pid) && time.Now().Before(deadline) {
+		time.Sleep(50 * time.Millisecond)
+	}
+	if !gone(t, pid) {
+		if err := syscall.Kill(pid, syscall.SIGKILL); err != nil {
+			t.Error(err)
+		}
+		t.Errorf("%s %d is still running after the program that started the lane was killed", what, pid)
+	}
+}
+
+// pidOfWhatSurvivesAKilledProgram starts the test binary as a program that isolates a lane, waits
+// until the process the test cares about has written its id, kills the program, and returns the id.
+func pidOfWhatSurvivesAKilledProgram(t *testing.T, mode string) int {
+	t.Helper()
+
 	pidFile := filepath.Join(t.TempDir(), "lane.pid")
 	t.Setenv(pidFileEnvironment, pidFile)
 
 	program := exec.Command(os.Args[0], "-test.run=NoSuchTestEver")
-	program.Env = append(os.Environ(), childEnvironment+"=orphan-parent")
+	program.Env = append(os.Environ(), childEnvironment+"="+mode)
 	if err := program.Start(); err != nil {
 		t.Fatal(err)
 	}
@@ -295,16 +351,7 @@ func TestALaneProcessDoesNotOutliveTheProgramThatStartedIt(t *testing.T) {
 		t.Fatalf("the program that was killed ended with %v", err)
 	}
 
-	deadline = time.Now().Add(10 * time.Second)
-	for !gone(t, pid) && time.Now().Before(deadline) {
-		time.Sleep(50 * time.Millisecond)
-	}
-	if !gone(t, pid) {
-		if err := syscall.Kill(pid, syscall.SIGKILL); err != nil {
-			t.Error(err)
-		}
-		t.Errorf("lane process %d is still running after the program that started it was killed", pid)
-	}
+	return pid
 }
 
 func TestACommandThatCannotBeStartedIsAFaultOfTheToolchain(t *testing.T) {
