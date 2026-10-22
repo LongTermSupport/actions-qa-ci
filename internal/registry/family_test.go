@@ -151,7 +151,7 @@ func TestEveryShellcheckCodeSharesTheFamilyPage(t *testing.T) {
 	}
 }
 
-func TestNearestSuggestsOnlyIndividuallyRegisteredRules(t *testing.T) {
+func TestNearestStillSuggestsAnIndividualRuleWhenAFamilyIsRegisteredToo(t *testing.T) {
 	reg, err := registry.NewWithFamilies([]registry.Family{codesFamily()}, rule(templateDrift))
 	if err != nil {
 		t.Fatal(err)

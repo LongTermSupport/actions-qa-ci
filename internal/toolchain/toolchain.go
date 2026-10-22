@@ -270,6 +270,13 @@ func Verify(binary string, asset Asset) error {
 		return fmt.Errorf("%s is not a regular file", binary)
 	}
 
+	// The kernel's answer for this user, which is the one actionlint's lookup of the executable
+	// gets: a mode with an execute bit that is not this user's does not make it runnable, and
+	// actionlint answers an executable it cannot find by dropping its ShellCheck rule.
+	if err := syscall.Access(binary, 1); err != nil {
+		return fmt.Errorf("%s is not executable by this user: %w", binary, err)
+	}
+
 	// O_NONBLOCK keeps an entry swapped for a FIFO after the check above from blocking the open.
 	file, err := os.OpenFile(binary, os.O_RDONLY|syscall.O_NONBLOCK, 0)
 	if err != nil {
@@ -283,9 +290,6 @@ func Verify(binary string, asset Asset) error {
 	}
 	if !opened.Mode().IsRegular() {
 		return fmt.Errorf("%s is not a regular file", binary)
-	}
-	if opened.Mode().Perm()&0o111 == 0 {
-		return fmt.Errorf("%s is not executable", binary)
 	}
 	if !os.SameFile(link, opened) {
 		return fmt.Errorf("%s changed while it was being verified", binary)

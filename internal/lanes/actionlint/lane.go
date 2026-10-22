@@ -76,10 +76,16 @@ func Lint(path string) ([]finding.Finding, error) {
 	}
 	defer cleanup()
 
+	rulesCreated, shellcheckRule := false, false
 	linter, err := upstream.NewLinter(io.Discard, &upstream.LinterOptions{
 		ConfigFile: config,
 		Color:      upstream.ColorOptionKindNever,
 		Shellcheck: shellcheck,
+		OnRulesCreated: func(rules []upstream.Rule) []upstream.Rule {
+			rulesCreated, shellcheckRule = true, hasShellcheckRule(rules)
+
+			return rules
+		},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("cannot start actionlint: %w", err)
@@ -89,8 +95,26 @@ func Lint(path string) ([]finding.Finding, error) {
 	if err != nil {
 		return nil, fmt.Errorf("actionlint could not check %s: %w", path, err)
 	}
+	if rulesCreated && !shellcheckRule {
+		// actionlint drops its ShellCheck rule without a word when it cannot start the
+		// executable, and a lane that then reports no shell findings would read as clean. (A
+		// file that does not parse never gets its rules created, and is reported as a syntax
+		// finding.)
+		return nil, fmt.Errorf("actionlint did not enable its ShellCheck rule although %s was verified; no shell would have been checked", shellcheck)
+	}
 
 	return Convert(path, errs)
+}
+
+// hasShellcheckRule says whether actionlint created its ShellCheck rule among these.
+func hasShellcheckRule(rules []upstream.Rule) bool {
+	for _, rule := range rules {
+		if rule.Name() == shellcheckKind {
+			return true
+		}
+	}
+
+	return false
 }
 
 // withoutEnvironment unsets a variable and returns the function that puts it back as it was.
