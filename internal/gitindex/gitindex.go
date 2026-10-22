@@ -175,7 +175,7 @@ func parseEntries(body []byte, position, count int, version uint32) ([]Entry, in
 		var path string
 		if version == 4 {
 			strip, used := offsetVarint(body[position:])
-			if used == 0 || strip > len(previous) {
+			if used == 0 || strip > int64(len(previous)) {
 				return nil, 0, fmt.Errorf("entry %d of the git index has a path prefix that cannot be read", i+1)
 			}
 			position += used
@@ -183,7 +183,7 @@ func parseEntries(body []byte, position, count int, version uint32) ([]Entry, in
 			if end < 0 {
 				return nil, 0, fmt.Errorf("the git index ends inside the path of entry %d", i+1)
 			}
-			path = previous[:len(previous)-strip] + string(body[position:position+end])
+			path = previous[:len(previous)-int(strip)] + string(body[position:position+end])
 			position += end + 1
 			previous = path
 		} else {
@@ -238,18 +238,18 @@ const maxPrefix = 1 << 32
 
 // offsetVarint reads the number format a version 4 index uses for the length of the prefix to
 // drop from the previous path, and says how many bytes it took (0 when it cannot be read).
-func offsetVarint(data []byte) (value, used int) {
+func offsetVarint(data []byte) (value int64, used int) {
 	for i, c := range data {
 		if i >= 9 {
 			return 0, 0
 		}
 		if i == 0 {
-			value = int(c & 127)
+			value = int64(c & 127)
 		} else {
 			if value > maxPrefix {
 				return 0, 0
 			}
-			value = (value+1)<<7 + int(c&127)
+			value = (value+1)<<7 + int64(c&127)
 		}
 		if c&128 == 0 {
 			return value, i + 1
