@@ -65,7 +65,14 @@
   declaration that excuses no file is a finding at its entry. The tracked files come from the
   repository's own index (versions 2 to 4, checked against its checksum; a split or sparse index is
   refused), so no `git` is run. `check` runs this lane once for the project, with or without a
-  record. `analyse.include` is not built yet and is refused.
+  record.
+- The record's `analyse.include` section: patterns of tracked `.yml` or `.yaml` files outside the
+  default set that the project wants analysed (a shipped template, say). An included workflow is
+  linted by actionlint and guarded against inline suppression; an included `action.yml` is
+  guarded against inline suppression and named on standard error as linted by no lane, like a
+  default-set action. Such a file can be named on the command line like any other. A pattern that
+  names no such file is an `actionsqaci.lintCoverage` finding at its entry; a file asked for that
+  is a link, is missing or has an unprintable name is exit 4.
 - The `github` output format (`--format github`, or `ACTIONS_QA_FORMAT=github`): workflow
   annotations for the findings, ten of each level at most, then the full list as the `agent`
   format prints it. Every format now prints a path that starts `::` or `##[` quoted, so a file

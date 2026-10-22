@@ -60,9 +60,21 @@ func laneCommand(env Env, args []string, stdout, stderr io.Writer) int {
 	if problem != "" {
 		return refusal(stderr, problem)
 	}
-	if !chosen.Selects(path) {
+
+	// The lane analyses the files the record includes as well, and this process has to know them
+	// as the one that started it did.
+	rec, code := validateRecord(env, stderr)
+	if code != ExitOK {
+		return code
+	}
+	included, code := includedFiles(rec, stderr)
+	if code != ExitOK {
+		return code
+	}
+	widened := check.Widen([]check.Lane{*chosen}, included)[0]
+	if !widened.Selects(path) {
 		return refusal(stderr, fmt.Sprintf("lane %s does not analyse %s", chosen.Name, args[1]))
 	}
 
-	return check.Serve(*chosen, path, stdout, stderr)
+	return check.Serve(widened, path, stdout, stderr)
 }

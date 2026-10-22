@@ -11,13 +11,29 @@ import (
 
 // Analyse says what the project's workflow-shaped files are, beyond the default set.
 type Analyse struct {
+	// Include are patterns of tracked YAML files outside the default set that the project
+	// asks to have analysed.
+	Include []Included `yaml:"include"`
 	// Unanalysed are workflow-shaped files the project deliberately does not analyse.
 	Unanalysed []Unanalysed `yaml:"unanalysed"`
 }
 
 // analyseDocument is Analyse as the decoder reads it, with entries that can be null.
 type analyseDocument struct {
+	Include    []*string     `yaml:"include"`
 	Unanalysed []*Unanalysed `yaml:"unanalysed"`
+}
+
+// Included is a pattern of paths of files to analyse, beyond the default set.
+type Included struct {
+	// Path is a pattern (see package glob) of repository-relative paths.
+	Path string
+
+	// Line is where the entry is in the record file.
+	Line int
+
+	// null marks an entry written as nothing at all, which Parse reports once.
+	null bool
 }
 
 // Justification is why a file is left out of the analysis.
@@ -83,14 +99,46 @@ func analyseFaults(entries []Unanalysed) []string {
 	return faults
 }
 
-// writtenUnanalysed is the lines of the entries of analyse.unanalysed as written.
-func writtenUnanalysed(analyse *yaml.Node) []int {
+// includeFaults judges the include section as a whole: each entry names a pattern that can be
+// used, and no pattern is listed twice.
+func includeFaults(entries []Included) []string {
+	var faults []string
+
+	listed := map[string]bool{}
+	for i, inc := range entries {
+		if inc.null {
+			continue // reported once, by Parse
+		}
+		where := fmt.Sprintf("include entry %d (line %d)", i+1, inc.Line)
+
+		if inc.Path == "" {
+			faults = append(faults, where+": path is missing")
+
+			continue
+		}
+		if err := glob.Check(inc.Path); err != nil {
+			faults = append(faults, fmt.Sprintf("%s: path %q %s", where, inc.Path, err))
+
+			continue
+		}
+		if listed[inc.Path] {
+			faults = append(faults, fmt.Sprintf("%s: path %q is listed twice", where, inc.Path))
+		}
+		listed[inc.Path] = true
+	}
+
+	return faults
+}
+
+// writtenEntries is the lines of the entries of a list under analyse (include or unanalysed) as
+// written.
+func writtenEntries(analyse *yaml.Node, key string) []int {
 	var lines []int
 	if analyse.Kind != yaml.MappingNode {
 		return nil
 	}
 	for i := 0; i+1 < len(analyse.Content); i += 2 {
-		if analyse.Content[i].Value != "unanalysed" || analyse.Content[i+1].Kind != yaml.SequenceNode {
+		if analyse.Content[i].Value != key || analyse.Content[i+1].Kind != yaml.SequenceNode {
 			continue
 		}
 		for _, item := range analyse.Content[i+1].Content {

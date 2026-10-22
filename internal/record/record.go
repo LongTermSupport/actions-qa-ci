@@ -184,10 +184,10 @@ func Parse(data []byte, known func(id string) bool) (*Record, error) {
 		return nil, invalid("it has more than one document")
 	}
 
-	if len(layout.lines) != len(doc.Exceptions) || len(layout.templateLines) != len(doc.Templates) || len(layout.requiredLines) != len(doc.Required) || len(layout.unanalysedLines) != len(doc.Analyse.Unanalysed) {
-		return nil, invalid(fmt.Sprintf("cannot match %d exceptions, %d templates, %d required checks and %d unanalysed entries to their %d, %d, %d and %d lines",
-			len(doc.Exceptions), len(doc.Templates), len(doc.Required), len(doc.Analyse.Unanalysed),
-			len(layout.lines), len(layout.templateLines), len(layout.requiredLines), len(layout.unanalysedLines)))
+	if len(layout.lines) != len(doc.Exceptions) || len(layout.templateLines) != len(doc.Templates) || len(layout.requiredLines) != len(doc.Required) || len(layout.unanalysedLines) != len(doc.Analyse.Unanalysed) || len(layout.includeLines) != len(doc.Analyse.Include) {
+		return nil, invalid(fmt.Sprintf("cannot match %d exceptions, %d templates, %d required checks, %d unanalysed entries and %d included patterns to their %d, %d, %d, %d and %d lines",
+			len(doc.Exceptions), len(doc.Templates), len(doc.Required), len(doc.Analyse.Unanalysed), len(doc.Analyse.Include),
+			len(layout.lines), len(layout.templateLines), len(layout.requiredLines), len(layout.unanalysedLines), len(layout.includeLines)))
 	}
 
 	rec := &Record{
@@ -195,7 +195,10 @@ func Parse(data []byte, known func(id string) bool) (*Record, error) {
 		Exceptions:     make([]Exception, 0, len(doc.Exceptions)),
 		Templates:      make([]Template, 0, len(doc.Templates)),
 		RequiredChecks: make([]RequiredCheck, 0, len(doc.Required)),
-		Analyse:        Analyse{Unanalysed: make([]Unanalysed, 0, len(doc.Analyse.Unanalysed))},
+		Analyse: Analyse{
+			Include:    make([]Included, 0, len(doc.Analyse.Include)),
+			Unanalysed: make([]Unanalysed, 0, len(doc.Analyse.Unanalysed)),
+		},
 	}
 	var faults []string
 	if layout.versionTag != "" && layout.versionTag != "!!int" && layout.versionTag != "!!str" {
@@ -203,6 +206,15 @@ func Parse(data []byte, known func(id string) bool) (*Record, error) {
 	}
 	if layout.versionTag == "!!int" && !wholeNumber.MatchString(doc.Version) {
 		faults = append(faults, fmt.Sprintf("version %q must be written as plain digits", doc.Version))
+	}
+	for i, entry := range doc.Analyse.Include {
+		if entry == nil {
+			faults = append(faults, fmt.Sprintf("include entry %d (line %d) is empty", i+1, layout.includeLines[i]))
+			rec.Analyse.Include = append(rec.Analyse.Include, Included{Line: layout.includeLines[i], null: true})
+
+			continue
+		}
+		rec.Analyse.Include = append(rec.Analyse.Include, Included{Path: *entry, Line: layout.includeLines[i]})
 	}
 	for i, entry := range doc.Analyse.Unanalysed {
 		if entry == nil {
@@ -264,6 +276,8 @@ type layout struct {
 	requiredLines []int
 	// unanalysedLines are the lines of the entries of analyse.unanalysed.
 	unanalysedLines []int
+	// includeLines are the lines of the entries of analyse.include.
+	includeLines []int
 	// templateCopies is how many entries each template's copies list is written with, or -1
 	// where it is not a list. The decoder turns a null entry into nothing, so only the node
 	// tree can say that one was written.
@@ -306,7 +320,8 @@ func readLayout(data []byte) (layout, error) {
 				found.versionTag = top[i+1].ShortTag()
 			}
 		case "analyse":
-			found.unanalysedLines = writtenUnanalysed(top[i+1])
+			found.unanalysedLines = writtenEntries(top[i+1], "unanalysed")
+			found.includeLines = writtenEntries(top[i+1], "include")
 		case "exceptions":
 			if top[i+1].Kind != yaml.SequenceNode {
 				continue
@@ -391,6 +406,7 @@ func (r *Record) faults(known func(id string) bool) []string {
 	}
 
 	faults = append(faults, analyseFaults(r.Analyse.Unanalysed)...)
+	faults = append(faults, includeFaults(r.Analyse.Include)...)
 	faults = append(faults, templateFaults(r.Templates)...)
 	faults = append(faults, requiredCheckFaults(r.RequiredChecks)...)
 

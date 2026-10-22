@@ -63,5 +63,7 @@ branch named `feature/…`, `bugfix/…` or `chore/…`; the default branch is `
 - Tracked files and patterns: `internal/gitindex` lists the files the repository tracks by reading
   its index (no `git` is run), and `internal/glob` is the small pattern language the record uses.
   A lane marked `Subject` is about the project, not one file, and runs once per whole-project run.
+  `internal/scope` resolves the record's `analyse.include` patterns to tracked files, and a lane
+  that `Covers` a kind of included file is widened to select them (`check.Widen`).
 - Exit codes: [README.md](README.md#exit-codes).
 - Conformance: `dbf.json`, printed by `actions-qa version --json`.

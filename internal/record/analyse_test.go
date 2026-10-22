@@ -47,16 +47,73 @@ func TestARecordKeepsAnalyseWithEverySectionAtOnce(t *testing.T) {
 func TestParseRefusesAnUnanalysedEntryThatCannotMatchAFile(t *testing.T) {
 	head := "version: 1\nanalyse:\n  unanalysed:\n"
 	cases := map[string]struct{ data, mention string }{
-		"no path":              {head + "    - justification:\n        hazard: x\n        scope: y\n", "path"},
-		"a class":              {head + "    - path: 'a/[ab].yml'\n", "class"},
-		"an absolute path":     {head + "    - path: /etc/x.yml\n", "absolute"},
-		"a parent segment":     {head + "    - path: ../x.yml\n", ".."},
-		"the same twice":       {head + "    - path: a/**\n    - path: a/**\n", "twice"},
-		"an empty entry":       {head + "    -\n", "empty"},
-		"include is not built": {"version: 1\nanalyse:\n  include: [templates/**]\n", "include"},
-		"an unknown field":     {head + "    - path: a/**\n      reason: because\n", "reason"},
-		"unanalysed as a map":  {"version: 1\nanalyse:\n  unanalysed:\n    path: a/**\n", "unmarshal"},
-		"analyse as a list":    {"version: 1\nanalyse:\n  - a\n", "unmarshal"},
+		"no path":             {head + "    - justification:\n        hazard: x\n        scope: y\n", "path"},
+		"a class":             {head + "    - path: 'a/[ab].yml'\n", "class"},
+		"an absolute path":    {head + "    - path: /etc/x.yml\n", "absolute"},
+		"a parent segment":    {head + "    - path: ../x.yml\n", ".."},
+		"the same twice":      {head + "    - path: a/**\n    - path: a/**\n", "twice"},
+		"an empty entry":      {head + "    -\n", "empty"},
+		"an unknown field":    {head + "    - path: a/**\n      reason: because\n", "reason"},
+		"unanalysed as a map": {"version: 1\nanalyse:\n  unanalysed:\n    path: a/**\n", "unmarshal"},
+		"analyse as a list":   {"version: 1\nanalyse:\n  - a\n", "unmarshal"},
+	}
+
+	for name, c := range cases {
+		_, err := record.Parse([]byte(c.data), everythingIsKnown)
+
+		var invalid *record.InvalidError
+		if !errors.As(err, &invalid) {
+			t.Errorf("%s: error = %v; want the record refused as invalid", name, err)
+
+			continue
+		}
+		if !strings.Contains(strings.Join(invalid.Reasons, "\n"), c.mention) {
+			t.Errorf("%s: reasons %q should mention %q", name, invalid.Reasons, c.mention)
+		}
+	}
+}
+
+func TestParseReadsTheIncludedPatternsWithTheirLines(t *testing.T) {
+	data := "version: 1\nanalyse:\n  include:\n    - templates/github-actions/**\n    # a comment\n    - 'docs/*.yml'\n  unanalysed:\n" + goodUnanalysed
+
+	rec, err := record.Parse([]byte(data), everythingIsKnown)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got := rec.Analyse.Include
+	if len(got) != 2 || got[0].Path != "templates/github-actions/**" || got[0].Line != 4 || got[1].Path != "docs/*.yml" || got[1].Line != 6 {
+		t.Fatalf("include = %+v", got)
+	}
+	if len(rec.Analyse.Unanalysed) != 1 || rec.Analyse.Unanalysed[0].Line != 8 {
+		t.Errorf("unanalysed = %+v; it should still be read beside include", rec.Analyse.Unanalysed)
+	}
+}
+
+func TestParseReadsAnIncludeWrittenInFlowStyle(t *testing.T) {
+	rec, err := record.Parse([]byte("version: 1\nanalyse:\n  include: [a/**, b/*.yml]\n"), everythingIsKnown)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got := rec.Analyse.Include
+	if len(got) != 2 || got[0].Path != "a/**" || got[1].Path != "b/*.yml" || got[0].Line != 3 || got[1].Line != 3 {
+		t.Errorf("include = %+v", got)
+	}
+}
+
+func TestParseRefusesAnIncludedPatternThatCannotMatchAFile(t *testing.T) {
+	head := "version: 1\nanalyse:\n  include:\n"
+	cases := map[string]struct{ data, mention string }{
+		"a class":           {head + "    - 'a/[ab].yml'\n", "class"},
+		"an absolute path":  {head + "    - /etc/x.yml\n", "absolute"},
+		"a parent segment":  {head + "    - ../x.yml\n", ".."},
+		"the same twice":    {head + "    - a/**\n    - a/**\n", "twice"},
+		"an empty entry":    {head + "    -\n", "empty"},
+		"an empty string":   {head + "    - ''\n", "missing"},
+		"a map entry":       {head + "    - path: a/**\n", "unmarshal"},
+		"include as a map":  {"version: 1\nanalyse:\n  include:\n    path: a/**\n", "unmarshal"},
+		"include as scalar": {"version: 1\nanalyse:\n  include: a/**\n", "unmarshal"},
 	}
 
 	for name, c := range cases {

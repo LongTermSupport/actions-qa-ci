@@ -16,6 +16,7 @@ import (
 	"github.com/LongTermSupport/actions-qa-ci/internal/glob"
 	"github.com/LongTermSupport/actions-qa-ci/internal/record"
 	"github.com/LongTermSupport/actions-qa-ci/internal/registry"
+	"github.com/LongTermSupport/actions-qa-ci/internal/scope"
 )
 
 // LintCoverage is the identifier of the check that every tracked file that looks like a
@@ -55,12 +56,30 @@ func CheckLintCoverage(known func(id string) bool) func(recordFile string) ([]fi
 			return nil, err
 		}
 
+		resolution, err := scope.Resolve(root, tracked, rec.Analyse.Include)
+		if err != nil {
+			return nil, err
+		}
+		analysed := resolution.Included.Files()
+
 		unanalysed := rec.Analyse.Unanalysed
 		used := make([]bool, len(unanalysed))
 
 		var found []finding.Finding
+		for i, inc := range rec.Analyse.Include {
+			if resolution.Used[i] {
+				continue
+			}
+			message := fmt.Sprintf("include entry %d (%s) includes no YAML file that is tracked and not analysed anyway; remove it: a pattern that names nothing would pull in a file added later without anyone deciding", i+1, inc.Path)
+			f, err := newFinding(LintCoverage, recordFile, max(inc.Line, 1), 1, message)
+			if err != nil {
+				return nil, err
+			}
+			found = append(found, f)
+		}
+
 		for _, entry := range tracked {
-			if !entry.IsRegular() || !examined(entry.Path) {
+			if !entry.IsRegular() || !examined(entry.Path) || slices.Contains(analysed, entry.Path) {
 				continue
 			}
 			data, problem, err := readTemplateFile(root, entry.Path)

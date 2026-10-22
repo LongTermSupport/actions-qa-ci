@@ -35,6 +35,9 @@ type Lane struct {
 	// the whole project (RunProject) it runs once on this path, a repository-relative one the
 	// lane reads if there is such a file, whether or not the project has it.
 	Subject string
+	// Covers says which kinds of file the project record includes (analyse.include) the lane
+	// analyses as well as the files Selects names; see Widen.
+	Covers Coverage
 }
 
 // LaneError is a lane failing on a file. It is a fault of the toolchain or of the file's
@@ -233,7 +236,7 @@ func discover(fsys fs.FS) ([]string, error) {
 			if !entry.IsDir() {
 				return nil, fmt.Errorf("%w %s: it is not a directory", ErrNotAnalysable, file)
 			}
-		case entry.Name() == "dependabot.yml", entry.Name() == "dependabot.yaml", entry.Name() == "actions-qa-ci.yml", IsNativeSuppressionConfig(file):
+		case slices.Contains(defaultSingles, file), IsNativeSuppressionConfig(file):
 			if err := add(file, entry); err != nil {
 				return nil, err
 			}
