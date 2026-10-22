@@ -43,7 +43,7 @@ commands:
                      list every active rule without running it, and put the list in the
                      generated region of a file an agent reads (CLAUDE.md, AGENTS.md)
   rule-doc <id>      print the page for a rule identifier, offline
-  check [-t lane[,lane…]] [--format FORMATS] [--sarif file] [--] [path…]
+  check [-t lane[,lane…]] [--format FORMATS] [--sarif file] [--online] [--] [path…]
                      run the lanes over the project's files, or over the files named
   rule [--format FORMATS] <id> <path>
                      run one rule on one file and print only its findings
