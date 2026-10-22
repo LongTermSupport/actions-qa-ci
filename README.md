@@ -37,8 +37,8 @@ rule.
 The project's own actionlint configuration (`.github/actionlint.yaml`) is never applied: an ignore
 there would suppress findings with no recorded justification, so the lane hands actionlint an empty
 configuration. (actionlint still parses the file while locating the project, so a malformed one
-fails the lane.) Suppression belongs in the project record, which this build does not have yet, so
-a finding is fixed. The lane must be run from the repository root, which holds `.git` and
+fails the lane.) Suppression belongs in the project record, which this build reads and checks but does not
+yet apply, so a finding is fixed. The lane must be run from the repository root, which holds `.git` and
 `.github/workflows`, and refuses to run anywhere else: actionlint resolves local actions and
 reusable workflows from the project it finds, and from a directory without both it would find a
 different one.
@@ -52,6 +52,20 @@ and verified before every run; one that is missing or differs fails the lane wit
 ShellCheck on `PATH` is never used. In a development checkout, `go run ./cmd/actions-qa-dev fetch
 bin` downloads it, and `ACTIONS_QA_CI_TOOLS_DIR=$PWD/bin` points the program at it. pyflakes
 integration is not enabled.
+
+### The project record
+
+A project states what it has accepted in one file, `.github/actions-qa-ci.yml`: a `version` and a
+list of `exceptions`, each with an `id`, optionally a `path` (with `job` and `step` to narrow it),
+and a `hazard`, `scope` and `decision`. The loader refuses an unknown field, a duplicate key, a
+second document, an alias, anchor, merge key or explicit tag (a hand-written record has no use for
+them, and each is a way for a value to arrive from somewhere it is not written), a key that is
+not plain text, an identifier no defence has and a path that is not a plain file path inside the
+repository, and reports every fault at once. `actionsqaci.unjustifiedException` holds the three
+justification fields to a standard (see its page); `rule actionsqaci.unjustifiedException
+.github/actions-qa-ci.yml` runs it. This build reads and checks the record; it does not yet apply
+an exception to a finding, and the other sections the design gives the record arrive with the
+checks that use them.
 
 ### Exit codes
 

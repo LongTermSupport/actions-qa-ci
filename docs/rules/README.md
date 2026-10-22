@@ -22,3 +22,4 @@ Generated from the registry; do not edit. Regenerate it with
 | `actionsqaci.actionlint.syntax-check` | A workflow file is valid GitHub Actions workflow syntax | [page](actionsqaci.actionlint.syntax-check.md) |
 | `actionsqaci.actionlint.workflow-call` | A reusable-workflow call passes the inputs and secrets the callee declares | [page](actionsqaci.actionlint.workflow-call.md) |
 | `actionsqaci.shellcheck.SC<nnnn>` | Shell in a run: step has no ShellCheck error or warning | [page](actionsqaci.shellcheck.md) |
+| `actionsqaci.unjustifiedException` | Every exception in the project record states a hazard, a scope and a decision, none of them generic | [page](actionsqaci.unjustifiedException.md) |

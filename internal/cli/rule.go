@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/LongTermSupport/actions-qa-ci/internal/finding"
 	"github.com/LongTermSupport/actions-qa-ci/internal/output"
+	"github.com/LongTermSupport/actions-qa-ci/internal/record"
 )
 
 // ruleHarness runs one rule on one file and prints only that rule's findings: the way to
@@ -41,6 +43,10 @@ func ruleHarness(env Env, args []string, stdout, stderr io.Writer) int {
 	}
 
 	found, err := rule.Check(path)
+	if errors.Is(err, record.ErrInvalid) {
+		// A mistake in the project record is the project's to fix; no verdict is reached.
+		return refusal(stderr, err.Error())
+	}
 	if err != nil {
 		return fault(stderr, fmt.Errorf("rule %s failed on %s: %w", rule.ID, path, err))
 	}

@@ -50,5 +50,7 @@ branch named `feature/…`, `bugfix/…` or `chore/…`; the default branch is `
 - Pinned third-party binaries: `internal/toolchain/manifest.json` pins each release by archive and
   binary sha256, the runtime refuses a binary that differs, and `go run ./cmd/actions-qa-dev
   fetch bin` downloads the pinned ones for development.
+- The project record: `internal/record` loads `.github/actions-qa-ci.yml` and judges
+  justifications; `internal/firstparty` holds the checks this toolchain makes itself.
 - Exit codes: [README.md](README.md#exit-codes).
 - Conformance: `dbf.json`, printed by `actions-qa version --json`.

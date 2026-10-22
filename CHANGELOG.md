@@ -16,6 +16,10 @@
   findings are `actionsqaci.shellcheck.SC<nnnn>`, all codes sharing one page, at `warning` and
   above by default. The binary is pinned by sha256 in a manifest, verified before every run, and
   never taken from `PATH`; `actions-qa-dev fetch <dir>` downloads it for development.
+- The project record, `.github/actions-qa-ci.yml`: a strict loader for its `version` and
+  `exceptions`, and `actionsqaci.unjustifiedException`, which refuses an exception whose hazard,
+  scope or decision is missing, generic, too short or points elsewhere. The record is read and
+  checked; applying an exception to a finding comes with the `check` command.
 - The `rule <id> <path>` harness: runs one rule on one file and prints only that rule's
   findings, exiting 1 when it fires.
 - The `text`, `agent` and `json` output formats, and the finding model with its identifier
