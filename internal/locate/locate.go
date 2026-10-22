@@ -9,7 +9,7 @@
 package locate
 
 import (
-	"bytes"
+	"unicode/utf8"
 
 	"go.yaml.in/yaml/v4"
 )
@@ -196,10 +196,14 @@ func named(wanted, id, name string, all []label) bool {
 		return true
 	}
 
+	owners := 0
 	for _, other := range all {
 		if other.id == wanted {
-			return id == wanted
+			owners++
 		}
+	}
+	if owners > 0 {
+		return owners == 1 && id == wanted
 	}
 
 	if name != wanted {
@@ -269,16 +273,28 @@ func hasAlias(node *yaml.Node) bool {
 	return false
 }
 
-// lineCount is the number of the last line of the file, a line ending being a line feed, a
-// carriage return or both.
+// lineCount is the number of the last line of the file, counted the way the YAML reader counts
+// it: a line ending is a line feed, a carriage return, both together, or the Unicode next line,
+// line separator or paragraph separator.
 func lineCount(data []byte) int {
 	lines := 0
-	for i, b := range data {
-		if b == '\n' || (b == '\r' && (i+1 >= len(data) || data[i+1] != '\n')) {
+	endedWithBreak := true
+
+	for i := 0; i < len(data); {
+		r, size := utf8.DecodeRune(data[i:])
+		switch {
+		case r == '\r' && i+1 < len(data) && data[i+1] == '\n':
+			// The line feed that follows ends this line.
+			endedWithBreak = false
+		case r == '\n' || r == '\r' || r == 0x85 || r == 0x2028 || r == 0x2029:
 			lines++
+			endedWithBreak = true
+		default:
+			endedWithBreak = false
 		}
+		i += size
 	}
-	if len(data) > 0 && !bytes.HasSuffix(data, []byte("\n")) && !bytes.HasSuffix(data, []byte("\r")) {
+	if len(data) > 0 && !endedWithBreak {
 		lines++
 	}
 

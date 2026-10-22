@@ -84,9 +84,10 @@ anywhere else it would find nothing and read as clean, so it refuses.
   of one job is that job, whatever else is named so; a name two jobs (or two steps of a job) share
   names none of them, so use the id. A covered finding stays in the output as excepted: counted,
   not listed, and in `--format json` with the exception that covers it. A job or step is found by
-  reading the workflow, and a workflow that cannot be read that way, that uses a YAML alias, or
-  whose jobs or steps share a line, is not placed: an exception that names a job or step matches
-  nothing in it. In a full run (no `-t`, no file named) an exception that covers no finding is
+  reading the workflow. A workflow that cannot be read that way, or that uses a YAML alias, is not
+  placed at all; jobs that share a line are not placed, and steps that share a line are placed in
+  their job and in no step. An exception that names what is not placed matches nothing there. An
+  id that two jobs (or two steps of a job) share names neither. In a full run (no `-t`, no file named) an exception that covers no finding is
   itself a finding, `actionsqaci.staleException`, at its line in the record.
 - **`rules` shows the narrowing.** It reads the project record in the working directory, which is
   the repository root (run below it, with a record above, it says on standard error that it did
