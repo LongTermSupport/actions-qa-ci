@@ -10,7 +10,7 @@ import (
 	actionsqaci "github.com/LongTermSupport/actions-qa-ci"
 )
 
-// The exit codes the program answers with (design 7.2). A non-zero code other than
+// The exit codes the program answers with. A non-zero code other than
 // ExitFindings means no verdict was reached about the code under analysis.
 const (
 	ExitOK             = 0 // analysed, nothing to report

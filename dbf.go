@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 )
 
 //go:embed dbf.json
@@ -52,6 +53,9 @@ func ParseDeclaration(data []byte) (Declaration, error) {
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&declaration); err != nil {
 		return Declaration{}, fmt.Errorf("declaration: %w", err)
+	}
+	if _, err := decoder.Token(); !errors.Is(err, io.EOF) {
+		return Declaration{}, errors.New("declaration: data after the declaration object")
 	}
 
 	if declaration.Method == "" || declaration.Toolchain == "" || declaration.KnownGaps == nil {

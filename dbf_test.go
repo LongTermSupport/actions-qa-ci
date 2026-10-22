@@ -57,6 +57,20 @@ func TestADeclarationWithAnUnknownFieldIsRefused(t *testing.T) {
 	}
 }
 
+func TestADeclarationWithTrailingDataIsRefused(t *testing.T) {
+	_, err := actionsqaci.ParseDeclaration([]byte(`{"method":"1.1.0","toolchain":"0.2.0","known-gaps":[],"project":{"method":"1.1.0","toolchain":"0.2.0","known-gaps":[]}} {"method":"9"}`))
+	if err == nil {
+		t.Fatal("data after the declaration was accepted; only the first object would be read")
+	}
+}
+
+func TestADeclarationMissingAProjectFieldIsRefused(t *testing.T) {
+	_, err := actionsqaci.ParseDeclaration([]byte(`{"method":"1.1.0","toolchain":"0.2.0","known-gaps":[],"project":{"method":"1.1.0","toolchain":"0.2.0"}}`))
+	if err == nil {
+		t.Fatal("a project declaration with no known-gaps was accepted")
+	}
+}
+
 func TestADeclarationMissingAFieldIsRefused(t *testing.T) {
 	_, err := actionsqaci.ParseDeclaration([]byte(`{"method":"1.1.0","known-gaps":[],"project":{"method":"1.1.0","toolchain":"0.2.0","known-gaps":[]}}`))
 	if err == nil {

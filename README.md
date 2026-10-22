@@ -36,7 +36,8 @@ A usage error writes nothing to standard output: it is not a verdict.
 ## Conformance
 
 `dbf.json` declares the method and toolchain specification versions this repository is audited
-against, and the known gaps it states rather than hides. `actions-qa version --json` prints the
+against, and the known gaps it states rather than hides. A declaration with an unknown field, a
+missing field or data after the object is refused. `actions-qa version --json` prints the
 embedded copy, and a test pins the versions so a change is deliberate.
 
 ## Contributing

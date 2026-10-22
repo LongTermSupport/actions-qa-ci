@@ -112,7 +112,7 @@ func TestHelpIsNotAnError(t *testing.T) {
 }
 
 func TestTheExitCodesAreTheDocumentedOnes(t *testing.T) {
-	// design 7.2: 0 clean, 1 findings, 2 usage or record error, 3 toolchain fault, 4 no verdict.
+	// 0 clean, 1 findings, 2 usage or record error, 3 toolchain fault, 4 no verdict.
 	got := []int{cli.ExitOK, cli.ExitFindings, cli.ExitUsage, cli.ExitToolchainFault, cli.ExitNoVerdict}
 	want := []int{0, 1, 2, 3, 4}
 
