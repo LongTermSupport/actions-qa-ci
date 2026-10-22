@@ -31,7 +31,18 @@ func checkCommand(env Env, args []string, stdout, stderr io.Writer) int {
 		return usageError(stderr, problem)
 	}
 
-	lanes, problem := chooseLanes(env.Lanes, arguments.lanes)
+	available := env.Lanes
+	if arguments.online {
+		online, code := onlineLane(env, stderr)
+		if code != ExitOK {
+			return code
+		}
+		available = append(slices.Clone(env.Lanes), online)
+	} else if slices.Contains(arguments.lanes, onlineLaneName) {
+		return refusal(stderr, "the lane "+onlineLaneName+" compares with the real branch protection and needs --online")
+	}
+
+	lanes, problem := chooseLanes(available, arguments.lanes)
 	if problem != "" {
 		return refusal(stderr, problem)
 	}
@@ -90,7 +101,7 @@ func checkCommand(env Env, args []string, stdout, stderr io.Writer) int {
 		}
 		found = applied.Findings
 		if fullRun(arguments) {
-			found = append(found, exceptions.Stale(rec, applied.Matched)...)
+			found = append(found, exceptions.Stale(rec, judgeable(rec, applied.Matched, arguments.online))...)
 		}
 	}
 
@@ -101,6 +112,11 @@ func checkCommand(env Env, args []string, stdout, stderr io.Writer) int {
 	}
 	if err := output.Write(stdout, format, found); err != nil {
 		return fault(stderr, fmt.Errorf("cannot write output: %w", err))
+	}
+	if fullRun(arguments) && !arguments.online {
+		if err := noteOffline(rec, stderr); err != nil {
+			return fault(stderr, fmt.Errorf("cannot write output: %w", err))
+		}
 	}
 	if len(arguments.files) == 0 {
 		if err := noteUnanalysed(check.Widen(env.Lanes, included), files, stderr); err != nil {
@@ -118,6 +134,7 @@ type checkArguments struct {
 	lanes  []string
 	format string
 	sarif  string
+	online bool
 	files  []string
 }
 
@@ -148,6 +165,9 @@ func parseCheckArguments(args []string) (checkArguments, string) {
 			}
 			parsed.format = args[1]
 			args = args[2:]
+		case args[0] == "--online":
+			parsed.online = true
+			args = args[1:]
 		case args[0] == "--sarif":
 			if len(args) < 2 || args[1] == "" || strings.HasPrefix(args[1], "-") {
 				return checkArguments{}, "--sarif needs the file to write (a name that starts with - is written ./-name)"

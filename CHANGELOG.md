@@ -66,6 +66,15 @@
   repository's own index (versions 2 to 4, checked against its checksum; a split or sparse index is
   refused), so no `git` is run. `check` runs this lane once for the project, with or without a
   record.
+- `check --online`: compares the record's `requiredChecks` with the branch protection and
+  rulesets the repository really has (the lane `requiredChecksOnline`, reporting as
+  `actionsqaci.requiredChecks`). A context the record requires and the protection does not, and
+  one the protection requires and the record does not list, are findings. The token comes from
+  `GITHUB_TOKEN` or `GH_TOKEN`, the repository from `GITHUB_REPOSITORY` and the API from
+  `GITHUB_API_URL` (https only; the token is sent nowhere else, no redirect is followed, and it is
+  never printed). A protection that cannot be read is exit 4. Without `--online` nothing reaches
+  the network, and a run with required checks in its record says on standard error that the
+  protection was not compared.
 - `actions-qa rules --write-agent-summary <file>`: writes the active defences, and what the
   project record narrows, into a generated region of `CLAUDE.md` or `AGENTS.md` (between
   `<!-- actions-qa-ci:begin -->` and `<!-- actions-qa-ci:end -->`), keeping the rest of the file

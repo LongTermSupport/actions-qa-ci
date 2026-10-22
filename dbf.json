@@ -28,7 +28,7 @@
     },
     {
       "id": "required-checks-online-comparison",
-      "description": "actionsqaci.requiredChecks compares the record's required contexts with the workflows in the repository, offline. It does not read the branch protection or rulesets a repository actually has, which needs the network and a token, so a protection that requires a context the record does not list, or omits one it does, is not found. A job that calls a reusable workflow is accepted for any context under its name, because the called workflow is not read."
+      "description": "actionsqaci.requiredChecks compares the record's required contexts with the workflows in the repository, offline. The comparison with the branch protection and rulesets a repository actually has is made only under `check --online`, with a token that can read branch protection (the token an Actions run gets by default cannot), so a run without it does not find a protection that requires a context the record does not list, or omits one it does. An app-supplied context is compared by name only. A job that calls a reusable workflow is accepted for any context under its name, because the called workflow is not read."
     },
     {
       "id": "sarif-help-uri-not-at-release-tag",

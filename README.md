@@ -156,8 +156,15 @@ a `mode` key is refused.
 Its `requiredChecks` section lists the status checks a merge needs, each a `context` and
 optionally a `branch`; `actionsqaci.requiredChecks` reports a context that no job of a workflow
 triggered on `pull_request` produces, so a renamed job cannot leave branch protection waiting for
-a check that never comes. It does not compare with the repository's real branch protection
-(`dbf.json`, `required-checks-online-comparison`).
+a check that never comes. With `check --online` it also compares the record with the branch
+protection and rulesets the repository really has (the token in `GITHUB_TOKEN` or `GH_TOKEN`, the
+repository in `GITHUB_REPOSITORY`, the API at `GITHUB_API_URL`, https only): a context the
+record requires that the protection does not, and one the protection requires that the record
+does not list, are findings. Nothing reaches the network without `--online`, and a protection
+that cannot be read is exit 4 (`dbf.json`, `required-checks-online-comparison`). An exception
+for `actionsqaci.requiredChecks`, at the record or everywhere, is called stale only by a run that
+went online, as it may accept a finding only the comparison makes. A branch the record spells two ways (`default`
+and its name) is one branch.
 
 Its `analyse.unanalysed` section lists patterns of paths (`path`, with a `justification` holding a
 `hazard` and a `scope`) of workflow-shaped files the project deliberately leaves out of the
@@ -185,7 +192,7 @@ record arrive with the checks that use them.
 | 1    | analysed, findings reported                                          |
 | 2    | the command line or a project record was wrong; nothing was analysed |
 | 3    | the toolchain itself failed: a rule, a bundled tool or its pinned binary, a page the build should hold, or output that could not be written |
-| 4    | the analysis could not reach a verdict: a file it should cover could not be read as a plain file, or the process a lane ran in crashed, was killed, wrote too much or ran past its time limit |
+| 4    | the analysis could not reach a verdict: a file it should cover could not be read as a plain file, the branch protection `--online` asked for could not be read, or the process a lane ran in crashed, was killed, wrote too much or ran past its time limit |
 
 A usage error writes nothing to standard output: it is not a verdict.
 

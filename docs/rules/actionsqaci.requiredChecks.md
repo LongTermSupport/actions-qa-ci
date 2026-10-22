@@ -40,7 +40,17 @@ large, is a finding at the workflow itself, since the checks it produces are the
 `.github/workflows` ending `.yml` or `.yaml` are workflows, as GitHub reads them.
 
 Comparing the requirement with the branch protection a repository actually has needs the network
-and a token and is not done here (the known gap `required-checks-online-comparison` in `dbf.json`).
+and a token, so it is done only when `check --online` asks for it (the lane `requiredChecksOnline`;
+the same identifier is reported). For each branch the record names (`default` is the repository's
+default branch, looked up), it reads the contexts the classic branch protection and the rulesets
+that apply to the branch require, and reports at the entry a context the protection does not
+require, and, at the first entry for the branch, a context the protection requires that the record
+does not list. The token is read from `GITHUB_TOKEN` (or `GH_TOKEN`), the repository from
+`GITHUB_REPOSITORY` and the API from `GITHUB_API_URL` (GitHub's own by default; it has to be
+https). The token has to be able to read branch protection, which the token an Actions run gets
+by default cannot. A protection that cannot be read (a refused token, no network, an answer that
+is not understood, more rules than one page) is exit 4, never a clean result. Without `--online`
+a run says on standard error that the protection was not compared.
 
 ## Hazard
 

@@ -70,6 +70,9 @@ branch named `feature/…`, `bugfix/…` or `chore/…`; the default branch is `
   A lane marked `Subject` is about the project, not one file, and runs once per whole-project run.
   `internal/scope` resolves the record's `analyse.include` patterns to tracked files, and a lane
   that `Covers` a kind of included file is widened to select them (`check.Widen`).
+- The only code that reaches the network is `internal/branchprotection`, and only under `check
+  --online`: it reads the required status checks of a branch from the GitHub API, sends the token
+  nowhere but the given https address, follows no redirect and never prints the token.
 - The active defences as an agent reads them: `internal/listing` lists them (what `rules` prints)
   and `internal/agentsummary` renders and splices the generated region of `CLAUDE.md` or
   `AGENTS.md`.
