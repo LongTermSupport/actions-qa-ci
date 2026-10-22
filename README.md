@@ -67,10 +67,10 @@ anywhere else it would find nothing and read as clean, so it refuses.
   default set that no lane of the build covers is named on standard error, so a clean result is
   not read as covering it. Naming files on the command line analyses only those, and
   a file no chosen lane covers is refused rather than passed over. A symbolic link or other
-  non-file where the default set looks (a directory named like a workflow or an action, at any depth) stops the run with exit 4;
-  a project record that is not a plain file inside the repository is exit 2, being the project's
-  to fix. File names in diagnostics are quoted or escaped, so a name cannot forge a line, and a
-  diagnostic that cannot be written is exit 3.
+  non-file where the default set looks (a directory named like a workflow or an action, at any depth) stops the run with exit 4, and so does a project record that is a symbolic link or any other
+  non-file. Every diagnostic is escaped as it is written, and a project record's faults are
+  listed one escaped line each, so a name or a line from the repository cannot forge a line or
+  move the terminal; a diagnostic that cannot be written is exit 3.
 - **`-t lane[,lane]`** runs only the named lanes (repeatable); an unknown name is refused with
   the lanes there are.
 - **`--format text|agent|json`.** With none given, `ACTIONS_QA_FORMAT`, else `text` on a

@@ -7,6 +7,7 @@ package cli
 import (
 	"cmp"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -20,6 +21,7 @@ import (
 	"github.com/LongTermSupport/actions-qa-ci/internal/finding"
 	"github.com/LongTermSupport/actions-qa-ci/internal/output"
 	"github.com/LongTermSupport/actions-qa-ci/internal/pages"
+	"github.com/LongTermSupport/actions-qa-ci/internal/record"
 	"github.com/LongTermSupport/actions-qa-ci/internal/registry"
 )
 
@@ -123,8 +125,11 @@ func printUsage(stdout, stderr io.Writer) int {
 	return ExitOK
 }
 
+// Every diagnostic goes through finding.Escape: a message can carry a name or a line from the
+// repository under analysis, and that must not be able to start a line of its own or reach the
+// terminal as a command.
 func usageError(stderr io.Writer, problem string) int {
-	if _, err := fmt.Fprintf(stderr, "actions-qa: %s\n%s", problem, usage); err != nil {
+	if _, err := fmt.Fprintf(stderr, "actions-qa: %s\n%s", finding.Escape(problem), usage); err != nil {
 		return ExitToolchainFault
 	}
 
@@ -133,7 +138,7 @@ func usageError(stderr io.Writer, problem string) int {
 
 // fault reports a failure of the toolchain itself and returns its exit code.
 func fault(stderr io.Writer, cause error) int {
-	if _, err := fmt.Fprintf(stderr, "actions-qa: %v\n", cause); err != nil {
+	if _, err := fmt.Fprintf(stderr, "actions-qa: %s\n", finding.Escape(cause.Error())); err != nil {
 		return ExitToolchainFault
 	}
 
@@ -142,7 +147,32 @@ func fault(stderr io.Writer, cause error) int {
 
 // refusal reports a request the program cannot satisfy because of what was asked.
 func refusal(stderr io.Writer, message string) int {
-	if _, err := fmt.Fprintf(stderr, "actions-qa: %s\n", message); err != nil {
+	if _, err := fmt.Fprintf(stderr, "actions-qa: %s\n", finding.Escape(message)); err != nil {
+		return ExitToolchainFault
+	}
+
+	return ExitUsage
+}
+
+// refuseInvalid reports a project record that is not valid: one line saying so, naming the
+// file, then a bullet for each reason, each escaped on its own so that none can add a line.
+// Any other error is reported as a refusal.
+func refuseInvalid(stderr io.Writer, err error) int {
+	var invalid *record.InvalidError
+	if !errors.As(err, &invalid) {
+		return refusal(stderr, err.Error())
+	}
+
+	var text strings.Builder
+	text.WriteString("actions-qa: ")
+	if invalid.Path != "" {
+		text.WriteString(finding.DisplayPath(invalid.Path) + ": ")
+	}
+	text.WriteString(record.ErrInvalid.Error() + ":\n")
+	for _, reason := range invalid.Reasons {
+		text.WriteString("  - " + finding.Escape(reason) + "\n")
+	}
+	if _, writeErr := io.WriteString(stderr, text.String()); writeErr != nil {
 		return ExitToolchainFault
 	}
 

@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
 // Severity is how serious a finding is.
@@ -80,19 +81,25 @@ func IsControlOrSeparator(r rune) bool {
 	return unicode.IsControl(r) || r == ' ' || r == ' '
 }
 
-// Escape makes every control character and line or paragraph separator in text visible as a Go
-// escape (\n, \x1b,  ) and changes nothing else, so a name that came from a repository can
-// be put in a diagnostic without starting a line or reaching the terminal as a command.
+// Escape shows, as a Go escape (\n, \x1b, \u202e), every character in text that a reader could
+// not see or a terminal would act on: control characters, line and paragraph separators,
+// direction overrides and other format characters, and bytes that are not UTF-8. It changes
+// nothing else, so a name that came from a repository can be put in a diagnostic without
+// starting a line or reaching the terminal as a command.
 func Escape(text string) string {
 	var escaped strings.Builder
-	for _, r := range text {
-		if !IsControlOrSeparator(r) {
+	for i := 0; i < len(text); {
+		r, size := utf8.DecodeRuneInString(text[i:])
+		switch {
+		case r == utf8.RuneError && size == 1:
+			fmt.Fprintf(&escaped, `\x%02x`, text[i])
+		case r != ' ' && !strconv.IsPrint(r):
+			quoted := strconv.QuoteToASCII(string(r))
+			escaped.WriteString(quoted[1 : len(quoted)-1])
+		default:
 			escaped.WriteRune(r)
-
-			continue
 		}
-		quoted := strconv.QuoteToASCII(string(r))
-		escaped.WriteString(quoted[1 : len(quoted)-1])
+		i += size
 	}
 
 	return escaped.String()

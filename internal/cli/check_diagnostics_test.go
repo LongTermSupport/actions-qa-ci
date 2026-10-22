@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 
 	"github.com/LongTermSupport/actions-qa-ci/internal/cli"
@@ -39,7 +40,7 @@ func TestTheNoteNamesFilesNoLaneOfTheBuildAnalysesEvenWhenOnlySomeLanesAreChosen
 	}
 }
 
-func TestAProjectRecordThatIsNotAPlainFileInsideTheRepositoryIsARefusal(t *testing.T) {
+func TestAProjectRecordThatIsNotAPlainFileInsideTheRepositoryIsNoVerdict(t *testing.T) {
 	outside := filepath.Join(t.TempDir(), "outside.yml")
 	if err := os.WriteFile(outside, []byte("version: 1\n"), 0o600); err != nil {
 		t.Fatal(err)
@@ -48,6 +49,14 @@ func TestAProjectRecordThatIsNotAPlainFileInsideTheRepositoryIsARefusal(t *testi
 		"a directory":            func() error { return os.MkdirAll(record.Path, 0o700) },
 		"a dangling symlink":     func() error { return os.Symlink("nowhere.yml", record.Path) },
 		"a link leading outside": func() error { return os.Symlink(outside, record.Path) },
+		"a link to a file inside": func() error {
+			if err := os.WriteFile("real.yml", []byte("version: 1\n"), 0o600); err != nil {
+				return err
+			}
+
+			return os.Symlink("../real.yml", record.Path)
+		},
+		"a named pipe": func() error { return syscall.Mkfifo(record.Path, 0o600) },
 	}
 
 	for name, arrange := range cases {
@@ -59,7 +68,7 @@ func TestAProjectRecordThatIsNotAPlainFileInsideTheRepositoryIsARefusal(t *testi
 
 		got := runWith(t, checkEnv(t, run.lane("fake", yml, findsNothing)), "check")
 
-		if got.code != cli.ExitUsage || got.stdout != "" || len(run.ran) != 0 {
+		if got.code != cli.ExitNoVerdict || got.stdout != "" || len(run.ran) != 0 {
 			t.Errorf("%s: exit %d, stdout %q, ran %v; a record that cannot be read as a file means nothing is analysed", name, got.code, got.stdout, run.ran)
 		}
 	}

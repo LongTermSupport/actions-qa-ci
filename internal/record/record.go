@@ -22,6 +22,29 @@ import (
 // could not be read: the first is a mistake in the record, the second a fault of the machine.
 var ErrInvalid = errors.New("the project record is not valid")
 
+// InvalidError is a record that was read and is not a valid one, with each reason it was
+// refused for. It matches ErrInvalid. The reasons can hold text from the record itself, so a
+// caller that prints them escapes each one.
+type InvalidError struct {
+	// Path is the record file, once Load has read it; Parse knows no file.
+	Path    string
+	Reasons []string
+}
+
+func (e *InvalidError) Error() string {
+	text := ErrInvalid.Error() + ":\n  - " + strings.Join(e.Reasons, "\n  - ")
+	if e.Path != "" {
+		text = e.Path + ": " + text
+	}
+
+	return text
+}
+
+// Is makes an InvalidError match ErrInvalid.
+func (e *InvalidError) Is(target error) bool { return target == ErrInvalid }
+
+func invalid(reasons ...string) *InvalidError { return &InvalidError{Reasons: reasons} }
+
 // Path is where a project keeps its record, relative to the repository root.
 const Path = ".github/actions-qa-ci.yml"
 
@@ -93,6 +116,12 @@ func Load(path string, known func(id string) bool) (*Record, error) {
 	}
 
 	rec, err := Parse(data, known)
+	var refused *InvalidError
+	if errors.As(err, &refused) {
+		refused.Path = path
+
+		return nil, refused
+	}
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
@@ -105,7 +134,7 @@ func Load(path string, known func(id string) bool) (*Record, error) {
 // refusal wraps ErrInvalid.
 func Parse(data []byte, known func(id string) bool) (*Record, error) {
 	if len(data) > maxSize {
-		return nil, fmt.Errorf("%w: it is larger than %d bytes", ErrInvalid, maxSize)
+		return nil, invalid(fmt.Sprintf("it is larger than %d bytes", maxSize))
 	}
 
 	// The structure is judged before anything is decoded, so what the decoder fills in is
@@ -120,14 +149,14 @@ func Parse(data []byte, known func(id string) bool) (*Record, error) {
 	decoder := yaml.NewDecoder(bytes.NewReader(data))
 	decoder.KnownFields(true)
 	if err := decoder.Decode(&doc); err != nil && !errors.Is(err, io.EOF) {
-		return nil, fmt.Errorf("%w: %w", ErrInvalid, err)
+		return nil, invalid(err.Error())
 	}
 	if err := decoder.Decode(&yaml.Node{}); !errors.Is(err, io.EOF) {
-		return nil, fmt.Errorf("%w: it has more than one document", ErrInvalid)
+		return nil, invalid("it has more than one document")
 	}
 
 	if len(layout.lines) != len(doc.Exceptions) {
-		return nil, fmt.Errorf("%w: cannot match %d entries to their %d lines", ErrInvalid, len(doc.Exceptions), len(layout.lines))
+		return nil, invalid(fmt.Sprintf("cannot match %d entries to their %d lines", len(doc.Exceptions), len(layout.lines)))
 	}
 
 	rec := &Record{Version: doc.Version, Exceptions: make([]Exception, 0, len(doc.Exceptions))}
@@ -151,7 +180,7 @@ func Parse(data []byte, known func(id string) bool) (*Record, error) {
 
 	faults = append(faults, rec.faults(known)...)
 	if len(faults) > 0 {
-		return nil, fmt.Errorf("%w:\n  - %s", ErrInvalid, strings.Join(faults, "\n  - "))
+		return nil, invalid(faults...)
 	}
 
 	return rec, nil
@@ -167,10 +196,10 @@ type layout struct {
 func readLayout(data []byte) (layout, error) {
 	var root yaml.Node
 	if err := yaml.Unmarshal(data, &root); err != nil {
-		return layout{}, fmt.Errorf("%w: %w", ErrInvalid, err)
+		return layout{}, invalid(err.Error())
 	}
 	if err := rejectIndirection(&root); err != nil {
-		return layout{}, fmt.Errorf("%w: %w", ErrInvalid, err)
+		return layout{}, invalid(err.Error())
 	}
 	if len(root.Content) == 0 || root.Content[0].Kind != yaml.MappingNode {
 		return layout{}, nil

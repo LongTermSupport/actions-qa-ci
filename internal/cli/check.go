@@ -34,7 +34,7 @@ func checkCommand(env Env, args []string, stdout, stderr io.Writer) int {
 		return refusal(stderr, problem)
 	}
 
-	if _, err := os.Lstat(".git"); err != nil {
+	if _, err := os.Stat(".git"); err != nil {
 		return refusal(stderr, fmt.Sprintf("the working directory must be the repository root, which holds .git: %v", err))
 	}
 
@@ -49,7 +49,7 @@ func checkCommand(env Env, args []string, stdout, stderr io.Writer) int {
 
 	found, err := check.Run(lanes, files)
 	if errors.Is(err, record.ErrInvalid) {
-		return refusal(stderr, err.Error())
+		return refuseInvalid(stderr, err)
 	}
 	if err != nil {
 		return fault(stderr, err)
@@ -171,13 +171,17 @@ func chooseLanes(all []check.Lane, wanted []string) ([]check.Lane, string) {
 // validateRecord loads the project record if there is one, so that a mistake in it stops the
 // run before anything is analysed.
 func validateRecord(env Env, stderr io.Writer) int {
-	if _, err := os.Lstat(record.Path); errors.Is(err, os.ErrNotExist) {
+	info, err := os.Lstat(record.Path)
+	switch {
+	case errors.Is(err, os.ErrNotExist):
 		return ExitOK
-	} else if errors.Is(err, syscall.ENOTDIR) {
+	case errors.Is(err, syscall.ENOTDIR):
 		// .github is not a directory: the same fault Discover reports for it.
 		return noVerdict(stderr, fmt.Errorf("cannot look for the project record: %w", err))
-	} else if err != nil {
+	case err != nil:
 		return fault(stderr, fmt.Errorf("cannot look for the project record: %w", err))
+	case !info.Mode().IsRegular():
+		return noVerdict(stderr, fmt.Errorf("cannot analyse %s: it is not a regular file", record.Path))
 	}
 
 	path, problem, err := repositoryPath(record.Path)
@@ -185,7 +189,7 @@ func validateRecord(env Env, stderr io.Writer) int {
 		return fault(stderr, err)
 	}
 	if problem != "" {
-		return refusal(stderr, problem)
+		return noVerdict(stderr, errors.New(problem))
 	}
 
 	known := func(id string) bool {
@@ -194,7 +198,7 @@ func validateRecord(env Env, stderr io.Writer) int {
 		return ok
 	}
 	if _, err := record.Load(path, known); errors.Is(err, record.ErrInvalid) {
-		return refusal(stderr, err.Error())
+		return refuseInvalid(stderr, err)
 	} else if err != nil {
 		return fault(stderr, err)
 	}
@@ -255,7 +259,7 @@ func noteUnanalysed(lanes []check.Lane, files []string, stderr io.Writer) error 
 
 // noVerdict reports an analysis that could not cover what it should have.
 func noVerdict(stderr io.Writer, cause error) int {
-	if _, err := fmt.Fprintf(stderr, "actions-qa: no verdict: %v\n", cause); err != nil {
+	if _, err := fmt.Fprintf(stderr, "actions-qa: no verdict: %s\n", finding.Escape(cause.Error())); err != nil {
 		return ExitToolchainFault
 	}
 

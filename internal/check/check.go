@@ -107,6 +107,13 @@ var ErrNotAnalysable = errors.New("cannot analyse")
 
 var yamlName = regexp.MustCompile(`\.ya?ml$`)
 
+// IsWorkflow says whether a repository-relative path is a workflow GitHub would run: a YAML
+// file directly in .github/workflows. Discovery and the lanes share this one definition, so
+// a workflow cannot be found and then passed over.
+func IsWorkflow(file string) bool {
+	return path.Dir(file) == ".github/workflows" && yamlName.MatchString(path.Base(file))
+}
+
 // Discover lists the files analysed by default, repository-relative and sorted: the workflows
 // in .github/workflows (GitHub reads only that level), every action.yml or action.yaml under
 // .github/actions and at the root, .github/dependabot.yml and the project record. A symlink
@@ -179,7 +186,7 @@ func discover(fsys fs.FS) ([]string, error) {
 	}
 	for _, entry := range workflows {
 		file := ".github/workflows/" + entry.Name()
-		if entry.Type()&fs.ModeSymlink != 0 || yamlName.MatchString(entry.Name()) {
+		if entry.Type()&fs.ModeSymlink != 0 || IsWorkflow(file) {
 			if err := add(file, entry); err != nil {
 				return nil, err
 			}
