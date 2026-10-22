@@ -62,9 +62,9 @@ func onlineLane(env Env, stderr io.Writer) (check.Lane, int) {
 }
 
 // judgeable is which exceptions of the record a run can call stale. An exception for the
-// required checks at the record may accept a finding that only the online comparison makes, so
-// a run that did not go online cannot say it matched nothing; it is left as matched. (Such an
-// exception is called stale only by a run that did compare.)
+// required checks, at the record or everywhere, may accept a finding that only the online
+// comparison makes, so a run that did not go online cannot say it matched nothing; it is left as
+// matched. (Such an exception is called stale only by a run that did compare.)
 func judgeable(rec *record.Record, matched []bool, online bool) []bool {
 	if online {
 		return matched
@@ -73,7 +73,7 @@ func judgeable(rec *record.Record, matched []bool, online bool) []bool {
 	adjusted := make([]bool, len(rec.Exceptions))
 	copy(adjusted, matched)
 	for i, e := range rec.Exceptions {
-		if e.ID == firstparty.RequiredChecks && e.Path == record.Path {
+		if e.ID == firstparty.RequiredChecks && (e.Path == "" || e.Path == record.Path) {
 			adjusted[i] = true
 		}
 	}

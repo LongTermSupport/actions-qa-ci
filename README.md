@@ -162,8 +162,8 @@ repository in `GITHUB_REPOSITORY`, the API at `GITHUB_API_URL`, https only): a c
 record requires that the protection does not, and one the protection requires that the record
 does not list, are findings. Nothing reaches the network without `--online`, and a protection
 that cannot be read is exit 4 (`dbf.json`, `required-checks-online-comparison`). An exception
-for `actionsqaci.requiredChecks` at the record is called stale only by a run that went online, as
-it may accept a finding only the comparison makes. A branch the record spells two ways (`default`
+for `actionsqaci.requiredChecks`, at the record or everywhere, is called stale only by a run that
+went online, as it may accept a finding only the comparison makes. A branch the record spells two ways (`default`
 and its name) is one branch.
 
 Its `analyse.unanalysed` section lists patterns of paths (`path`, with a `justification` holding a
