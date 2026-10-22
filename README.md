@@ -120,7 +120,13 @@ The record's `templates` section lists a `source` and its `copies`; `actionsqaci
 reports a copy that is not byte-identical to its source, and a source or copy that is missing or
 is not a plain file, so a renamed copy cannot turn the check off. It compares whole files; a copy
 that may vary in one key is not supported yet (`dbf.json`, `template-drift-whole-file-only`), and
-a `mode` key is refused. The other sections the design gives the record arrive with the checks
+a `mode` key is refused.
+
+Its `requiredChecks` section lists the status checks a merge needs, each a `context` and
+optionally a `branch`; `actionsqaci.requiredChecks` reports a context that no job of a workflow
+triggered on `pull_request` produces, so a renamed job cannot leave branch protection waiting for
+a check that never comes. It does not compare with the repository's real branch protection
+(`dbf.json`, `required-checks-online-comparison`). The other sections the design gives the record arrive with the checks
 that use them.
 
 ### Exit codes

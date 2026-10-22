@@ -163,10 +163,10 @@ func TestOnlyTheLaneThatRunsAThirdPartyBackendIsIsolated(t *testing.T) {
 		isolated[lane.Name] = lane.Isolated
 	}
 
-	if len(isolated) != 5 || !isolated["actionlint"] {
+	if len(isolated) != 6 || !isolated["actionlint"] {
 		t.Errorf("isolated lanes = %v; actionlint runs a third-party parser and is isolated", isolated)
 	}
-	for _, name := range []string{"firstParty", "templateDrift", "inlineSuppression", "nativeSuppressionConfig"} {
+	for _, name := range []string{"firstParty", "templateDrift", "requiredChecks", "inlineSuppression", "nativeSuppressionConfig"} {
 		if isolated[name] {
 			t.Errorf("lane %s is this program's own code and is not isolated", name)
 		}

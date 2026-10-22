@@ -57,9 +57,10 @@ const Path = ".github/actions-qa-ci.yml"
 
 // document is a record as the YAML decoder reads it, before its entries are checked.
 type document struct {
-	Version    string       `yaml:"version"`
-	Templates  []*Template  `yaml:"templates"`
-	Exceptions []*Exception `yaml:"exceptions"`
+	Version    string           `yaml:"version"`
+	Templates  []*Template      `yaml:"templates"`
+	Required   []*RequiredCheck `yaml:"requiredChecks"`
+	Exceptions []*Exception     `yaml:"exceptions"`
 }
 
 // maxSize bounds a record: a file a person wrote is nowhere near it.
@@ -71,8 +72,10 @@ type Record struct {
 	// Version is the actions-qa-ci version the project pins.
 	Version string `yaml:"version"`
 	// Templates declare the copies that have to stay byte-identical to a source.
-	Templates  []Template  `yaml:"templates"`
-	Exceptions []Exception `yaml:"exceptions"`
+	Templates []Template `yaml:"templates"`
+	// RequiredChecks are the status check contexts the project requires before a merge.
+	RequiredChecks []RequiredCheck `yaml:"requiredChecks"`
+	Exceptions     []Exception     `yaml:"exceptions"`
 }
 
 // Template is a source file and the copies of it the project keeps, each of which has to be
@@ -178,18 +181,33 @@ func Parse(data []byte, known func(id string) bool) (*Record, error) {
 		return nil, invalid("it has more than one document")
 	}
 
-	if len(layout.lines) != len(doc.Exceptions) || len(layout.templateLines) != len(doc.Templates) {
-		return nil, invalid(fmt.Sprintf("cannot match %d exceptions and %d templates to their %d and %d lines",
-			len(doc.Exceptions), len(doc.Templates), len(layout.lines), len(layout.templateLines)))
+	if len(layout.lines) != len(doc.Exceptions) || len(layout.templateLines) != len(doc.Templates) || len(layout.requiredLines) != len(doc.Required) {
+		return nil, invalid(fmt.Sprintf("cannot match %d exceptions, %d templates and %d required checks to their %d, %d and %d lines",
+			len(doc.Exceptions), len(doc.Templates), len(doc.Required), len(layout.lines), len(layout.templateLines), len(layout.requiredLines)))
 	}
 
-	rec := &Record{Version: doc.Version, Exceptions: make([]Exception, 0, len(doc.Exceptions)), Templates: make([]Template, 0, len(doc.Templates))}
+	rec := &Record{
+		Version:        doc.Version,
+		Exceptions:     make([]Exception, 0, len(doc.Exceptions)),
+		Templates:      make([]Template, 0, len(doc.Templates)),
+		RequiredChecks: make([]RequiredCheck, 0, len(doc.Required)),
+	}
 	var faults []string
 	if layout.versionTag != "" && layout.versionTag != "!!int" && layout.versionTag != "!!str" {
 		faults = append(faults, fmt.Sprintf("version must be a whole number or text, not %s", layout.versionTag))
 	}
 	if layout.versionTag == "!!int" && !wholeNumber.MatchString(doc.Version) {
 		faults = append(faults, fmt.Sprintf("version %q must be written as plain digits", doc.Version))
+	}
+	for i, entry := range doc.Required {
+		if entry == nil {
+			faults = append(faults, fmt.Sprintf("required check %d (line %d) is empty", i+1, layout.requiredLines[i]))
+			rec.RequiredChecks = append(rec.RequiredChecks, RequiredCheck{Line: layout.requiredLines[i], null: true})
+
+			continue
+		}
+		entry.Line = layout.requiredLines[i]
+		rec.RequiredChecks = append(rec.RequiredChecks, *entry)
 	}
 	for i, entry := range doc.Templates {
 		if entry == nil {
@@ -228,6 +246,7 @@ func Parse(data []byte, known func(id string) bool) (*Record, error) {
 type layout struct {
 	lines         []int
 	templateLines []int
+	requiredLines []int
 	// templateCopies is how many entries each template's copies list is written with, or -1
 	// where it is not a list. The decoder turns a null entry into nothing, so only the node
 	// tree can say that one was written.
@@ -275,6 +294,13 @@ func readLayout(data []byte) (layout, error) {
 			}
 			for _, item := range top[i+1].Content {
 				found.lines = append(found.lines, item.Line)
+			}
+		case "requiredChecks":
+			if top[i+1].Kind != yaml.SequenceNode {
+				continue
+			}
+			for _, item := range top[i+1].Content {
+				found.requiredLines = append(found.requiredLines, item.Line)
 			}
 		case "templates":
 			if top[i+1].Kind != yaml.SequenceNode {
@@ -346,6 +372,7 @@ func (r *Record) faults(known func(id string) bool) []string {
 	}
 
 	faults = append(faults, templateFaults(r.Templates)...)
+	faults = append(faults, requiredCheckFaults(r.RequiredChecks)...)
 
 	for i, e := range r.Exceptions {
 		if e.null {

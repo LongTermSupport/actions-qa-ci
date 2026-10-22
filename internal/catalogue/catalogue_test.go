@@ -105,6 +105,9 @@ func TestTheShippedLanesSelectExactlyWhatTheyAnalyse(t *testing.T) {
 		{"templateDrift", ".github/actions-qa-ci.yml", true},
 		{"templateDrift", ".github/workflows/ci.yml", false},
 		{"templateDrift", "sub/.github/actions-qa-ci.yml", false},
+		{"requiredChecks", ".github/actions-qa-ci.yml", true},
+		{"requiredChecks", ".github/workflows/ci.yml", false},
+		{"requiredChecks", "sub/.github/actions-qa-ci.yml", false},
 		{"inlineSuppression", ".github/workflows/ci.yml", true},
 		{"inlineSuppression", "action.yml", true},
 		{"inlineSuppression", ".github/actions/x/action.yaml", true},
@@ -123,7 +126,7 @@ func TestTheShippedLanesSelectExactlyWhatTheyAnalyse(t *testing.T) {
 			t.Errorf("lane %s selects %s = %v, want %v", c.lane, c.path, got, c.want)
 		}
 	}
-	if len(lanes) != 5 {
+	if len(lanes) != 6 {
 		t.Errorf("lanes = %d; a lane added here needs cases above", len(lanes))
 	}
 }

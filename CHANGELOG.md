@@ -52,6 +52,13 @@
   finding at the record, so renaming a copy cannot silence the check. Files are opened without
   blocking and without following a link, so a pipe in place of a copy is reported and never read.
   Whole-file comparison only; the design's `identical-except` mode is declared as a gap.
+- `actionsqaci.requiredChecks` and the record's `requiredChecks` section (a `context` and an
+  optional `branch`): a required status check that no job of a workflow triggered on
+  `pull_request` produces is a finding at its entry in the record, saying why when a job nearly
+  does (the workflow is not a pull request one, the job name holds an expression, or the job
+  runs a matrix). A job's check run is its `name:` or else its id; a job that calls a reusable
+  workflow produces contexts under `<name> / `. A workflow that cannot be read is a finding at
+  that workflow. Comparing with the repository's real branch protection is declared as a gap.
 - The `rule <id> <path>` harness: runs one rule on one file and prints only that rule's
   findings, exiting 1 when it fires.
 - The `text`, `agent` and `json` output formats, and the finding model with its identifier
