@@ -23,8 +23,9 @@ word of it is a word of the identifier, when it is shorter than 40 characters or
 An exception with no `path` disables its defence everywhere and is held to the same standard.
 
 The check cannot tell whether a sentence is true. It refuses the sentences that could be written
-without knowing anything, so that a reviewer is left with something to judge. Today the record is
-read and checked, and an exception in it is not yet applied to any finding.
+without knowing anything, so that a reviewer is left with something to judge. An exception that
+passes is applied by `check`: the finding it covers stays in the output as excepted, counted and
+not listed.
 
 ## Hazard
 

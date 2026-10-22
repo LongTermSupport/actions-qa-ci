@@ -25,7 +25,12 @@
   or over the files named. `-t` picks lanes, `--format` and `ACTIONS_QA_FORMAT` pick the output.
   A failing lane stops the run with exit 3 and no findings; a file that cannot be read as a plain
   file is exit 4; a directory that is not the repository root is refused. A discovered file no
-  lane analyses is named on standard error. Exceptions are still not applied.
+  lane analyses is named on standard error.
+- Exceptions are applied. `check` marks a finding covered by an exception of the project record
+  (same identifier and path, and the job and step if named) as excepted: counted, not listed. In
+  a full run an exception that covers nothing is `actionsqaci.staleException`, at its line in the
+  record. `rules` shows beside a defence the record turns off everywhere. The two checks on the
+  record itself cannot be excepted.
 - The `rule <id> <path>` harness: runs one rule on one file and prints only that rule's
   findings, exiting 1 when it fires.
 - The `text`, `agent` and `json` output formats, and the finding model with its identifier

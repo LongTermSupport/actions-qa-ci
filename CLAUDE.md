@@ -52,6 +52,8 @@ branch named `feature/…`, `bugfix/…` or `chore/…`; the default branch is `
   fetch bin` downloads the pinned ones for development.
 - The `check` run: `internal/check` discovers the default file set and runs the lanes, which
   `internal/catalogue` lists; `internal/cli/check.go` is the command.
+- Exceptions: `internal/locate` finds the job and step of a line, `internal/exceptions` applies
+  the record's exceptions to findings and reports the stale ones.
 - The project record: `internal/record` loads `.github/actions-qa-ci.yml` and judges
   justifications; `internal/firstparty` holds the checks this toolchain makes itself.
 - Exit codes: [README.md](README.md#exit-codes).

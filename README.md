@@ -77,6 +77,15 @@ anywhere else it would find nothing and read as clean, so it refuses.
   the lanes there are.
 - **`--format text|agent|json`.** With none given, `ACTIONS_QA_FORMAT`, else `text` on a
   terminal, else `agent`.
+- **Exceptions.** An exception of the project record covers a finding with the same identifier
+  and path, and the job and step if it names them (by id or by name, wherever in that job or step
+  the finding's line falls); with no path it turns the defence off everywhere. A covered finding
+  stays in the output as excepted: counted, not listed, and in `--format json` with the exception
+  that covers it. A job or step an exception names is found by reading the workflow, so a finding
+  in a file that cannot be read that way is never excepted by one. In a full run (no `-t`, no
+  file named) an exception that covers no finding is itself a finding,
+  `actionsqaci.staleException`, at its line in the record. `rules` lists a defence the record turns
+  off everywhere beside that defence.
 - **Failure stops the run.** A lane that fails stops it with exit 3 and prints no findings: a
   partial list would read as a verdict.
 
@@ -90,9 +99,10 @@ them, and each is a way for a value to arrive from somewhere it is not written),
 not plain text, an identifier no defence has and a path that is not a plain file path inside the
 repository, and reports every fault at once. `actionsqaci.unjustifiedException` holds the three
 justification fields to a standard (see its page); `rule actionsqaci.unjustifiedException
-.github/actions-qa-ci.yml` runs it, and `check` runs it with the other lanes. This build reads
-and checks the record; it does not yet apply an exception to a finding, and the other sections the design gives the record arrive with the
-checks that use them.
+.github/actions-qa-ci.yml` runs it, and `check` runs it with the other lanes and applies the
+exceptions (see above). The checks on the record itself, `actionsqaci.unjustifiedException` and
+`actionsqaci.staleException`, cannot be excepted. The other sections the design gives the record
+arrive with the checks that use them.
 
 ### Exit codes
 
