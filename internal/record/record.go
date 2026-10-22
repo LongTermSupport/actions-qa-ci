@@ -169,6 +169,10 @@ func readLayout(data []byte) (layout, error) {
 	top := root.Content[0].Content
 	for i := 0; i+1 < len(top); i += 2 {
 		switch top[i].Value {
+		case "<<":
+			// A merge key can supply the version or the entries from somewhere this reader does
+			// not look, so the top of the record says what it holds itself.
+			return layout{}, fmt.Errorf("%w: a merge key (<<) at the top of the record is not supported; write the version and exceptions out", ErrInvalid)
 		case "version":
 			node := top[i+1]
 			if node.Kind == yaml.AliasNode && node.Alias != nil {
