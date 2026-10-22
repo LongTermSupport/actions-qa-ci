@@ -10,7 +10,11 @@ import (
 // Whatever Discover offers as a workflow, the actionlint lane must analyse: the two are one
 // definition, so a workflow cannot be found and then passed over.
 func TestEveryWorkflowDiscoverOffersTheActionlintLaneSelects(t *testing.T) {
-	lanes := catalogue.Lanes(func(string) bool { return true })
+	reg, err := catalogue.Registry()
+	if err != nil {
+		t.Fatal(err)
+	}
+	lanes := catalogue.Lanes(reg)
 	var actionlint check.Lane
 	for _, lane := range lanes {
 		if lane.Name == "actionlint" {
@@ -35,8 +39,12 @@ func TestEveryWorkflowDiscoverOffersTheActionlintLaneSelects(t *testing.T) {
 }
 
 func TestTheRecordLaneSelectsTheRecordAndNothingNearIt(t *testing.T) {
+	reg, err := catalogue.Registry()
+	if err != nil {
+		t.Fatal(err)
+	}
 	var selects func(string) bool
-	for _, lane := range catalogue.Lanes(func(string) bool { return true }) {
+	for _, lane := range catalogue.Lanes(reg) {
 		if lane.Name == "firstParty" {
 			selects = lane.Selects
 		}

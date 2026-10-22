@@ -70,6 +70,11 @@
   project record narrows, into a generated region of `CLAUDE.md` or `AGENTS.md` (between
   `<!-- actions-qa-ci:begin -->` and `<!-- actions-qa-ci:end -->`), keeping the rest of the file
   byte for byte. A file whose markers do not form one region is refused and left alone.
+- `actionsqaci.agentSummaryCurrent`: the generated region of `CLAUDE.md` or `AGENTS.md` at the
+  repository root has to be the one `rules --write-agent-summary` would write now (the defences
+  of the build, and what the project record narrows); a stale region is a finding at its begin
+  marker, markers that do not form one region a finding at the file. A file with no region is
+  left alone. `check` runs the lane once for the project, with or without a record.
 - The files `--sarif` and `--write-agent-summary` write are now replaced whole (written beside the
   file and moved into place, permissions kept) instead of truncated and rewritten, so a write
   that fails leaves the old file, and another name hard-linked to it keeps the old content.

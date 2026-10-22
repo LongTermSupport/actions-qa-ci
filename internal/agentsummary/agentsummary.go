@@ -122,6 +122,16 @@ func Extract(data []byte) (string, bool, error) {
 	return strings.ReplaceAll(string(data[start:end]), "\r\n", "\n"), true, nil
 }
 
+// BeginLine is the line, counting from one, on which the generated region of data begins.
+func BeginLine(data []byte) (int, bool, error) {
+	start, _, found, err := locate(data)
+	if err != nil || !found {
+		return 0, false, err
+	}
+
+	return bytes.Count(data[:start], []byte("\n")) + 1, true, nil
+}
+
 // Splice returns data with the region put in: in place of the one already there, or else after
 // everything else. A file with markers that do not form one region is refused, not rewritten.
 // A file whose lines end in CRLF gets the region with the same line endings.

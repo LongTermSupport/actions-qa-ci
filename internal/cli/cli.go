@@ -97,15 +97,10 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		return fault(stderr, fmt.Errorf("cannot find this program, to run its lanes in processes of their own: %w", err))
 	}
 
-	known := func(id string) bool {
-		_, ok := reg.Lookup(id)
-
-		return ok
-	}
 	env := Env{
 		Registry:      reg,
 		Pages:         actionsqaci.Pages,
-		Lanes:         catalogue.Lanes(known),
+		Lanes:         catalogue.Lanes(reg),
 		DefaultFormat: defaultFormat(stdout),
 		Extensions:    catalogue.Extensions(),
 		Isolation:     &Isolation{Executable: executable, Limits: check.Limits{Timeout: laneTimeout, MaxOutput: laneMaxOutput, MaxStderr: laneMaxStderr}},

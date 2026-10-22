@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/LongTermSupport/actions-qa-ci/internal/exceptions"
 	"github.com/LongTermSupport/actions-qa-ci/internal/finding"
 	"github.com/LongTermSupport/actions-qa-ci/internal/listing"
 	"github.com/LongTermSupport/actions-qa-ci/internal/record"
@@ -27,21 +26,7 @@ func narrowByRecord(env Env, entries []listing.Entry, stderr io.Writer) int {
 		return ExitOK
 	}
 
-	for _, e := range exceptions.Disabled(rec) {
-		narrowing := fmt.Sprintf("%s is disabled everywhere by %s:%d", e.ID, record.Path, e.Line)
-		for i := range entries {
-			if entries[i].ID == e.ID {
-				entries[i].NarrowedBy = append(entries[i].NarrowedBy, narrowing)
-
-				break
-			}
-			if family, listed := env.Registry.FamilyNamed(entries[i].ID); listed && family.Member(e.ID) {
-				entries[i].NarrowedBy = append(entries[i].NarrowedBy, narrowing)
-
-				break
-			}
-		}
-	}
+	listing.Narrow(env.Registry, entries, rec)
 
 	return ExitOK
 }

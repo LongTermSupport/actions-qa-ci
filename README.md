@@ -127,7 +127,9 @@ anywhere else it would find nothing and read as clean, so it refuses.
   is a link or anything but a regular file. A file whose lines end in CRLF gets the region with
   CRLF. A marker line is a marker wherever it is, a fenced code block included. The file is
   written beside itself and moved into place, with its permissions kept, so a write that fails
-  leaves it as it was. The listing is still printed.
+  leaves it as it was. The listing is still printed. `actionsqaci.agentSummaryCurrent` fails
+  when a region in `CLAUDE.md` or `AGENTS.md` at the repository root is not the one the command
+  would write now; a file with no region is not asked to have one.
 - **Failure stops the run.** A lane that fails stops it with exit 3 and prints no findings: a
   partial list would read as a verdict.
 
