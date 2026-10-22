@@ -29,8 +29,10 @@
 - Exceptions are applied. `check` marks a finding covered by an exception of the project record
   (same identifier and path, and the job and step if named) as excepted: counted, not listed. In
   a full run an exception that covers nothing is `actionsqaci.staleException`, at its line in the
-  record. `rules` shows beside a defence the record turns off everywhere. The two checks on the
-  record itself cannot be excepted.
+  record. `rules` shows beside a defence the record turns off everywhere: a `narrowed:` line in
+  the text format and a `narrowedBy` array on the entry in `--json`, absent when nothing narrows
+  it; it reads the record in the working directory and refuses an invalid one. The two checks on
+  the record itself cannot be excepted.
 - The `rule <id> <path>` harness: runs one rule on one file and prints only that rule's
   findings, exiting 1 when it fires.
 - The `text`, `agent` and `json` output formats, and the finding model with its identifier

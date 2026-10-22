@@ -79,13 +79,21 @@ anywhere else it would find nothing and read as clean, so it refuses.
   terminal, else `agent`.
 - **Exceptions.** An exception of the project record covers a finding with the same identifier
   and path, and the job and step if it names them (by id or by name, wherever in that job or step
-  the finding's line falls); with no path it turns the defence off everywhere. A covered finding
-  stays in the output as excepted: counted, not listed, and in `--format json` with the exception
-  that covers it. A job or step an exception names is found by reading the workflow, so a finding
-  in a file that cannot be read that way is never excepted by one. In a full run (no `-t`, no
-  file named) an exception that covers no finding is itself a finding,
-  `actionsqaci.staleException`, at its line in the record. `rules` lists a defence the record turns
-  off everywhere beside that defence.
+  the finding's line falls within that job or step's own extent, so an `env:` after the steps is in
+  the job and in no step); with no path it turns the defence off everywhere. A name that is the id
+  of one job is that job, whatever else is named so; a name two jobs (or two steps of a job) share
+  names none of them, so use the id. A covered finding stays in the output as excepted: counted,
+  not listed, and in `--format json` with the exception that covers it. A job or step is found by
+  reading the workflow, and a workflow that cannot be read that way, that uses a YAML alias, or
+  whose jobs or steps share a line, is not placed: an exception that names a job or step matches
+  nothing in it. In a full run (no `-t`, no file named) an exception that covers no finding is
+  itself a finding, `actionsqaci.staleException`, at its line in the record.
+- **`rules` shows the narrowing.** It reads the project record in the working directory, which is
+  the repository root (run below it, with a record above, it says on standard error that it did
+  not look), and refuses an invalid one with exit 2. Beside a defence the record turns off
+  everywhere, the text format adds a `    narrowed: …` line and `rules --json` adds a `narrowedBy`
+  array to that entry; an entry without one has no such key, so a consumer that reads entries as
+  string maps breaks only when a record narrows something.
 - **Failure stops the run.** A lane that fails stops it with exit 3 and prints no findings: a
   partial list would read as a verdict.
 

@@ -89,12 +89,12 @@ func TestFindDoesNotNameAJobOrStepWhoseNameIsNotText(t *testing.T) {
 	}
 }
 
-func TestFindReadsAJobAfterAnAliasWithoutFollowingIt(t *testing.T) {
+func TestFindPlacesNothingInAWorkflowThatUsesAnAlias(t *testing.T) {
 	data := "x-steps: &steps\n  - run: echo\njobs:\n  a:\n    steps: *steps\n  b:\n    steps:\n      - run: echo b\n"
 
 	got := locate.Find([]byte(data), 8)
 
-	if got.Job != "b" {
-		t.Errorf("%+v", got)
+	if got != (locate.Location{}) {
+		t.Errorf("%+v; where an alias may carry lines from elsewhere, a line cannot be placed", got)
 	}
 }

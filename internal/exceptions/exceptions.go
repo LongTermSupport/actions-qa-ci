@@ -29,20 +29,20 @@ type Result struct {
 // names, and all of them count as matched.
 func Apply(rec *record.Record, findings []finding.Finding, read func(path string) ([]byte, error)) (Result, error) {
 	result := Result{Findings: make([]finding.Finding, 0, len(findings)), Matched: make([]bool, len(rec.Exceptions))}
-	files := map[string][]byte{}
+	workflows := map[string]*locate.Workflow{}
 
-	placed := func(path string, line int) (locate.Location, error) {
-		content, cached := files[path]
+	workflow := func(path string) (*locate.Workflow, error) {
+		parsed, cached := workflows[path]
 		if !cached {
-			var err error
-			content, err = read(path)
+			content, err := read(path)
 			if err != nil {
-				return locate.Location{}, fmt.Errorf("cannot read %s to place a finding in it: %w", path, err)
+				return nil, fmt.Errorf("cannot read %s to place a finding in it: %w", path, err)
 			}
-			files[path] = content
+			parsed = locate.Parse(content)
+			workflows[path] = parsed
 		}
 
-		return locate.Find(content, line), nil
+		return parsed, nil
 	}
 
 	for _, f := range findings {
@@ -51,11 +51,11 @@ func Apply(rec *record.Record, findings []finding.Finding, read func(path string
 				continue
 			}
 			if e.Job != "" || e.Step != "" {
-				place, err := placed(f.Path, f.Line)
+				placed, err := workflow(f.Path)
 				if err != nil {
 					return Result{}, err
 				}
-				if !named(e.Job, place.Job, place.JobName) || !named(e.Step, place.Step, place.StepName) {
+				if !placed.Within(f.Line, e.Job, e.Step) {
 					continue
 				}
 			}
@@ -70,11 +70,6 @@ func Apply(rec *record.Record, findings []finding.Finding, read func(path string
 	}
 
 	return result, nil
-}
-
-// named says whether an exception's job or step, when it has one, is the id or the name found.
-func named(wanted, id, name string) bool {
-	return wanted == "" || (id != "" && wanted == id) || (name != "" && wanted == name)
 }
 
 // Stale is a finding for each exception that matched nothing, so that the record cannot

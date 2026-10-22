@@ -2,6 +2,7 @@ package cli_test
 
 import (
 	"encoding/json"
+	"os"
 	"strings"
 	"testing"
 
@@ -70,5 +71,28 @@ func TestRulesRefusesAnInvalidRecordInsteadOfListingAsIfItWereNotThere(t *testin
 
 	if got.code != cli.ExitUsage || got.stdout != "" || !strings.Contains(got.stderr, "not valid") {
 		t.Errorf("exit %d, stdout %q, stderr %q", got.code, got.stdout, got.stderr)
+	}
+}
+
+func TestRulesRunBelowTheRepositoryRootSaysItDidNotLookForTheRecord(t *testing.T) {
+	repository(t, map[string]string{record.Path: excepting(entry(templateInj, "", ""))})
+	if err := os.Chdir(".github"); err != nil {
+		t.Fatal(err)
+	}
+
+	got := runWith(t, familyEnv(t, twoRules()...), "rules")
+
+	if got.code != cli.ExitOK || strings.Contains(got.stdout, "narrowed") || !strings.Contains(got.stderr, "repository root") {
+		t.Errorf("exit %d, stdout %q, stderr %q; silence here would read as nothing being narrowed", got.code, got.stdout, got.stderr)
+	}
+}
+
+func TestRulesRunOutsideAnyRepositoryHasNothingToSay(t *testing.T) {
+	t.Chdir(t.TempDir())
+
+	got := runWith(t, familyEnv(t, twoRules()...), "rules")
+
+	if got.code != cli.ExitOK || got.stderr != "" {
+		t.Errorf("exit %d, stderr %q", got.code, got.stderr)
 	}
 }

@@ -3,8 +3,11 @@ package cli
 import (
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 
 	"github.com/LongTermSupport/actions-qa-ci/internal/exceptions"
+	"github.com/LongTermSupport/actions-qa-ci/internal/finding"
 	"github.com/LongTermSupport/actions-qa-ci/internal/record"
 )
 
@@ -18,6 +21,8 @@ func narrowByRecord(env Env, entries []ruleEntry, stderr io.Writer) int {
 		return code
 	}
 	if rec == nil {
+		noteRecordAbove(stderr)
+
 		return ExitOK
 	}
 
@@ -38,4 +43,28 @@ func narrowByRecord(env Env, entries []ruleEntry, stderr io.Writer) int {
 	}
 
 	return ExitOK
+}
+
+// noteRecordAbove says, when the working directory is below a repository root whose project
+// record exists, that the record was not looked for here. Staying silent would read as nothing
+// being narrowed.
+func noteRecordAbove(stderr io.Writer) {
+	if _, err := os.Stat(".git"); err == nil {
+		return
+	}
+
+	dir, err := os.Getwd()
+	if err != nil {
+		return
+	}
+	for parent := filepath.Dir(dir); parent != dir; dir, parent = parent, filepath.Dir(parent) {
+		if _, err := os.Stat(filepath.Join(parent, ".git")); err != nil {
+			continue
+		}
+		if _, err := os.Lstat(filepath.Join(parent, filepath.FromSlash(record.Path))); err == nil {
+			fmt.Fprintf(stderr, "actions-qa: %s\n", finding.Escape("the project record is not looked for below the repository root; run from "+parent+" to see what it narrows"))
+		}
+
+		return
+	}
 }
