@@ -23,6 +23,10 @@
       "description": "`check` runs the actionlint lane in a child process with a time limit, so a workflow that crashes its parser or never finishes is exit 4; but the `rule` harness still runs actionlint inside its own process, so a workflow built to recurse without bound (a million nested parentheses) ends `rule` with the Go runtime's own exit code 2, and one built to be slow runs there without a time bound."
     },
     {
+      "id": "template-drift-whole-file-only",
+      "description": "actionsqaci.templateDrift compares a copy with its source byte for byte. The design's identical-except mode, which lets a copy differ in named YAML keys, is not built, because the key-path syntax is not specified; a record that tries to state it is refused, so nothing is silently ignored."
+    },
+    {
       "id": "workflow-second-document-unread",
       "description": "A workflow file holding a second YAML document is analysed on its first document only, and the second is not read; whether GitHub accepts such a file is not confirmed, so it stays a gap until the lint-coverage check (phase 6) decides it."
     },

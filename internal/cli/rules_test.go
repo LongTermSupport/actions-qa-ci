@@ -242,7 +242,7 @@ func TestTheProgramRunsAgainstTheRulesAndPagesItShips(t *testing.T) {
 
 	stdout.Reset()
 	stderr.Reset()
-	if code := cli.Run([]string{"rule-doc", templateDrift}, &stdout, &stderr); code != cli.ExitUsage {
+	if code := cli.Run([]string{"rule-doc", "actionsqaci.neverShippedAnywhere"}, &stdout, &stderr); code != cli.ExitUsage {
 		t.Errorf("exit %d for a rule that does not ship, want %d", code, cli.ExitUsage)
 	}
 }

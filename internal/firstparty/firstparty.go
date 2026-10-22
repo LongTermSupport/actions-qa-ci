@@ -32,6 +32,10 @@ func Rules(known func(id string) bool) []registry.Rule {
 		ID:      StaleException,
 		Summary: "Every exception in the project record matches a finding in a full run",
 	}, {
+		ID:      TemplateDrift,
+		Summary: "Each declared copy of a template is byte-identical to its source, and a missing source or copy is a finding",
+		Check:   CheckTemplateDrift(known),
+	}, {
 		ID:      InlineSuppression,
 		Summary: "No comment tells zizmor, ratchet or ShellCheck to leave a finding out",
 		Check:   CheckInlineSuppression,

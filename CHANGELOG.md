@@ -46,6 +46,12 @@
   configuration with an `ignore` key and a pinact configuration with `ignore_actions`; `check`
   now looks for those files by default. The guards read files and do not lint them, so a
   composite action is still named as one no lane lints.
+- `actionsqaci.templateDrift` and the record's `templates` section (a `source` and its `copies`):
+  a copy that differs from its source in any byte is a finding at the copy, naming the first
+  differing line, and a source or copy that is missing, not a plain file or over 1 MiB is a
+  finding at the record, so renaming a copy cannot silence the check. Files are opened without
+  blocking and without following a link, so a pipe in place of a copy is reported and never read.
+  Whole-file comparison only; the design's `identical-except` mode is declared as a gap.
 - The `rule <id> <path>` harness: runs one rule on one file and prints only that rule's
   findings, exiting 1 when it fires.
 - The `text`, `agent` and `json` output formats, and the finding model with its identifier

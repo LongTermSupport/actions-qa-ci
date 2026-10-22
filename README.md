@@ -114,8 +114,14 @@ repository, and reports every fault at once. `actionsqaci.unjustifiedException` 
 justification fields to a standard (see its page); `rule actionsqaci.unjustifiedException
 .github/actions-qa-ci.yml` runs it, and `check` runs it with the other lanes and applies the
 exceptions (see above). The checks on the record itself, `actionsqaci.unjustifiedException` and
-`actionsqaci.staleException`, cannot be excepted. The other sections the design gives the record
-arrive with the checks that use them.
+`actionsqaci.staleException`, cannot be excepted.
+
+The record's `templates` section lists a `source` and its `copies`; `actionsqaci.templateDrift`
+reports a copy that is not byte-identical to its source, and a source or copy that is missing or
+is not a plain file, so a renamed copy cannot turn the check off. It compares whole files; a copy
+that may vary in one key is not supported yet (`dbf.json`, `template-drift-whole-file-only`), and
+a `mode` key is refused. The other sections the design gives the record arrive with the checks
+that use them.
 
 ### Exit codes
 

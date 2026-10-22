@@ -50,7 +50,7 @@ func CheckInlineSuppression(file string) ([]finding.Finding, error) {
 		for _, form := range inlineForms {
 			for _, at := range form.pattern.FindAllStringIndex(line, -1) {
 				message := fmt.Sprintf("a %s comment leaves a finding out with no recorded justification; remove it, and if the finding is accepted put an exception in .github/actions-qa-ci.yml", form.tool)
-				f, err := suppressionFinding(InlineSuppression, file, number+1, utf8.RuneCountInString(line[:at[0]])+1, message)
+				f, err := newFinding(InlineSuppression, file, number+1, utf8.RuneCountInString(line[:at[0]])+1, message)
 				if err != nil {
 					return nil, err
 				}
@@ -113,7 +113,7 @@ func CheckNativeSuppressionConfig(file string) ([]finding.Finding, error) {
 	key, byKey := suppressionKeys[tool]
 	if !byKey {
 		message := fmt.Sprintf("%s reads this file and honours the findings it ignores or disables, with no recorded justification; delete it and put a calibration or an exception in .github/actions-qa-ci.yml", tool)
-		f, err := suppressionFinding(NativeSuppressionConfig, file, 1, 1, message)
+		f, err := newFinding(NativeSuppressionConfig, file, 1, 1, message)
 		if err != nil {
 			return nil, err
 		}
@@ -137,7 +137,7 @@ func CheckNativeSuppressionConfig(file string) ([]finding.Finding, error) {
 		collectKeys(&document, key, &keyed)
 		for _, node := range keyed {
 			message := fmt.Sprintf("the %q key of %s's configuration leaves findings out with no recorded justification; remove it, and put an exception in .github/actions-qa-ci.yml", key, tool)
-			f, err := suppressionFinding(NativeSuppressionConfig, file, node.Line, node.Column, message)
+			f, err := newFinding(NativeSuppressionConfig, file, node.Line, node.Column, message)
 			if err != nil {
 				return nil, err
 			}
@@ -186,7 +186,8 @@ func collectKeys(node *yaml.Node, name string, into *[]*yaml.Node) {
 	}
 }
 
-func suppressionFinding(id, file string, line, col int, message string) (finding.Finding, error) {
+// newFinding is an error finding of a first-party check at a place in a file.
+func newFinding(id, file string, line, col int, message string) (finding.Finding, error) {
 	f := finding.Finding{
 		ID:       id,
 		Tool:     Tool,
@@ -198,7 +199,7 @@ func suppressionFinding(id, file string, line, col int, message string) (finding
 		DocPath:  registry.DocPath(id),
 	}
 	if err := f.Validate(); err != nil {
-		return finding.Finding{}, fmt.Errorf("the suppression check produced a finding that cannot be reported: %w", err)
+		return finding.Finding{}, fmt.Errorf("a first-party check produced a finding that cannot be reported: %w", err)
 	}
 
 	return f, nil

@@ -34,6 +34,11 @@ func Lanes(known func(id string) bool) []check.Lane {
 			Run:     firstparty.CheckRecord(known),
 		},
 		{
+			Name:    "templateDrift",
+			Selects: func(path string) bool { return path == record.Path },
+			Run:     firstparty.CheckTemplateDrift(known),
+		},
+		{
 			// A comment that tells a tool to leave a finding out: a suppression the project
 			// record cannot see.
 			Name:    "inlineSuppression",
