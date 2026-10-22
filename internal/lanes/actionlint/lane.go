@@ -1,0 +1,123 @@
+// Package actionlint is the lane that runs actionlint, compiled in as a library, over one
+// workflow file and reports what it finds as this toolchain's findings.
+package actionlint
+
+import (
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+
+	upstream "github.com/rhysd/actionlint"
+
+	"github.com/LongTermSupport/actions-qa-ci/internal/finding"
+	"github.com/LongTermSupport/actions-qa-ci/internal/registry"
+)
+
+// Version is the actionlint release compiled in. go.mod pins it and a test keeps the two equal.
+const Version = "v1.7.12"
+
+// Tool names the backend on every finding it produces.
+const Tool = "actionlint " + Version
+
+// Lint runs actionlint over the workflow at a repository-relative path, with the working
+// directory as the repository root, and returns its findings in a stable order.
+//
+// The project's own actionlint configuration is never applied: an ignore pattern there would
+// suppress findings without a recorded justification. Suppression is the project record's job.
+// (actionlint still parses the file while it locates the project, so a malformed one is an
+// error here.)
+func Lint(path string) ([]finding.Finding, error) {
+	// actionlint takes a directory for the project root only when it holds .git (a directory,
+	// or a file in a linked worktree) and .github/workflows as a directory.
+	for _, marker := range []struct {
+		path      string
+		directory bool
+	}{{".git", false}, {".github/workflows", true}} {
+		info, err := os.Stat(filepath.FromSlash(marker.path))
+		if err != nil {
+			return nil, fmt.Errorf("the working directory must be the repository root, which holds %s: %w", marker.path, err)
+		}
+		if marker.directory && !info.IsDir() {
+			return nil, fmt.Errorf("the working directory must be the repository root, and %s is not a directory", marker.path)
+		}
+	}
+
+	config, cleanup, err := emptyConfig()
+	if err != nil {
+		return nil, err
+	}
+	defer cleanup()
+
+	linter, err := upstream.NewLinter(io.Discard, &upstream.LinterOptions{
+		ConfigFile: config,
+		Color:      upstream.ColorOptionKindNever,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("cannot start actionlint: %w", err)
+	}
+
+	errs, err := linter.LintFile(filepath.FromSlash(path), nil)
+	if err != nil {
+		return nil, fmt.Errorf("actionlint could not check %s: %w", path, err)
+	}
+
+	return Convert(path, errs)
+}
+
+// emptyConfig writes a configuration that ignores nothing, because the linter reads the
+// project's own configuration unless it is handed one.
+func emptyConfig() (path string, cleanup func(), err error) {
+	dir, err := os.MkdirTemp("", "actions-qa-actionlint-")
+	if err != nil {
+		return "", nil, fmt.Errorf("cannot create an empty actionlint configuration: %w", err)
+	}
+	remove := func() {
+		// Nothing depends on the removal succeeding: the directory holds one empty file.
+		if removeErr := os.RemoveAll(dir); removeErr != nil {
+			fmt.Fprintf(os.Stderr, "actions-qa: cannot remove %s: %v\n", dir, removeErr)
+		}
+	}
+
+	path = filepath.Join(dir, "actionlint.yaml")
+	if err := os.WriteFile(path, []byte("{}\n"), 0o600); err != nil {
+		remove()
+
+		return "", nil, fmt.Errorf("cannot create an empty actionlint configuration: %w", err)
+	}
+
+	return path, remove, nil
+}
+
+// Convert turns actionlint's errors for the file at path into findings. A kind the lane has no
+// identifier for is an error: relabelling or dropping it would hide a defence the upstream
+// added, so a bump that introduces one fails until it has a page and a fixture.
+func Convert(path string, errs []*upstream.Error) ([]finding.Finding, error) {
+	findings := make([]finding.Finding, 0, len(errs))
+
+	for _, e := range errs {
+		if !known(e.Kind) {
+			return nil, fmt.Errorf("actionlint reported a finding of kind %q, which this toolchain has no identifier for", e.Kind)
+		}
+
+		f := finding.Finding{
+			ID:         ID(e.Kind),
+			Tool:       Tool,
+			UpstreamID: e.Kind,
+			Path:       path,
+			Line:       max(e.Line, 1),
+			Col:        max(e.Column, 1),
+			Severity:   finding.SeverityError,
+			Message:    e.Message,
+			DocPath:    registry.DocPath(ID(e.Kind)),
+		}
+		if err := f.Validate(); err != nil {
+			return nil, fmt.Errorf("actionlint produced a finding that cannot be reported: %w", err)
+		}
+		findings = append(findings, f)
+	}
+
+	finding.Sort(findings)
+
+	return findings, nil
+}

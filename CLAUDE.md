@@ -39,7 +39,8 @@ go vet ./...
 go test ./...
 ```
 
-The required check is the `CI` job of `.github/workflows/ci.yml`. Open a pull request from a
+The check that gates a merge is the `CI` job of `.github/workflows/ci.yml`; making it a required
+status check through branch protection is the Owner's setting, and is not yet in place. Open a pull request from a
 branch named `feature/…`, `bugfix/…` or `chore/…`; the default branch is `main`.
 
 ## Where to look
