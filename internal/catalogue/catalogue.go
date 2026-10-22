@@ -2,12 +2,15 @@
 // the program: every command that names a rule reads the registry built here.
 package catalogue
 
-import "github.com/LongTermSupport/actions-qa-ci/internal/registry"
+import (
+	"github.com/LongTermSupport/actions-qa-ci/internal/lanes/actionlint"
+	"github.com/LongTermSupport/actions-qa-ci/internal/registry"
+)
 
 // Rules returns the rules this build ships, in no particular order. The bundled backends and
 // the first-party checks add theirs here as they arrive.
 func Rules() []registry.Rule {
-	return nil
+	return actionlint.Rules()
 }
 
 // Registry builds the registry of the rules this build ships.

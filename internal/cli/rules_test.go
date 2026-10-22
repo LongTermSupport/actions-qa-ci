@@ -210,16 +210,25 @@ func TestACommandWhoseOutputCannotBeWrittenIsAToolchainFault(t *testing.T) {
 	}
 }
 
-// No rule ships yet, so this shows the production entry point wires the built-in registry; it
-// cannot show the embedded pages are read until a rule has one.
-func TestTheProgramRunsAgainstTheRulesItShips(t *testing.T) {
+// The production entry point wires the built-in registry and the pages embedded in the binary.
+func TestTheProgramRunsAgainstTheRulesAndPagesItShips(t *testing.T) {
+	const shipped = "actionsqaci.actionlint.expression"
 	var stdout, stderr bytes.Buffer
 
 	if code := cli.Run([]string{"rules"}, &stdout, &stderr); code != cli.ExitOK {
 		t.Fatalf("exit %d; stderr: %s", code, stderr.String())
 	}
-	if stdout.String() != "no rules are active\n" {
-		t.Errorf("rules output = %q; no rule ships yet", stdout.String())
+	if !strings.Contains(stdout.String(), shipped+"  ") {
+		t.Errorf("rules output does not list %s:\n%s", shipped, stdout.String())
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	if code := cli.Run([]string{"rule-doc", shipped}, &stdout, &stderr); code != cli.ExitOK {
+		t.Fatalf("exit %d; stderr: %s", code, stderr.String())
+	}
+	if !strings.HasPrefix(stdout.String(), "# "+shipped+"\n") {
+		t.Errorf("rule-doc printed:\n%s", stdout.String())
 	}
 
 	stdout.Reset()

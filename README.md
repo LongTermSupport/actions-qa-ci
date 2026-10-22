@@ -8,7 +8,9 @@ identifier and a page stating the correct construction.
 This repository is being built in phases. What exists today is the core: the Go module, the
 conformance declaration, the finding model and identifier scheme, the rule registry, the output
 formats, the `version`, `rules`, `rule-doc` and `rule` commands, and the repository's own CI.
-The bundled backends and the checks themselves arrive in later phases, so no rule ships yet.
+The first backend is compiled in: actionlint, as sixteen rules. The remaining backends and the
+first-party checks arrive in later phases, and there is no `check` command yet, so the rules are
+reachable through `rule <id> <path>`.
 
 ## Requirements
 
@@ -30,7 +32,12 @@ the correct construction. `docs/rules/README.md` is the identifier index; it is 
 the registry and a test fails when it is stale (`go test . -run TestTheIdentifierIndexIsCurrent
 -update` regenerates it). A test also fails when a rule has no page, when a page lacks one of
 its five required sections (in order, outside code fences, none empty), or when a page has no
-rule. No rule ships yet: the registry is empty until the bundled backends arrive.
+rule.
+
+The project's own actionlint configuration (`.github/actionlint.yaml`) is never read: an ignore
+there would suppress findings with no recorded justification. Suppression belongs in the project
+record, which this build does not have yet, so a finding is fixed. ShellCheck and pyflakes
+integration inside actionlint are not enabled; ShellCheck arrives as its own backend.
 
 ### Exit codes
 
