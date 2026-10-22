@@ -1,0 +1,19 @@
+{
+  "method": "1.1.0",
+  "toolchain": "0.2.0",
+  "known-gaps": [
+    {
+      "id": "pyflakes-not-run",
+      "description": "pyflakes needs Python, which this toolchain does not require of the host, so run: scripts with shell: python are not linted for Python errors."
+    },
+    {
+      "id": "conformance-reading-unconfirmed",
+      "description": "That actions-qa-ci is the Detector and zizmor and actionlint are bundled rule backends is a reading of toolchain 4.1 the specification does not spell out; it stands until the Owner confirms it."
+    }
+  ],
+  "project": {
+    "method": "1.1.0",
+    "toolchain": "0.2.0",
+    "known-gaps": []
+  }
+}
