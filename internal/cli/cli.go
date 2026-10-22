@@ -14,6 +14,7 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"time"
 
 	actionsqaci "github.com/LongTermSupport/actions-qa-ci"
 	"github.com/LongTermSupport/actions-qa-ci/internal/catalogue"
@@ -59,7 +60,27 @@ type Env struct {
 	Lanes []check.Lane
 	// DefaultFormat names the output format `check` uses when none is asked for; empty is agent.
 	DefaultFormat string
+	// Isolation says how `check` runs the lanes that ask to be isolated; nil runs every lane in
+	// this process.
+	Isolation *Isolation
 }
+
+// Isolation is the child process a lane runs in: this program again, started with the hidden
+// `lane` command, under limits.
+type Isolation struct {
+	Executable string
+	// Environment is added to the variables this process has.
+	Environment []string
+	Limits      check.Limits
+}
+
+// The limits of a lane process. A workflow is a few kilobytes; none of these is near what a
+// sound analysis of one needs.
+const (
+	laneTimeout   = 2 * time.Minute
+	laneMaxOutput = 16 << 20
+	laneMaxStderr = 4096
+)
 
 // Run executes one invocation against the real rules and the pages embedded in the binary.
 func Run(args []string, stdout, stderr io.Writer) int {
@@ -68,12 +89,23 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		return fault(stderr, fmt.Errorf("the built-in rule registry is invalid: %w", err))
 	}
 
+	executable, err := os.Executable()
+	if err != nil {
+		return fault(stderr, fmt.Errorf("cannot find this program, to run its lanes in processes of their own: %w", err))
+	}
+
 	known := func(id string) bool {
 		_, ok := reg.Lookup(id)
 
 		return ok
 	}
-	env := Env{Registry: reg, Pages: actionsqaci.Pages, Lanes: catalogue.Lanes(known), DefaultFormat: defaultFormat(stdout)}
+	env := Env{
+		Registry:      reg,
+		Pages:         actionsqaci.Pages,
+		Lanes:         catalogue.Lanes(known),
+		DefaultFormat: defaultFormat(stdout),
+		Isolation:     &Isolation{Executable: executable, Limits: check.Limits{Timeout: laneTimeout, MaxOutput: laneMaxOutput, MaxStderr: laneMaxStderr}},
+	}
 
 	return RunWith(env, args, stdout, stderr)
 }
@@ -112,6 +144,9 @@ func RunWith(env Env, args []string, stdout, stderr io.Writer) int {
 		return ruleHarness(env, args[1:], stdout, stderr)
 	case "check":
 		return checkCommand(env, args[1:], stdout, stderr)
+	case "lane":
+		// Not in the usage text: it is how this program runs a lane in a process of its own.
+		return laneCommand(env, args[1:], stdout, stderr)
 	default:
 		return usageError(stderr, fmt.Sprintf("unknown command %q", args[0]))
 	}

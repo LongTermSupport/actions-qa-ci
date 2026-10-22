@@ -121,14 +121,20 @@ arrive with the checks that use them.
 | 1    | analysed, findings reported                                          |
 | 2    | the command line or a project record was wrong; nothing was analysed |
 | 3    | the toolchain itself failed: a rule, a bundled tool or its pinned binary, a page the build should hold, or output that could not be written |
-| 4    | the analysis could not reach a verdict: a file it should cover could not be read as a plain file |
+| 4    | the analysis could not reach a verdict: a file it should cover could not be read as a plain file, or the process a lane ran in crashed, was killed, wrote too much or ran past its time limit |
 
 A usage error writes nothing to standard output: it is not a verdict.
 
-One declared gap (`dbf.json`, `actionlint-runs-in-process`): actionlint runs inside the program,
-so a workflow that sends its expression parser into unbounded recursion ends the program with
-the Go runtime's own exit code 2, which is not a usage error, and an expression made to be slow
-runs without a time limit. Neither is reported as exit 4 yet.
+`check` runs the actionlint lane on each file in a process of its own (this program started with
+an internal `lane` command), with a time limit of two minutes and a cap on what it may write. A
+workflow made to send actionlint's expression parser into unbounded recursion, or to make it
+slow, therefore ends that process and not the run: the run has no verdict, names the lane and
+the file, and exits 4. A lane process whose lane fails on its own account is exit 3.
+
+One declared gap (`dbf.json`, `actionlint-runs-in-process`): the `rule` harness still runs
+actionlint inside its own process, so there a workflow built to recurse without bound ends the
+program with the Go runtime's own exit code 2, and one built to be slow runs without a time
+limit.
 
 ## Conformance
 

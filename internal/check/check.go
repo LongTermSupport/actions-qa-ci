@@ -23,6 +23,10 @@ type Lane struct {
 	Selects func(path string) bool
 	// Run analyses one file and returns what it found.
 	Run func(path string) ([]finding.Finding, error)
+	// Isolated says the lane runs a backend that is not this program's own code, which can
+	// crash the process it runs in or never finish. The program runs such a lane in a child
+	// process (see Isolated).
+	Isolated bool
 }
 
 // LaneError is a lane failing on a file. It is a fault of the toolchain or of the file's

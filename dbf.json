@@ -24,7 +24,7 @@
     },
     {
       "id": "actionlint-runs-in-process",
-      "description": "actionlint is compiled in and runs inside the program, so a workflow that makes its expression parser recurse without bound (a million nested parentheses) kills the program with the Go runtime's own exit code 2, and one that makes it quadratic (tens of thousands) runs without a time bound; neither is reported as exit 4. Running each lane in a child process with a time limit, as the design's exit 4 calls for, closes it."
+      "description": "`check` runs the actionlint lane in a child process with a time limit, so a workflow that crashes its parser or never finishes is exit 4; but the `rule` harness still runs actionlint inside its own process, so a workflow built to recurse without bound (a million nested parentheses) ends `rule` with the Go runtime's own exit code 2, and one built to be slow runs there without a time bound."
     },
     {
       "id": "workflow-second-document-unread",

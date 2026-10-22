@@ -17,7 +17,8 @@ its rule backends. This file holds the binding floor; the depth is one link away
 - **No hidden failures**: an error is returned or reported by name, never swallowed. A tool
   that fails is exit 3, an analysis with no verdict is exit 4, and neither is ever reported as
   clean. (Exit 3 is used today for a failing rule or lane, a missing page or unwritable output;
-  exit 4 for a file in the default set that cannot be read as a plain file.)
+  exit 4 for a file in the default set that cannot be read as a plain file, and for a lane
+  process that crashed, was killed, wrote too much or ran past its time limit.)
 - **One owner per hazard class**: a hazard is reported by exactly one rule. A bundled backend's
   finding is renamed to this project's stable identifier, and a duplicate is dropped.
 - **Conformance is declared, not claimed**: `dbf.json` states the method and toolchain versions
@@ -51,7 +52,10 @@ branch named `feature/…`, `bugfix/…` or `chore/…`; the default branch is `
   binary sha256, the runtime refuses a binary that differs, and `go run ./cmd/actions-qa-dev
   fetch bin` downloads the pinned ones for development.
 - The `check` run: `internal/check` discovers the default file set and runs the lanes, which
-  `internal/catalogue` lists; `internal/cli/check.go` is the command.
+  `internal/catalogue` lists; `internal/cli/check.go` is the command. A lane marked `Isolated`
+  runs in a child process (`internal/check/isolate.go`, started through the hidden `lane`
+  command in `internal/cli/lane.go`), so a backend that crashes or hangs is exit 4, not a dead
+  program.
 - Exceptions: `internal/locate` finds the job and step of a line, `internal/exceptions` applies
   the record's exceptions to findings and reports the stale ones.
 - The project record: `internal/record` loads `.github/actions-qa-ci.yml` and judges
