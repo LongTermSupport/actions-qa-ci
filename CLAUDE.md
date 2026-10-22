@@ -47,5 +47,8 @@ branch named `feature/…`, `bugfix/…` or `chore/…`; the default branch is `
 
 - Layout: `cmd/actions-qa` is the entry point and holds no logic; `internal/cli` is the command
   line; the root package holds what the module declares about itself.
+- Pinned third-party binaries: `internal/toolchain/manifest.json` pins each release by archive and
+  binary sha256, the runtime refuses a binary that differs, and `go run ./cmd/actions-qa-dev
+  fetch bin` downloads the pinned ones for development.
 - Exit codes: [README.md](README.md#exit-codes).
 - Conformance: `dbf.json`, printed by `actions-qa version --json`.

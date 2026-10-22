@@ -1,0 +1,21 @@
+{
+  "tools": {
+    "shellcheck": {
+      "version": "v0.11.0",
+      "assets": {
+        "linux_amd64": {
+          "url": "https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.linux.x86_64.tar.gz",
+          "archiveSha256": "b7af85e41cc99489dcc21d66c6d5f3685138f06d34651e6d34b42ec6d54fe6f6",
+          "member": "shellcheck-v0.11.0/shellcheck",
+          "binarySha256": "4da528ddb3a4d1b7b24a59d4e16eb2f5fd960f4bd9a3708a15baddbdf1d5a55b"
+        },
+        "linux_arm64": {
+          "url": "https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.linux.aarch64.tar.gz",
+          "archiveSha256": "68a8133197a50beb8803f8d42f9908d1af1c5540d4bb05fdfca8c1fa47decefc",
+          "member": "shellcheck-v0.11.0/shellcheck",
+          "binarySha256": "127f13925eadd52c341bca0ebaf9ab0dbd78c6468f30a8f262a528bf8de47546"
+        }
+      }
+    }
+  }
+}
