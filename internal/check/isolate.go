@@ -175,8 +175,8 @@ func Serve(lane Lane, path string, stdout, stderr io.Writer) int {
 
 // endWithParent ends this process and the tools it started when it is told to stop, which is
 // what the program that isolated it does by dying. The tools are in the process group this
-// process leads; a process that does not lead its group (one a person started by hand) only
-// exits, so that it cannot end a group that is not its own.
+// process leads, which is the group of its own id; a process that leads no group (one a person
+// started by hand) has no such group to end and only exits.
 func endWithParent(done <-chan struct{}) {
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGTERM)
@@ -187,12 +187,8 @@ func endWithParent(done <-chan struct{}) {
 		select {
 		case <-done:
 		case <-stop:
-			if syscall.Getpgrp() == os.Getpid() {
-				// Ends the group, this process with it. If that fails there is nothing left
-				// to try but to exit.
-				if err := syscall.Kill(-os.Getpid(), syscall.SIGKILL); err != nil {
-					os.Exit(terminated)
-				}
+			if err := syscall.Kill(-os.Getpid(), syscall.SIGKILL); err != nil && !errors.Is(err, syscall.ESRCH) {
+				fmt.Fprintf(os.Stderr, "cannot end what this process started: %v\n", err)
 			}
 			os.Exit(terminated)
 		}
