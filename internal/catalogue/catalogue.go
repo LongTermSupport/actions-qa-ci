@@ -33,6 +33,20 @@ func Lanes(known func(id string) bool) []check.Lane {
 			Selects: func(path string) bool { return path == record.Path },
 			Run:     firstparty.CheckRecord(known),
 		},
+		{
+			// A comment that tells a tool to leave a finding out: a suppression the project
+			// record cannot see.
+			Name:    "inlineSuppression",
+			Selects: func(path string) bool { return check.IsWorkflow(path) || check.IsActionFile(path) },
+			Run:     firstparty.CheckInlineSuppression,
+			Guard:   true,
+		},
+		{
+			Name:    "nativeSuppressionConfig",
+			Selects: check.IsNativeSuppressionConfig,
+			Run:     firstparty.CheckNativeSuppressionConfig,
+			Guard:   true,
+		},
 	}
 }
 

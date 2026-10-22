@@ -7,10 +7,6 @@
       "description": "pyflakes needs Python, which this toolchain does not require of the host, so run: scripts with shell: python are not linted for Python errors."
     },
     {
-      "id": "shellcheck-inline-directive-unreported",
-      "description": "A '# shellcheck disable=' line inside a run: script suppresses a finding without a record, because the inline-suppression check of the project record (phase 5) does not exist yet."
-    },
-    {
       "id": "shellcheck-codes-not-enumerated",
       "description": "The ShellCheck family accepts any code from SC1000 to SC3999, including one ShellCheck never emits, because the set of codes is generated from the pinned source by the currency phase (phase 8)."
     },

@@ -38,6 +38,14 @@
   without end is exit 4, naming the lane and the file, and is never reported as clean; a lane
   that fails on its own account is exit 3. The `rule` harness still runs actionlint in its own
   process, which `dbf.json` declares.
+- Two guards against suppression outside the project record. `actionsqaci.inlineSuppression`
+  refuses a comment that tells a tool to leave a finding out (`# zizmor: ignore`,
+  `# ratchet:exclude`, `# shellcheck disable=`) in a workflow or action, which closes the declared
+  gap that a ShellCheck directive in a `run:` script went unreported.
+  `actionsqaci.nativeSuppressionConfig` refuses a zizmor configuration file, an actionlint
+  configuration with an `ignore` key and a pinact configuration with `ignore_actions`; `check`
+  now looks for those files by default. The guards read files and do not lint them, so a
+  composite action is still named as one no lane lints.
 - The `rule <id> <path>` harness: runs one rule on one file and prints only that rule's
   findings, exiting 1 when it fires.
 - The `text`, `agent` and `json` output formats, and the finding model with its identifier
