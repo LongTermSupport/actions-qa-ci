@@ -73,6 +73,10 @@ branch named `feature/…`, `bugfix/…` or `chore/…`; the default branch is `
 - The release archive: `internal/bundle` builds the same bytes every time from the program, the
   tools the manifest pins for the platform (each verified against its pin) and a licence file for
   each; `actions-qa-dev bundle` writes it with `checksums.txt` and never replaces a release.
+- The installer: `internal/installscript/install.sh` is the POSIX sh template of a release's
+  `install.sh`, tested by running it with `sh` against real bundles; `actions-qa-dev
+  install-script` fills the version and the checksums from `checksums.txt` into it and refuses
+  a set of checksums that could not verify both platforms.
 - The only code that reaches the network is `internal/branchprotection`, and only under `check
   --online`: it reads the required status checks of a branch from the GitHub API, sends the token
   nowhere but the given https address, follows no redirect and never prints the token.
