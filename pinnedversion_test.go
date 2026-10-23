@@ -17,7 +17,7 @@ import (
 // that place, and the update never proposes anything.
 //
 // The files that may spell it: the manifest itself, the changelog (a record of what a release
-// held at the time) and tests (a fixture is its own manifest).
+// held at the time) and tests (a fixture is its own manifest, and a testdata file belongs to one).
 func TestAPinnedVersionIsWrittenOnlyInTheManifest(t *testing.T) {
 	manifest, err := toolchain.Load()
 	if err != nil {
@@ -36,8 +36,11 @@ func TestAPinnedVersionIsWrittenOnlyInTheManifest(t *testing.T) {
 			return walkErr
 		}
 		if entry.IsDir() {
-			switch entry.Name() {
-			case ".git", "untracked", "bin", "testdata":
+			// Only these directories of the repository root are left out: the repository's own
+			// metadata, scratch and fetched binaries. A directory of the same name deeper in the
+			// tree is source like any other.
+			switch filepath.ToSlash(path) {
+			case ".git", "untracked", "bin":
 				return filepath.SkipDir
 			}
 
@@ -65,17 +68,19 @@ func TestAPinnedVersionIsWrittenOnlyInTheManifest(t *testing.T) {
 }
 
 // readsAPinnedVersion says whether a file is one a program or a reader takes a version from:
-// production Go, the README and the documentation pages.
+// production Go, the README and the documentation pages, the workflows and the shell templates.
 func readsAPinnedVersion(path string) bool {
 	path = filepath.ToSlash(path)
 	switch {
-	case strings.HasSuffix(path, "_test.go"):
+	case strings.HasSuffix(path, "_test.go") || strings.Contains(path, "/testdata/"):
 		return false
-	case strings.HasSuffix(path, ".go"):
+	case strings.HasSuffix(path, ".go") || strings.HasSuffix(path, ".sh"):
 		return true
 	case path == "README.md" || path == "CLAUDE.md":
 		return true
 	case strings.HasPrefix(path, "docs/") && strings.HasSuffix(path, ".md"):
+		return true
+	case strings.HasPrefix(path, ".github/") && (strings.HasSuffix(path, ".yml") || strings.HasSuffix(path, ".yaml")):
 		return true
 	}
 
