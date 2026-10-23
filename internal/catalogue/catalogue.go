@@ -93,7 +93,7 @@ func Lanes(reg *registry.Registry) []check.Lane {
 func Extensions() []output.Extension {
 	return []output.Extension{
 		{Name: "actionlint", Version: actionlint.Version},
-		{Name: "shellcheck", Version: actionlint.ShellcheckVersion},
+		{Name: "shellcheck", Version: actionlint.ShellcheckVersion()},
 	}
 }
 

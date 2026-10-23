@@ -68,6 +68,23 @@ func Load() (Manifest, error) {
 	return Parse(embedded)
 }
 
+// Pinned returns the release the manifest compiled into the binary pins for a tool, so that a
+// version is written in the manifest and nowhere else. A test loads the manifest, so one that
+// does not load, or a tool it does not pin, is a defect of the build and not of the run: it
+// stops the program with the reason, rather than answering with a version nobody pinned.
+func Pinned(tool string) string {
+	manifest, err := Load()
+	if err != nil {
+		panic(fmt.Sprintf("the embedded toolchain manifest does not load: %v", err))
+	}
+	pinned, ok := manifest.Tools[tool]
+	if !ok {
+		panic(fmt.Sprintf("the embedded toolchain manifest does not pin %s", tool))
+	}
+
+	return pinned.Version
+}
+
 // Parse reads a manifest and refuses anything that is not exactly well-formed: a key written
 // twice or in the wrong case, an unknown field, data after the end, a tool or platform name
 // that is not one the toolchain uses, a pin that is not a lower-case sha256, a download that

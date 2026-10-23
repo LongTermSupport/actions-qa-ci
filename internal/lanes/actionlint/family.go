@@ -15,7 +15,7 @@ func Families() []registry.Family {
 		Name:     finding.ToolPrefix + ".shellcheck.SC<nnnn>",
 		Page:     finding.ToolPrefix + ".shellcheck",
 		Summary:  "Shell in a run: step has no ShellCheck error or warning",
-		Upstream: shellcheckTool,
+		Upstream: shellcheckTool(),
 		Member:   isShellcheckCode,
 		Check:    checkCode,
 	}}

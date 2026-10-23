@@ -43,7 +43,7 @@ yet apply, so a finding is fixed. The lane must be run from the repository root,
 reusable workflows from the project it finds, and from a directory without both it would find a
 different one.
 
-The lane also runs ShellCheck (v0.11.0) over the `bash` and `sh` scripts in `run:` steps, through
+The lane also runs ShellCheck (the release the manifest pins, which the SARIF log names) over the `bash` and `sh` scripts in `run:` steps, through
 actionlint's integration, and reports each finding as `actionsqaci.shellcheck.SC<nnnn>`; all
 codes share the page `docs/rules/actionsqaci.shellcheck.md`. Only `error` and `warning` findings
 are reported by default. The ShellCheck binary is the one pinned in `internal/toolchain/manifest.json`
