@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 
 	"github.com/LongTermSupport/actions-qa-ci/internal/toolchain"
@@ -173,7 +175,48 @@ func TestBundleWillNotWriteThroughASymbolicLinkAsTheOutputDirectory(t *testing.T
 	}
 }
 
-func TestBundleWritesFilesNobodyElseCanChange(t *testing.T) {
+// failing is a file that fails to write, to close, or both.
+type failing struct {
+	writeErr, closeErr error
+	closed             bool
+}
+
+func (f *failing) Write(content []byte) (int, error) {
+	if f.writeErr != nil {
+		return 0, f.writeErr
+	}
+
+	return len(content), nil
+}
+
+func (f *failing) Close() error {
+	f.closed = true
+
+	return f.closeErr
+}
+
+func TestAReleaseFileThatCannotBeWrittenOrClosedIsAnErrorAndIsClosed(t *testing.T) {
+	cases := map[string]*failing{
+		"write": {writeErr: errors.New("the disk is full")},
+		"close": {closeErr: errors.New("the close failed")},
+		"both":  {writeErr: errors.New("the disk is full"), closeErr: errors.New("the close failed")},
+	}
+
+	for name, file := range cases {
+		err := writeAndClose(file, "release.tar.gz", []byte("content"))
+
+		if err == nil || !strings.Contains(err.Error(), "release.tar.gz") || !file.closed {
+			t.Errorf("%s: error %v, closed %v; a failure must be reported by name and the file closed", name, err, file.closed)
+		}
+	}
+	if err := writeAndClose(&failing{}, "release.tar.gz", []byte("content")); err != nil {
+		t.Errorf("a file that writes and closes: %v", err)
+	}
+}
+
+func TestBundleWritesFilesNobodyElseCanChangeWhateverTheUmask(t *testing.T) {
+	previous := syscall.Umask(0)
+	t.Cleanup(func() { syscall.Umask(previous) })
 	p := release(t)
 
 	got := build(p.manifest, p.args...)
@@ -186,8 +229,8 @@ func TestBundleWritesFilesNobodyElseCanChange(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if info.Mode().Perm()&0o133 != 0 {
-			t.Errorf("%s has mode %o; it must not be executable or writable by others", name, info.Mode().Perm())
+		if info.Mode().Perm() != 0o644 {
+			t.Errorf("%s has mode %o, want 644", name, info.Mode().Perm())
 		}
 	}
 }

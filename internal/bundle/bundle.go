@@ -47,7 +47,9 @@ type Options struct {
 	Platform string
 	// Version is the release, as three numbers with no leading v.
 	Version string
-	// Program is the actions-qa executable built for the platform.
+	// Program is the actions-qa executable built for the platform. Nothing pins it, as it is
+	// built by the release itself, so the bundle takes its bytes as they are; the licences are
+	// likewise the project's own files.
 	Program string
 	// ToolDirs are the absolute directories the pinned tools are looked for in and verified.
 	ToolDirs []string

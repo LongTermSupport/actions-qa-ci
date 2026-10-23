@@ -128,21 +128,21 @@ func writeNew(path string, content []byte) error {
 	if err != nil {
 		return fmt.Errorf("cannot create %s: %w", path, err)
 	}
-	if _, err := file.Write(content); err != nil {
-		return closeAfter(file, fmt.Errorf("cannot write %s: %w", path, err))
-	}
 
-	return closeAfter(file, nil)
+	return writeAndClose(file, path, content)
 }
 
-// closeAfter closes the file and returns the first of the earlier error and the close error.
-func closeAfter(file *os.File, earlier error) error {
+// writeAndClose writes the content and closes the file, whatever the write did. A failure of
+// either is returned by the name of the file; the write's comes first.
+func writeAndClose(file io.WriteCloser, name string, content []byte) error {
+	_, writeErr := file.Write(content)
 	closeErr := file.Close()
-	if earlier != nil {
-		return earlier
+
+	if writeErr != nil {
+		return fmt.Errorf("cannot write %s: %w", name, writeErr)
 	}
 	if closeErr != nil {
-		return fmt.Errorf("cannot close %s: %w", file.Name(), closeErr)
+		return fmt.Errorf("cannot close %s: %w", name, closeErr)
 	}
 
 	return nil

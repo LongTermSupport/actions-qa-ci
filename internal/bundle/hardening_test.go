@@ -131,9 +131,69 @@ func TestAToolWhoseNameIsTheProgramsOrNotAPlainNameIsRefused(t *testing.T) {
 		options := inputs(t)
 		options.Manifest.Tools[name] = toolchain.Tool{Version: "v1", Assets: map[string]toolchain.Asset{"linux_amd64": {BinarySHA256: sum(name)}}}
 
-		if built, err := bundle.Build(options); err == nil {
-			t.Errorf("built %q with a tool named %q", built.Name, name)
+		built, err := bundle.Build(options)
+
+		if err == nil || !strings.Contains(err.Error(), "pins a tool named") {
+			t.Errorf("built %q, error %v, for a tool named %q; the refusal must be of the name, not of a missing file", built.Name, err, name)
 		}
+	}
+}
+
+func TestATooLongNameOrAnUnanchoredPlatformIsRefused(t *testing.T) {
+	long := inputs(t)
+	if err := os.WriteFile(filepath.Join(long.Licences, strings.Repeat("a", 101)+".txt"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if built, err := bundle.Build(long); err == nil || !strings.Contains(err.Error(), "not plain letters") {
+		t.Errorf("built %q, error %v; a licence name of 105 characters", built.Name, err)
+	}
+
+	for _, platform := range []string{" linux_amd64", "linux_amd64\n", "linux_amd64 ", "Linux_amd64"} {
+		options := inputs(t)
+		options.Platform = platform
+
+		if built, err := bundle.Build(options); err == nil || !strings.Contains(err.Error(), "must be of the form") {
+			t.Errorf("built %q, error %v, for the platform %q", built.Name, err, platform)
+		}
+	}
+}
+
+func TestALinkInPlaceOfAToolOrALicenceIsRefusedEvenWhenItLeadsToTheRightBytes(t *testing.T) {
+	linked := map[string]func(*testing.T, bundle.Options) string{
+		"a tool": func(t *testing.T, o bundle.Options) string {
+			t.Helper()
+
+			return filepath.Join(o.ToolDirs[0], "shellcheck")
+		},
+		"a licence": func(t *testing.T, o bundle.Options) string {
+			t.Helper()
+
+			return filepath.Join(o.Licences, "shellcheck.txt")
+		},
+	}
+	for name, place := range linked {
+		t.Run(name, func(t *testing.T) {
+			options := inputs(t)
+			target := place(t, options)
+			content, err := os.ReadFile(target)
+			if err != nil {
+				t.Fatal(err)
+			}
+			real := filepath.Join(t.TempDir(), "real")
+			if err := os.WriteFile(real, content, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Remove(target); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink(real, target); err != nil {
+				t.Fatal(err)
+			}
+
+			if built, err := bundle.Build(options); err == nil || !strings.Contains(err.Error(), "symbolic link") {
+				t.Errorf("built %q, error %v; a link is not a plain file", built.Name, err)
+			}
+		})
 	}
 }
 
