@@ -73,6 +73,11 @@ branch named `feature/…`, `bugfix/…` or `chore/…`; the default branch is `
 - The release archive: `internal/bundle` builds the same bytes every time from the program, the
   tools the manifest pins for the platform (each verified against its pin) and a licence file for
   each; `actions-qa-dev bundle` writes it with `checksums.txt` and never replaces a release.
+- Tool currency: `internal/bump` moves a pinned tool to its latest release once that release is
+  older than the cooldown (72 hours by default), pinning each platform's asset with
+  `toolchain.Pin`; `actions-qa-dev tools bump` rewrites the manifest with it. Only a tool whose
+  provenance route is decided there (`routes`, today ShellCheck, which upstream does not attest)
+  is bumped; any other is refused by name.
 - The installer: `internal/installscript/install.sh` is the POSIX sh template of a release's
   `install.sh`, tested by running it with `sh` against real bundles; `actions-qa-dev
   install-script` fills the version and the checksums from `checksums.txt` into it and refuses
