@@ -123,7 +123,13 @@ cleanup() {
 trap cleanup EXIT
 trap 'exit 1' HUP INT TERM
 
-work=$(mktemp -d "${TMPDIR:-/tmp}/actions-qa-ci-install.XXXXXX")
+# Each directory is named before it is made, so that a signal at any point finds the name in the
+# variable cleanup reads. A name that is already taken is refused, never reused.
+work=${TMPDIR:-/tmp}/actions-qa-ci-install.$$
+if ! mkdir -m 700 "$work"; then
+	work=
+	fail "cannot make the working directory ${TMPDIR:-/tmp}/actions-qa-ci-install.$$; remove it if it is left from an earlier run"
+fi
 archive=$work/$asset
 
 if [ -n "${ACTIONS_QA_CI_BUNDLE:-}" ]; then
@@ -148,7 +154,11 @@ fi
 
 parent=$(dirname "$dest")
 mkdir -p "$parent"
-staging=$(mktemp -d "$parent/.actions-qa-ci-install.XXXXXX")
+staging=$parent/.actions-qa-ci-install.$$
+if ! mkdir -m 700 "$staging"; then
+	staging=
+	fail "cannot make the staging directory $parent/.actions-qa-ci-install.$$; remove it if it is left from an earlier run"
+fi
 tar -xzf "$archive" -C "$staging" || fail "could not unpack $asset; nothing was installed"
 [ -x "$staging/bin/actions-qa" ] || fail "$asset holds no bin/actions-qa; nothing was installed"
 chmod 755 "$staging"
