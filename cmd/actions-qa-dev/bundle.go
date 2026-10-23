@@ -104,7 +104,7 @@ func writeRelease(dir string, built bundle.Bundle) ([]string, error) {
 	var written []string
 	for _, f := range files {
 		path := filepath.Join(dir, f.name)
-		if err := writeNew(path, f.content); err != nil {
+		if err := writeNew(path, f.content, 0o644); err != nil {
 			for _, earlier := range written {
 				if removeErr := os.Remove(earlier); removeErr != nil {
 					err = errors.Join(err, fmt.Errorf("cannot remove %s: %w", earlier, removeErr))
@@ -119,9 +119,9 @@ func writeRelease(dir string, built bundle.Bundle) ([]string, error) {
 	return written, nil
 }
 
-// writeNew writes a file that must not exist yet.
-func writeNew(path string, content []byte) error {
-	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+// writeNew writes a file that must not exist yet, with the given mode before the umask.
+func writeNew(path string, content []byte, mode os.FileMode) error {
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, mode)
 	if os.IsExist(err) {
 		return fmt.Errorf("%s exists; a release is written once and never replaced", path)
 	}

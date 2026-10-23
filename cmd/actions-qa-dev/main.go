@@ -14,7 +14,7 @@ import (
 	"github.com/LongTermSupport/actions-qa-ci/internal/toolchain"
 )
 
-const usage = "usage: actions-qa-dev fetch <directory>\n       actions-qa-dev bundle --version X.Y.Z --platform linux_amd64 --program <actions-qa> --tools <directory> --licences <directory> --out <directory>"
+const usage = "usage: actions-qa-dev fetch <directory>\n       actions-qa-dev bundle --version X.Y.Z --platform linux_amd64 --program <actions-qa> --tools <directory> --licences <directory> --out <directory>\n       actions-qa-dev install-script --version X.Y.Z --checksums <checksums.txt> --out <install.sh>"
 
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
@@ -29,6 +29,9 @@ const (
 func run(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
 		return complain(stderr, exitUsage, usage)
+	}
+	if args[0] == "install-script" {
+		return installScriptCommand(args[1:], stdout, stderr)
 	}
 	if args[0] != "fetch" && args[0] != "bundle" {
 		return complain(stderr, exitUsage, fmt.Sprintf("actions-qa-dev: unknown command %q\n%s", args[0], usage))
