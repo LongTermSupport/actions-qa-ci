@@ -1,0 +1,59 @@
+name: Dogfood
+
+# Runs the program built from this change over a real repository that is not this one, so a
+# crash or a run with no verdict on code this repository has never seen fails the change. A
+# finding does not: that repository's workflows are not this one's to fix.
+
+on:
+  pull_request:
+
+permissions: {}
+
+concurrency:
+  group: dogfood-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  php-qa-ci:
+    name: Dogfood php-qa-ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Check out this repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check out php-qa-ci at a pinned commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: LongTermSupport/php-qa-ci
+          ref: 170656a63de5ac906c65fd503262e7111e4e6c13
+          path: corpus/php-qa-ci
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build the program and fetch the pinned third-party binaries
+        run: |
+          go build -o bin/actions-qa ./cmd/actions-qa
+          go run ./cmd/actions-qa-dev fetch bin
+
+      - name: Check php-qa-ci with the built program
+        working-directory: corpus/php-qa-ci
+        env:
+          ACTIONS_QA_CI_TOOLS_DIR: ${{ github.workspace }}/bin
+          PROGRAM: ${{ github.workspace }}/bin/actions-qa
+        run: |
+          status=0
+          "$PROGRAM" check --format agent || status=$?
+          echo "actions-qa exited $status (0 clean, 1 findings; anything else is a failure of the program or of this job)"
+          if [ "$status" -gt 1 ]; then
+            exit "$status"
+          fi
