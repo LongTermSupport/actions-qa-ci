@@ -172,6 +172,94 @@ func TestAWheelMemberLargerThanTheBoundIsRefusedWithoutBeingExpandedInMemory(t *
 	}
 }
 
+// The directory of a zip is read into memory entry by entry, so what a zip may hold is bounded by
+// its size and its entry count before anything is looked for in it.
+// storedZip is a zip of one stored member whose content is size zero bytes.
+func storedZip(t *testing.T, size int) []byte {
+	t.Helper()
+
+	var buffer bytes.Buffer
+	writer := zip.NewWriter(&buffer)
+	member, err := writer.CreateHeader(&zip.FileHeader{Name: wheelMember, Method: zip.Store})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n, err := member.Write(make([]byte, size)); err != nil || n != size {
+		t.Fatalf("setup: wrote %d of %d, %v", n, size, err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	return buffer.Bytes()
+}
+
+// storedZipOfSize is a stored zip whose whole archive is exactly total bytes: the framing of a
+// stored member does not depend on its content.
+func storedZipOfSize(t *testing.T, total int) []byte {
+	t.Helper()
+
+	framing := len(storedZip(t, 0))
+
+	return storedZip(t, total-framing)
+}
+
+func TestAZipIsReadUpToItsSizeBoundAndRefusedAboveItBeforeItsDirectoryIsRead(t *testing.T) {
+	const bound = 32 << 20
+
+	for name, c := range map[string]struct {
+		total   int
+		refused bool
+	}{
+		"exactly the bound": {bound, false},
+		"one byte over":     {bound + 1, true},
+		"well over":         {bound + 1<<20, true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			server := serve(t, storedZipOfSize(t, c.total))
+
+			asset, err := toolchain.Pin(context.Background(), server.Client(), server.URL+"/z.whl", wheelMember)
+
+			switch {
+			case c.refused && (err == nil || !strings.Contains(err.Error(), "zip larger than")):
+				t.Errorf("asset %+v, error %v; want it refused as a zip that is too large", asset, err)
+			case !c.refused && err != nil:
+				t.Errorf("a zip of exactly the bound was refused: %v", err)
+			}
+		})
+	}
+}
+
+func TestAZipWithMoreEntriesThanItsBoundIsRefused(t *testing.T) {
+	entries := make([]wheelEntry, 0, 10_001)
+	for i := 0; i < 10_000; i++ {
+		entries = append(entries, wheelEntry{name: "f" + strings.Repeat("x", i%7) + string(rune('a'+i%26)) + "/" + strings.Repeat("y", i/26%50) + string(rune('0'+i%10)), mode: 0o644})
+	}
+	entries = append(entries, wheelEntry{wheelMember, []byte(pinnedBinary), 0o755})
+	server := serve(t, wheel(t, entries...))
+
+	asset, err := toolchain.Pin(context.Background(), server.Client(), server.URL+"/z.whl", wheelMember)
+
+	if err == nil || !strings.Contains(err.Error(), "entries") {
+		t.Errorf("asset %+v, error %v; want it refused for its entry count", asset, err)
+	}
+}
+
+func TestAZipWithAsManyEntriesAsItsBoundIsRead(t *testing.T) {
+	entries := make([]wheelEntry, 0, 10_000)
+	for i := 0; i < 9_999; i++ {
+		entries = append(entries, wheelEntry{name: "d/" + string(rune('a'+i%26)) + strings.Repeat("z", i/26), mode: 0o644})
+	}
+	entries = append(entries, wheelEntry{wheelMember, []byte(pinnedBinary), 0o755})
+	server := serve(t, wheel(t, entries...))
+
+	asset, err := toolchain.Pin(context.Background(), server.Client(), server.URL+"/z.whl", wheelMember)
+
+	if err != nil || asset.BinarySHA256 != sum([]byte(pinnedBinary)) {
+		t.Errorf("asset %+v, error %v", asset, err)
+	}
+}
+
 func TestAnArchiveThatIsNeitherGzipNorZipIsStillRefusedAsNotGzip(t *testing.T) {
 	server := serve(t, []byte("plain text"))
 
