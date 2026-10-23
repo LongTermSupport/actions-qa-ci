@@ -44,11 +44,23 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: go run ./cmd/actions-qa-dev tools bump --manifest internal/toolchain/manifest.json --changelog CHANGELOG.md > "$RUNNER_TEMP/bump-report.txt"
 
+      # actionlint is compiled in, so the manifest does not move it. go get fetches the new version
+      # and checks it against the checksum database; this step only says whether to ask.
+      - name: Move the actionlint library when a release is past the cooldown
+        run: |
+          go run ./cmd/actions-qa-dev modules bump --gomod go.mod --module github.com/rhysd/actionlint --changelog CHANGELOG.md > "$RUNNER_TEMP/modules-report.txt"
+          cat "$RUNNER_TEMP/modules-report.txt"
+          target="$(awk '/ -> / { print $1 "@" $4 }' "$RUNNER_TEMP/modules-report.txt")"
+          if [ -n "$target" ]; then
+            cat "$RUNNER_TEMP/modules-report.txt" >> "$RUNNER_TEMP/bump-report.txt"
+            go get "$target"
+          fi
+
       - name: Say what moved
         id: moved
         run: |
           cat "$RUNNER_TEMP/bump-report.txt"
-          if git diff --quiet -- internal/toolchain/manifest.json; then
+          if git diff --quiet -- internal/toolchain/manifest.json go.mod; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"
@@ -62,6 +74,8 @@ jobs:
           mkdir "$RUNNER_TEMP/proposal"
           cp internal/toolchain/manifest.json "$RUNNER_TEMP/proposal/manifest.json"
           cp CHANGELOG.md "$RUNNER_TEMP/proposal/CHANGELOG.md"
+          cp go.mod "$RUNNER_TEMP/proposal/go.mod"
+          cp go.sum "$RUNNER_TEMP/proposal/go.sum"
           cp "$RUNNER_TEMP/bump-report.txt" "$RUNNER_TEMP/proposal/bump-report.txt"
 
       - name: Formatting
@@ -121,10 +135,12 @@ jobs:
         run: |
           cp "$RUNNER_TEMP/proposal/manifest.json" internal/toolchain/manifest.json
           cp "$RUNNER_TEMP/proposal/CHANGELOG.md" CHANGELOG.md
+          cp "$RUNNER_TEMP/proposal/go.mod" go.mod
+          cp "$RUNNER_TEMP/proposal/go.sum" go.sum
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -b chore/update-tools
-          git add internal/toolchain/manifest.json CHANGELOG.md
+          git add internal/toolchain/manifest.json go.mod go.sum CHANGELOG.md
           git commit -m "Move the pinned tools to their latest releases" -m "$(cat "$RUNNER_TEMP/proposal/bump-report.txt")"
           credentials="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
           echo "::add-mask::$credentials"

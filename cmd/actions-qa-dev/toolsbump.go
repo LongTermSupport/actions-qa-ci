@@ -86,17 +86,14 @@ func toolsBumpCommand(client *http.Client, token string, now time.Time, args []s
 func writeBump(manifestPath, changelogPath string, result bump.Result) error {
 	var recorded []byte
 	if changelogPath != "" {
-		current, err := readBounded(changelogPath, "the changelog")
-		if err != nil {
-			return err
-		}
 		moves := make([]changelog.Move, 0, len(result.Changes))
 		for _, change := range result.Changes {
 			moves = append(moves, changelog.Move{Tool: change.Tool, From: change.From, To: change.To})
 		}
-		recorded, err = changelog.Record(current, moves)
+		var err error
+		recorded, err = recordMoves(changelogPath, moves)
 		if err != nil {
-			return fmt.Errorf("%s: %w", changelogPath, err)
+			return err
 		}
 	}
 

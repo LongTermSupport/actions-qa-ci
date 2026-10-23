@@ -78,7 +78,10 @@ branch named `feature/…`, `bugfix/…` or `chore/…`; the default branch is `
   older than the cooldown (72 hours by default), pinning each platform's asset with
   `toolchain.Pin`; `actions-qa-dev tools bump` rewrites the manifest with it and, given
   `--changelog`, records each move under the changelog's Unreleased `### Changed` heading
-  (`internal/changelog`; an `Added` entry never spells a tool's version). Only a tool whose
+  (`internal/changelog`; an `Added` entry never spells a tool's version). The compiled-in
+  actionlint library moves the same way: `actions-qa-dev modules bump` (`internal/modbump`) reads
+  go.mod and the module proxy and says what to move to, once that version is past the cooldown,
+  and `update-tools.yml` runs `go get` for it. Only a tool whose
   provenance route is decided there (`routes`, today ShellCheck, which upstream does not attest)
   is bumped; any other is refused by name.
 - The installer: `internal/installscript/install.sh` is the POSIX sh template of a release's
