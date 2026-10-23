@@ -187,7 +187,8 @@ func TestABundleWithoutTheProgramIsNotInstalled(t *testing.T) {
 func TestATerminationSignalMidInstallLeavesNothingBehind(t *testing.T) {
 	r := newRelease(t)
 	home, temp := t.TempDir(), t.TempDir()
-	slow := shim(t, "tar", "sleep 30")
+	running := filepath.Join(t.TempDir(), "tar-is-running")
+	slow := shim(t, "tar", ": > "+running+"\nsleep 30")
 	command := exec.Command(shell(t), r.script)
 	command.Env = []string{"HOME=" + home, "PATH=" + slow + ":" + os.Getenv("PATH"), "TMPDIR=" + temp, "ACTIONS_QA_CI_BUNDLE=" + writeBundle(t, r)}
 	command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
@@ -198,14 +199,18 @@ func TestATerminationSignalMidInstallLeavesNothingBehind(t *testing.T) {
 	go func() { done <- command.Wait() }()
 
 	// The script is inside the unpack, and so has made both of its temporary directories, when
-	// the staging directory exists beside the install location.
+	// the unpack has started. A signal sent before that is held by the shell until the command it
+	// is waiting for ends, which is not the case this test is about.
 	parent := filepath.Join(home, ".local/share/actions-qa-ci")
-	deadline := time.Now().Add(10 * time.Second)
+	deadline := time.Now().Add(20 * time.Second)
 	for time.Now().Before(deadline) {
-		if listing, err := os.ReadDir(parent); err == nil && len(listing) > 0 {
+		if _, err := os.Stat(running); err == nil {
 			break
 		}
 		time.Sleep(20 * time.Millisecond)
+	}
+	if _, err := os.Stat(running); err != nil {
+		t.Fatalf("the unpack never started: %v", err)
 	}
 	if err := syscall.Kill(-command.Process.Pid, syscall.SIGTERM); err != nil {
 		t.Fatal(err)
@@ -224,6 +229,110 @@ func TestATerminationSignalMidInstallLeavesNothingBehind(t *testing.T) {
 	}
 	if names := entries(t, parent); len(names) != 0 {
 		t.Errorf("a staging directory left behind: %v", names)
+	}
+}
+
+// A signal that reaches the whole process group at the moment a temporary directory has been made
+// must not leave the directory behind, however the script names it: the script has to know the
+// name before the directory exists, or it cannot remove what it was never told about. The shims
+// make the directory with the real tool and then signal the group, so the script is stopped
+// exactly between the directory being made and the script learning of it.
+func TestASignalTheMomentATemporaryDirectoryIsMadeLeavesNothingBehind(t *testing.T) {
+	realMkdir, err := exec.LookPath("mkdir")
+	if err != nil {
+		t.Fatal(err)
+	}
+	realMktemp, err := exec.LookPath("mktemp")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cases := map[string]string{
+		"the working directory": `*"/actions-qa-ci-install."*`,
+		"the staging directory": `*"/.actions-qa-ci-install."*`,
+	}
+	for name, pattern := range cases {
+		t.Run(name, func(t *testing.T) {
+			r := newRelease(t)
+			home, temp := t.TempDir(), t.TempDir()
+			dir := shim(t, "mkdir", `"`+realMkdir+`" "$@" || exit
+for last; do :; done
+case "$last" in `+pattern+`) kill -TERM 0 ;; esac`)
+			if err := os.WriteFile(filepath.Join(dir, "mktemp"), []byte(`#!/bin/sh
+out=$("`+realMktemp+`" "$@") || exit
+case "$out" in `+pattern+`) kill -TERM 0 ;; esac
+printf '%s\n' "$out"
+`), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			command := exec.Command(shell(t), r.script)
+			command.Env = []string{"HOME=" + home, "PATH=" + dir + ":" + os.Getenv("PATH"), "TMPDIR=" + temp, "ACTIONS_QA_CI_BUNDLE=" + writeBundle(t, r)}
+			command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+			if err := command.Start(); err != nil {
+				t.Fatal(err)
+			}
+			done := make(chan error, 1)
+			go func() { done <- command.Wait() }()
+
+			select {
+			case err := <-done:
+				if err == nil {
+					t.Error("the script finished successfully although the group was signalled")
+				}
+			case <-time.After(30 * time.Second):
+				t.Fatal("the script did not stop when its group was signalled")
+			}
+			if names := entries(t, temp); len(names) != 0 {
+				t.Errorf("temporary files left behind: %v", names)
+			}
+			// The install location is made after the working directory, so a signal at the first
+			// finds it absent.
+			parent := filepath.Join(home, ".local/share/actions-qa-ci")
+			if _, err := os.Stat(parent); err == nil {
+				if names := entries(t, parent); len(names) != 0 {
+					t.Errorf("a staging directory or install left behind: %v", names)
+				}
+			}
+		})
+	}
+}
+
+func TestADirectoryNameAlreadyTakenIsRefusedAndNeverRemoved(t *testing.T) {
+	realMkdir, err := exec.LookPath("mkdir")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cases := map[string]string{
+		"the working directory": `*"/actions-qa-ci-install."*`,
+		"the staging directory": `*"/.actions-qa-ci-install."*`,
+	}
+	for name, pattern := range cases {
+		t.Run(name, func(t *testing.T) {
+			r := newRelease(t)
+			home, temp, record := t.TempDir(), t.TempDir(), filepath.Join(t.TempDir(), "taken")
+			dir := shim(t, "mkdir", `for last; do :; done
+case "$last" in `+pattern+`) "`+realMkdir+`" -p "$last" && : > "$last/sentinel" && printf '%s\n' "$last" > "`+record+`" ;; esac
+exec "`+realMkdir+`" "$@"`)
+			command := exec.Command(shell(t), r.script)
+			command.Env = []string{"HOME=" + home, "PATH=" + dir + ":" + os.Getenv("PATH"), "TMPDIR=" + temp, "ACTIONS_QA_CI_BUNDLE=" + writeBundle(t, r)}
+
+			output, err := command.CombinedOutput()
+			if err == nil {
+				t.Errorf("the script finished successfully although its directory name was taken:\n%s", output)
+			}
+			if !strings.Contains(string(output), "cannot make the") {
+				t.Errorf("the script did not say it could not make the directory:\n%s", output)
+			}
+			taken, err := os.ReadFile(record)
+			if err != nil {
+				t.Fatalf("the shim never met the directory name: %v", err)
+			}
+			sentinel := filepath.Join(strings.TrimSpace(string(taken)), "sentinel")
+			if _, err := os.Stat(sentinel); err != nil {
+				t.Errorf("the script removed a directory it did not make: %v", err)
+			}
+		})
 	}
 }
 
