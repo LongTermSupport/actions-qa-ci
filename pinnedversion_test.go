@@ -67,6 +67,62 @@ func TestAPinnedVersionIsWrittenOnlyInTheManifest(t *testing.T) {
 	}
 }
 
+// The changelog's Unreleased "Added" entries describe what the program does, not which release of
+// a bundled tool it carries: a tool move is its own "Changed" entry, so an "Added" line that
+// spelled the version would go wrong at the first move.
+func TestTheChangelogsUnreleasedAddedEntriesSpellNoPinnedVersion(t *testing.T) {
+	manifest, err := toolchain.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	versions := map[string]string{}
+	for name, tool := range manifest.Tools {
+		versions[name] = tool.Version
+	}
+	gomod, err := os.ReadFile("go.mod")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if match := regexp.MustCompile(`(?m)^\s*github\.com/rhysd/actionlint (v\S+)`).FindSubmatch(gomod); match != nil {
+		versions["actionlint"] = string(match[1])
+	} else {
+		t.Fatal("go.mod does not require actionlint, so its version cannot be checked")
+	}
+
+	changelog, err := os.ReadFile("CHANGELOG.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	added := unreleasedAdded(string(changelog))
+	if added == "" {
+		t.Fatal("the changelog has no Unreleased Added section to check")
+	}
+	for name, version := range versions {
+		spelling := regexp.MustCompile(`(^|[^0-9.])v?` + regexp.QuoteMeta(strings.TrimPrefix(version, "v")) + `([^0-9]|$)`)
+		if spelling.MatchString(added) {
+			t.Errorf("the Unreleased Added entries spell %s's version (%s); say what it does and leave the release to a Changed entry", name, version)
+		}
+	}
+}
+
+// unreleasedAdded is the text of the "### Added" part of the "## Unreleased" section.
+func unreleasedAdded(changelog string) string {
+	var out []string
+	inUnreleased, inAdded := false, false
+	for _, line := range strings.Split(changelog, "\n") {
+		switch {
+		case strings.HasPrefix(line, "## "):
+			inUnreleased, inAdded = line == "## Unreleased", false
+		case strings.HasPrefix(line, "### "):
+			inAdded = inUnreleased && line == "### Added"
+		case inAdded:
+			out = append(out, line)
+		}
+	}
+
+	return strings.Join(out, "\n")
+}
+
 // readsAPinnedVersion says whether a file is one a program or a reader takes a version from:
 // production Go, the README and the documentation pages, the workflows and the shell templates.
 func readsAPinnedVersion(path string) bool {

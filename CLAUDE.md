@@ -75,7 +75,9 @@ branch named `feature/…`, `bugfix/…` or `chore/…`; the default branch is `
   each; `actions-qa-dev bundle` writes it with `checksums.txt` and never replaces a release.
 - Tool currency: `internal/bump` moves a pinned tool to its latest release once that release is
   older than the cooldown (72 hours by default), pinning each platform's asset with
-  `toolchain.Pin`; `actions-qa-dev tools bump` rewrites the manifest with it. Only a tool whose
+  `toolchain.Pin`; `actions-qa-dev tools bump` rewrites the manifest with it and, given
+  `--changelog`, records each move under the changelog's Unreleased `### Changed` heading
+  (`internal/changelog`; an `Added` entry never spells a tool's version). Only a tool whose
   provenance route is decided there (`routes`, today ShellCheck, which upstream does not attest)
   is bumped; any other is refused by name.
 - The installer: `internal/installscript/install.sh` is the POSIX sh template of a release's

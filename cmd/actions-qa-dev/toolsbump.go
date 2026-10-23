@@ -12,11 +12,12 @@ import (
 	"time"
 
 	"github.com/LongTermSupport/actions-qa-ci/internal/bump"
+	"github.com/LongTermSupport/actions-qa-ci/internal/changelog"
 	"github.com/LongTermSupport/actions-qa-ci/internal/toolchain"
 )
 
 const (
-	toolsBumpUsage = "usage: actions-qa-dev tools bump --manifest <manifest.json> [--api https://api.github.com] [--cooldown 72h]"
+	toolsBumpUsage = "usage: actions-qa-dev tools bump --manifest <manifest.json> [--changelog <CHANGELOG.md>] [--api https://api.github.com] [--cooldown 72h]"
 
 	defaultAPI      = "https://api.github.com"
 	defaultCooldown = 72 * time.Hour
@@ -30,6 +31,7 @@ func toolsBumpCommand(client *http.Client, token string, now time.Time, args []s
 	flags := flag.NewFlagSet("tools bump", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	manifestPath := flags.String("manifest", "", "the manifest file to update")
+	changelogPath := flags.String("changelog", "", "a changelog file to record each move in, under Unreleased")
 	api := flags.String("api", defaultAPI, "the https address of the GitHub API")
 	cooldown := flags.Duration("cooldown", defaultCooldown, "how old a release must be before it is taken")
 
@@ -66,7 +68,7 @@ func toolsBumpCommand(client *http.Client, token string, now time.Time, args []s
 	report = append(report, result.Notes...)
 	if len(result.Changes) == 0 {
 		report = append(report, "every tool is up to date")
-	} else if err := rewriteManifest(*manifestPath, result.Manifest); err != nil {
+	} else if err := writeBump(*manifestPath, *changelogPath, result); err != nil {
 		return complain(stderr, exitFault, fmt.Sprintf("actions-qa-dev: %v", err))
 	}
 	for _, line := range report {
@@ -78,18 +80,58 @@ func toolsBumpCommand(client *http.Client, token string, now time.Time, args []s
 	return 0
 }
 
-// readManifest reads a regular manifest file within a size bound and parses it.
-func readManifest(path string) (toolchain.Manifest, error) {
+// writeBump writes what a bump found: the manifest and, when one is named, the changelog saying
+// so. The changelog is worked out before anything is written, so one that cannot say it leaves
+// both files as they were.
+func writeBump(manifestPath, changelogPath string, result bump.Result) error {
+	var recorded []byte
+	if changelogPath != "" {
+		current, err := readBounded(changelogPath, "the changelog")
+		if err != nil {
+			return err
+		}
+		moves := make([]changelog.Move, 0, len(result.Changes))
+		for _, change := range result.Changes {
+			moves = append(moves, changelog.Move{Tool: change.Tool, From: change.From, To: change.To})
+		}
+		recorded, err = changelog.Record(current, moves)
+		if err != nil {
+			return fmt.Errorf("%s: %w", changelogPath, err)
+		}
+	}
+
+	if err := rewriteManifest(manifestPath, result.Manifest); err != nil {
+		return err
+	}
+	if changelogPath == "" {
+		return nil
+	}
+
+	return replaceFile(changelogPath, recorded)
+}
+
+// readBounded reads a regular file of a bounded size.
+func readBounded(path, what string) ([]byte, error) {
 	info, err := os.Stat(path)
 	if err != nil {
-		return toolchain.Manifest{}, fmt.Errorf("cannot read the manifest: %w", err)
+		return nil, fmt.Errorf("cannot read %s: %w", what, err)
 	}
 	if !info.Mode().IsRegular() || info.Size() > maxManifest {
-		return toolchain.Manifest{}, fmt.Errorf("the manifest (%s) is not a regular file of at most %d bytes", path, maxManifest)
+		return nil, fmt.Errorf("%s (%s) is not a regular file of at most %d bytes", what, path, maxManifest)
 	}
 	content, err := os.ReadFile(path)
 	if err != nil {
-		return toolchain.Manifest{}, fmt.Errorf("cannot read the manifest: %w", err)
+		return nil, fmt.Errorf("cannot read %s: %w", what, err)
+	}
+
+	return content, nil
+}
+
+// readManifest reads a regular manifest file within a size bound and parses it.
+func readManifest(path string) (toolchain.Manifest, error) {
+	content, err := readBounded(path, "the manifest")
+	if err != nil {
+		return toolchain.Manifest{}, err
 	}
 	manifest, err := toolchain.Parse(content)
 	if err != nil {
@@ -110,6 +152,13 @@ func rewriteManifest(path string, manifest toolchain.Manifest) error {
 	if _, err := toolchain.Parse(written); err != nil {
 		return fmt.Errorf("the bumped manifest would not be accepted, so it was not written: %w", err)
 	}
+
+	return replaceFile(path, written)
+}
+
+// replaceFile replaces a file with the content through a temporary file beside it, keeping its
+// mode.
+func replaceFile(path string, written []byte) error {
 	info, err := os.Stat(path)
 	if err != nil {
 		return fmt.Errorf("cannot inspect %s: %w", path, err)

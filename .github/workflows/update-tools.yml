@@ -42,7 +42,7 @@ jobs:
       - name: Move the tools that have a release past the cooldown
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: go run ./cmd/actions-qa-dev tools bump --manifest internal/toolchain/manifest.json > "$RUNNER_TEMP/bump-report.txt"
+        run: go run ./cmd/actions-qa-dev tools bump --manifest internal/toolchain/manifest.json --changelog CHANGELOG.md > "$RUNNER_TEMP/bump-report.txt"
 
       - name: Say what moved
         id: moved
@@ -61,6 +61,7 @@ jobs:
         run: |
           mkdir "$RUNNER_TEMP/proposal"
           cp internal/toolchain/manifest.json "$RUNNER_TEMP/proposal/manifest.json"
+          cp CHANGELOG.md "$RUNNER_TEMP/proposal/CHANGELOG.md"
           cp "$RUNNER_TEMP/bump-report.txt" "$RUNNER_TEMP/proposal/bump-report.txt"
 
       - name: Formatting
@@ -119,10 +120,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cp "$RUNNER_TEMP/proposal/manifest.json" internal/toolchain/manifest.json
+          cp "$RUNNER_TEMP/proposal/CHANGELOG.md" CHANGELOG.md
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -b chore/update-tools
-          git add internal/toolchain/manifest.json
+          git add internal/toolchain/manifest.json CHANGELOG.md
           git commit -m "Move the pinned tools to their latest releases" -m "$(cat "$RUNNER_TEMP/proposal/bump-report.txt")"
           credentials="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
           echo "::add-mask::$credentials"
