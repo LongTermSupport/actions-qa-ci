@@ -55,7 +55,8 @@ branch named `feature/…`, `bugfix/…` or `chore/…`; the default branch is `
   line; the root package holds what the module declares about itself.
 - Pinned third-party binaries: `internal/toolchain/manifest.json` pins each release by archive and
   binary sha256, the runtime refuses a binary that differs, and `go run ./cmd/actions-qa-dev
-  fetch bin` downloads the pinned ones for development.
+  fetch bin` downloads the pinned ones for development. An archive is a gzipped tar or a zip (a
+  Python wheel); `internal/toolchain` tells them apart by their first bytes.
 - The `check` run: `internal/check` discovers the default file set and runs the lanes, which
   `internal/catalogue` lists; `internal/cli/check.go` is the command. A lane marked `Isolated`
   runs in a child process (`internal/check/isolate.go`, started through the hidden `lane`

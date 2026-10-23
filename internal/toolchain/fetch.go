@@ -2,6 +2,7 @@ package toolchain
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"bytes"
 	"compress/gzip"
 	"context"
@@ -82,7 +83,15 @@ func download(ctx context.Context, client *http.Client, url string) ([]byte, err
 	return readLimited(response.Body, url)
 }
 
+// zipMagic begins every zip, the form a Python wheel is distributed in. An archive that does not
+// begin with it is read as the gzipped tar a release is distributed in.
+var zipMagic = []byte("PK\x03\x04")
+
 func extract(archive []byte, member string) ([]byte, error) {
+	if bytes.HasPrefix(archive, zipMagic) {
+		return extractZip(archive, member)
+	}
+
 	gz, err := gzip.NewReader(bytes.NewReader(archive))
 	if err != nil {
 		return nil, fmt.Errorf("the archive is not gzip: %w", err)
@@ -113,6 +122,43 @@ func extract(archive []byte, member string) ([]byte, error) {
 
 		return data, nil
 	}
+}
+
+// extractZip takes a regular file out of a zip by its exact name. A name that occurs twice is
+// refused, as readers of a zip disagree about which of two entries is the file.
+func extractZip(archive []byte, member string) ([]byte, error) {
+	reader, err := zip.NewReader(bytes.NewReader(archive), int64(len(archive)))
+	if err != nil {
+		return nil, fmt.Errorf("the archive is not a valid zip: %w", err)
+	}
+
+	var found *zip.File
+	for _, file := range reader.File {
+		if file.Name != member {
+			continue
+		}
+		if found != nil {
+			return nil, fmt.Errorf("the archive names %s more than once", member)
+		}
+		found = file
+	}
+	if found == nil {
+		return nil, fmt.Errorf("the archive has no member %s", member)
+	}
+	if !found.Mode().IsRegular() {
+		return nil, fmt.Errorf("member %s is not a regular file", member)
+	}
+	if found.UncompressedSize64 > maxDownload {
+		return nil, fmt.Errorf("member %s is larger than %d bytes", member, maxDownload)
+	}
+
+	opened, err := found.Open()
+	if err != nil {
+		return nil, fmt.Errorf("cannot open member %s: %w", member, err)
+	}
+	defer closeBody(opened)
+
+	return readLimited(opened, member)
 }
 
 // archiveFault says why reading the archive failed: running into the expansion bound looks to
