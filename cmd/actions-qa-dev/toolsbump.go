@@ -17,9 +17,10 @@ import (
 )
 
 const (
-	toolsBumpUsage = "usage: actions-qa-dev tools bump --manifest <manifest.json> [--changelog <CHANGELOG.md>] [--api https://api.github.com] [--cooldown 72h]"
+	toolsBumpUsage = "usage: actions-qa-dev tools bump --manifest <manifest.json> [--changelog <CHANGELOG.md>] [--api https://api.github.com] [--pypi https://pypi.org] [--cooldown 72h]"
 
 	defaultAPI      = "https://api.github.com"
+	defaultPyPI     = "https://pypi.org"
 	defaultCooldown = 72 * time.Hour
 	maxManifest     = 1 << 20
 )
@@ -33,6 +34,7 @@ func toolsBumpCommand(client *http.Client, token string, now time.Time, args []s
 	manifestPath := flags.String("manifest", "", "the manifest file to update")
 	changelogPath := flags.String("changelog", "", "a changelog file to record each move in, under Unreleased")
 	api := flags.String("api", defaultAPI, "the https address of the GitHub API")
+	pypi := flags.String("pypi", defaultPyPI, "the https address of PyPI, for a tool that is a wheel")
 	cooldown := flags.Duration("cooldown", defaultCooldown, "how old a release must be before it is taken")
 
 	if err := flags.Parse(args); err != nil {
@@ -56,7 +58,7 @@ func toolsBumpCommand(client *http.Client, token string, now time.Time, args []s
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 
-	result, err := bump.Run(ctx, client, current, bump.Options{APIAddress: *api, Token: token, Cooldown: *cooldown, Now: now})
+	result, err := bump.Run(ctx, client, current, bump.Options{APIAddress: *api, PyPIAddress: *pypi, Token: token, Cooldown: *cooldown, Now: now})
 	if err != nil {
 		return complain(stderr, exitFault, fmt.Sprintf("actions-qa-dev: %v", err))
 	}

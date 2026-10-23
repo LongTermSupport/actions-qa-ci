@@ -82,8 +82,9 @@ branch named `feature/…`, `bugfix/…` or `chore/…`; the default branch is `
   actionlint library moves the same way: `actions-qa-dev modules bump` (`internal/modbump`) reads
   go.mod and the module proxy and says what to move to, once that version is past the cooldown,
   and `update-tools.yml` runs `go get` for it. Only a tool whose
-  provenance route is decided there (`routes`, today ShellCheck, which upstream does not attest)
-  is bumped; any other is refused by name.
+  provenance route is decided there (`routes`: ShellCheck, which upstream does not attest, and
+  zizmor, a PyPI wheel whose download must match the sha256 PyPI publishes for it, taken from
+  PyPI's JSON in `internal/bump/pypi.go`) is bumped; any other is refused by name.
 - The installer: `internal/installscript/install.sh` is the POSIX sh template of a release's
   `install.sh`, tested by running it with `sh` against real bundles; `actions-qa-dev
   install-script` fills the version and the checksums from `checksums.txt` into it and refuses

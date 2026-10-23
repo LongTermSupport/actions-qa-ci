@@ -308,6 +308,43 @@ func TestToolsBumpThatCannotRecordTheMoveChangesNeitherFile(t *testing.T) {
 	}
 }
 
+func TestToolsBumpAsksPyPIAtTheAddressItIsGivenForAWheelTool(t *testing.T) {
+	var asked []string
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		asked = append(asked, r.URL.Path+" "+r.Header.Get("Authorization"))
+		http.NotFound(w, r)
+	}))
+	t.Cleanup(server.Close)
+	asset := func(arch string) toolchain.Asset {
+		return toolchain.Asset{
+			URL:           "https://files.pythonhosted.org/packages/aa/bb/zizmor-1.31.0-py3-none-musllinux_1_2_" + arch + ".whl",
+			ArchiveSHA256: strings.Repeat("a", 64),
+			Member:        "zizmor-1.31.0.data/scripts/zizmor",
+			BinarySHA256:  strings.Repeat("b", 64),
+		}
+	}
+	written, err := bump.Marshal(toolchain.Manifest{Tools: map[string]toolchain.Tool{
+		"zizmor": {Version: "1.31.0", Assets: map[string]toolchain.Asset{"linux_amd64": asset("x86_64"), "linux_arm64": asset("aarch64")}},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest := filepath.Join(t.TempDir(), "manifest.json")
+	if err := os.WriteFile(manifest, written, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := toolsBumpCommand(server.Client(), "a-github-token", bumpNow, []string{"--manifest", manifest, "--pypi", server.URL}, &stdout, &stderr)
+
+	if code != 3 || !strings.Contains(stderr.String(), "404") {
+		t.Errorf("code %d, stderr %q; want the lookup's 404 reported as a fault", code, stderr.String())
+	}
+	if len(asked) != 1 || asked[0] != "/pypi/zizmor/json " {
+		t.Errorf("PyPI was asked %q; it must be asked once, at the address given, with no token", asked)
+	}
+}
+
 func TestToolsIsACommandOfTheProgram(t *testing.T) {
 	for _, args := range [][]string{{"tools"}, {"tools", "frobnicate"}} {
 		got := invoke(args...)

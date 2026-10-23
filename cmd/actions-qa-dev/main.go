@@ -14,7 +14,7 @@ import (
 	"github.com/LongTermSupport/actions-qa-ci/internal/toolchain"
 )
 
-const usage = "usage: actions-qa-dev fetch <directory>\n       actions-qa-dev bundle --version X.Y.Z --platform linux_amd64 --program <actions-qa> --tools <directory> --licences <directory> --out <directory>\n       actions-qa-dev install-script --version X.Y.Z --checksums <checksums.txt> --out <install.sh>\n       actions-qa-dev tools bump --manifest <manifest.json> [--changelog <CHANGELOG.md>] [--api https://api.github.com] [--cooldown 72h]\n       actions-qa-dev modules bump --gomod <go.mod> --module <path> [--changelog <CHANGELOG.md>] [--proxy https://proxy.golang.org] [--cooldown 72h]"
+const usage = "usage: actions-qa-dev fetch <directory>\n       actions-qa-dev bundle --version X.Y.Z --platform linux_amd64 --program <actions-qa> --tools <directory> --licences <directory> --out <directory>\n       actions-qa-dev install-script --version X.Y.Z --checksums <checksums.txt> --out <install.sh>\n       actions-qa-dev tools bump --manifest <manifest.json> [--changelog <CHANGELOG.md>] [--api https://api.github.com] [--pypi https://pypi.org] [--cooldown 72h]\n       actions-qa-dev modules bump --gomod <go.mod> --module <path> [--changelog <CHANGELOG.md>] [--proxy https://proxy.golang.org] [--cooldown 72h]"
 
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
