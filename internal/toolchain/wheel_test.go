@@ -172,6 +172,61 @@ func TestAWheelMemberLargerThanTheBoundIsRefusedWithoutBeingExpandedInMemory(t *
 	}
 }
 
+// The directory of a zip is read into memory entry by entry, so what a zip may hold is bounded by
+// its size and its entry count before anything is looked for in it.
+func TestAZipLargerThanItsBoundIsRefusedBeforeItsDirectoryIsRead(t *testing.T) {
+	const tooBig = 33 << 20
+	var buffer bytes.Buffer
+	writer := zip.NewWriter(&buffer)
+	member, err := writer.CreateHeader(&zip.FileHeader{Name: wheelMember, Method: zip.Store})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n, err := member.Write(make([]byte, tooBig)); err != nil || n != tooBig {
+		t.Fatalf("setup: wrote %d, %v", n, err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	server := serve(t, buffer.Bytes())
+
+	asset, err := toolchain.Pin(context.Background(), server.Client(), server.URL+"/z.whl", wheelMember)
+
+	if err == nil || !strings.Contains(err.Error(), "zip larger than") {
+		t.Errorf("asset %+v, error %v; want it refused as a zip that is too large", asset, err)
+	}
+}
+
+func TestAZipWithMoreEntriesThanItsBoundIsRefused(t *testing.T) {
+	entries := make([]wheelEntry, 0, 10_002)
+	for i := 0; i < 10_001; i++ {
+		entries = append(entries, wheelEntry{name: "f" + strings.Repeat("x", i%7) + string(rune('a'+i%26)) + "/" + strings.Repeat("y", i/26%50) + string(rune('0'+i%10)), mode: 0o644})
+	}
+	entries = append(entries, wheelEntry{wheelMember, []byte(pinnedBinary), 0o755})
+	server := serve(t, wheel(t, entries...))
+
+	asset, err := toolchain.Pin(context.Background(), server.Client(), server.URL+"/z.whl", wheelMember)
+
+	if err == nil || !strings.Contains(err.Error(), "entries") {
+		t.Errorf("asset %+v, error %v; want it refused for its entry count", asset, err)
+	}
+}
+
+func TestAZipWithAsManyEntriesAsItsBoundIsRead(t *testing.T) {
+	entries := make([]wheelEntry, 0, 10_000)
+	for i := 0; i < 9_999; i++ {
+		entries = append(entries, wheelEntry{name: "d/" + string(rune('a'+i%26)) + strings.Repeat("z", i/26), mode: 0o644})
+	}
+	entries = append(entries, wheelEntry{wheelMember, []byte(pinnedBinary), 0o755})
+	server := serve(t, wheel(t, entries...))
+
+	asset, err := toolchain.Pin(context.Background(), server.Client(), server.URL+"/z.whl", wheelMember)
+
+	if err != nil || asset.BinarySHA256 != sum([]byte(pinnedBinary)) {
+		t.Errorf("asset %+v, error %v", asset, err)
+	}
+}
+
 func TestAnArchiveThatIsNeitherGzipNorZipIsStillRefusedAsNotGzip(t *testing.T) {
 	server := serve(t, []byte("plain text"))
 

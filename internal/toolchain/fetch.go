@@ -26,6 +26,14 @@ const (
 	maxExpanded = 256 << 20
 )
 
+// A zip's directory is read into memory entry by entry, and an entry takes at least 46 bytes of
+// the archive, so the size bounds the memory it can take; the entry count is a bound on what a
+// wheel could plausibly hold.
+const (
+	maxZip        = 32 << 20
+	maxZipEntries = 10_000
+)
+
 // Fetch downloads an asset, checks the archive against its pin, takes the pinned member out of
 // it, checks that against its pin too, and only then writes it as an executable named name in
 // dir. Nothing is written when any step fails. It is for developing the toolchain: the shipped
@@ -127,9 +135,15 @@ func extract(archive []byte, member string) ([]byte, error) {
 // extractZip takes a regular file out of a zip by its exact name. A name that occurs twice is
 // refused, as readers of a zip disagree about which of two entries is the file.
 func extractZip(archive []byte, member string) ([]byte, error) {
+	if len(archive) > maxZip {
+		return nil, fmt.Errorf("the archive is a zip larger than %d bytes", maxZip)
+	}
 	reader, err := zip.NewReader(bytes.NewReader(archive), int64(len(archive)))
 	if err != nil {
 		return nil, fmt.Errorf("the archive is not a valid zip: %w", err)
+	}
+	if len(reader.File) > maxZipEntries {
+		return nil, fmt.Errorf("the archive has more than %d entries", maxZipEntries)
 	}
 
 	var found *zip.File
