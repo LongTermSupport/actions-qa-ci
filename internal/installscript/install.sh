@@ -30,15 +30,18 @@ case $VERSION in
 esac
 
 prefix=
+prefix_given=no
 while [ $# -gt 0 ]; do
 	case $1 in
 	--prefix)
 		[ $# -ge 2 ] || fail "--prefix needs a directory"
 		prefix=$2
+		prefix_given=yes
 		shift 2
 		;;
 	--prefix=*)
 		prefix=${1#--prefix=}
+		prefix_given=yes
 		shift
 		;;
 	-h | --help)
@@ -48,6 +51,10 @@ while [ $# -gt 0 ]; do
 	*) fail "unknown argument $1" ;;
 	esac
 done
+
+if [ "$prefix_given" = yes ] && [ -z "$prefix" ]; then
+	fail "--prefix needs a directory, and was given an empty one"
+fi
 
 system=$(uname -s)
 machine=$(uname -m)
@@ -81,6 +88,10 @@ else
 	fi
 	dest=$base/$VERSION
 fi
+case $dest in
+/*) ;;
+*) dest=$PWD/$dest ;;
+esac
 if [ -e "$dest" ]; then
 	fail "actions-qa-ci $VERSION is already installed at $dest; remove it first to install again"
 fi
@@ -117,7 +128,7 @@ archive=$work/$asset
 
 if [ -n "${ACTIONS_QA_CI_BUNDLE:-}" ]; then
 	[ -f "$ACTIONS_QA_CI_BUNDLE" ] || fail "ACTIONS_QA_CI_BUNDLE ($ACTIONS_QA_CI_BUNDLE) is not a file"
-	cp "$ACTIONS_QA_CI_BUNDLE" "$archive"
+	cp -- "$ACTIONS_QA_CI_BUNDLE" "$archive"
 else
 	base_url=${ACTIONS_QA_CI_DOWNLOAD_URL:-https://github.com/LongTermSupport/actions-qa-ci/releases/download/v$VERSION}
 	url=${base_url%/}/$asset

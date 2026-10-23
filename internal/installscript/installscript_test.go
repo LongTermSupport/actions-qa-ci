@@ -47,7 +47,14 @@ type release struct {
 func newRelease(t *testing.T) release {
 	t.Helper()
 
-	platform := hostPlatform(t)
+	return newReleaseFor(t, hostPlatform(t))
+}
+
+// newReleaseFor is a built bundle for a platform and the script filled in for it, so the script
+// can be run as if on that platform with a uname that says so.
+func newReleaseFor(t *testing.T, platform string) release {
+	t.Helper()
+
 	dir := t.TempDir()
 	write := func(path, content string) string {
 		t.Helper()
