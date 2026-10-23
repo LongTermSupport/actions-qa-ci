@@ -76,22 +76,26 @@ func TestModulesBumpSaysWhatToMoveAndRecordsItInTheChangelog(t *testing.T) {
 }
 
 func TestModulesBumpWithNothingToMoveSaysSoAndWritesNothing(t *testing.T) {
-	for name, p := range map[string]*modulesProject{
-		"up to date":      newModulesProject(t, "v1.7.12", 40*24*time.Hour),
-		"inside cooldown": newModulesProject(t, "v1.7.13", time.Hour),
-	} {
+	cases := map[string]struct {
+		project *modulesProject
+		said    string
+	}{
+		"up to date":      {newModulesProject(t, "v1.7.12", 40*24*time.Hour), "github.com/rhysd/actionlint is up to date"},
+		"inside cooldown": {newModulesProject(t, "v1.7.13", time.Hour), "v1.7.13 is 1h0m0s old, inside the 72h0m0s cooldown"},
+	}
+	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
-			got := p.run(append(p.args, "--changelog", p.changelog)...)
+			got := c.project.run(append(c.project.args, "--changelog", c.project.changelog)...)
 
-			written, err := os.ReadFile(p.changelog)
+			written, err := os.ReadFile(c.project.changelog)
 			if err != nil {
 				t.Fatal(err)
 			}
 			if got.code != 0 || strings.Contains(got.stdout, "->") || string(written) != unreleasedChangelog {
 				t.Errorf("got %+v, changelog:\n%s", got, written)
 			}
-			if !strings.Contains(got.stdout, "up to date") && !strings.Contains(got.stdout, "cooldown") {
-				t.Errorf("the output says neither that it is up to date nor why it waits: %q", got.stdout)
+			if !strings.Contains(got.stdout, c.said) {
+				t.Errorf("the output is %q, want it to say %q", got.stdout, c.said)
 			}
 		})
 	}

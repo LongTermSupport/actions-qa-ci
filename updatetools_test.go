@@ -156,8 +156,9 @@ func TestTheLibraryStepAsksGoGetForExactlyTheMoveTheCommandSays(t *testing.T) {
 
 func TestTheLibraryStepAsksGoGetForNothingWhenThereIsNoMove(t *testing.T) {
 	for name, said := range map[string]string{
-		"up to date":      "github.com/rhysd/actionlint is up to date",
-		"inside cooldown": "github.com/rhysd/actionlint v1.7.13 is 24h0m0s old, inside the 72h0m0s cooldown; v1.7.12 stays required",
+		"up to date":              "github.com/rhysd/actionlint is up to date",
+		"an arrow with no spaces": "note: a->b",
+		"inside cooldown":         "github.com/rhysd/actionlint v1.7.13 is 24h0m0s old, inside the 72h0m0s cooldown; v1.7.12 stays required",
 	} {
 		t.Run(name, func(t *testing.T) {
 			asked, report := runLibraryStep(t, said)

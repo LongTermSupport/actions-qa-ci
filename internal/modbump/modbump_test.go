@@ -2,6 +2,7 @@ package modbump_test
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -107,6 +108,24 @@ func TestAModuleIsFoundInASingleLineRequireToo(t *testing.T) {
 	}
 }
 
+func TestARequirementFollowedByACommentIsRead(t *testing.T) {
+	for name, content := range map[string]string{
+		"a comment after a space":      "module x\n\nrequire github.com/rhysd/actionlint v1.7.12 // pinned for now\n",
+		"a comment with no space":      "module x\n\nrequire github.com/rhysd/actionlint v1.7.12// pinned for now\n",
+		"a comment in a require block": "module x\n\nrequire (\n\t// the linter\n\tgithub.com/rhysd/actionlint v1.7.12 // indirect\n)\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			p := newProxy(t, http.StatusOK, latest("v1.7.13", 5*24*time.Hour))
+
+			got, err := p.run(content, 72*time.Hour)
+
+			if err != nil || got.From != "v1.7.12" || got.To != "v1.7.13" {
+				t.Errorf("got %+v, %v", got, err)
+			}
+		})
+	}
+}
+
 func TestAnAnswerThatCannotBeTrustedIsRefused(t *testing.T) {
 	cases := map[string]struct {
 		status int
@@ -117,6 +136,7 @@ func TestAnAnswerThatCannotBeTrustedIsRefused(t *testing.T) {
 		"a version dated in the future":            {http.StatusOK, latest("v1.7.13", -time.Hour), "future"},
 		"an answer that is not found":              {http.StatusNotFound, "not found", "404"},
 		"an answer that is not JSON":               {http.StatusOK, "<html>", "JSON"},
+		"a version with no leading v":              {http.StatusOK, latest("1.7.13", 5*24*time.Hour), "three numbers"},
 		"a pre-release version":                    {http.StatusOK, latest("v1.8.0-rc.1", 5*24*time.Hour), "three numbers"},
 		"a pseudo-version":                         {http.StatusOK, latest("v1.7.14-0.20260101000000-abcdef123456", 5*24*time.Hour), "three numbers"},
 		"an incompatible version":                  {http.StatusOK, latest("v2.0.0+incompatible", 5*24*time.Hour), "three numbers"},
@@ -141,11 +161,14 @@ func TestAnAnswerThatCannotBeTrustedIsRefused(t *testing.T) {
 
 func TestAGoModThatCannotBeBumpedIsRefusedBeforeAnythingIsAsked(t *testing.T) {
 	cases := map[string]string{
-		"a module it does not require":        "module x\n\nrequire golang.org/x/sync v0.1.0\n",
-		"a module it replaces":                goMod + "\nreplace github.com/rhysd/actionlint => ../actionlint\n",
-		"a module it replaces by a version":   goMod + "\nreplace github.com/rhysd/actionlint v1.7.12 => github.com/fork/actionlint v1.7.12\n",
-		"a required version of a pre-release": "module x\n\nrequire github.com/rhysd/actionlint v1.7.12-rc.1\n",
-		"an empty go.mod":                     "",
+		"a module it does not require":         "module x\n\nrequire golang.org/x/sync v0.1.0\n",
+		"a module it replaces":                 goMod + "\nreplace github.com/rhysd/actionlint => ../actionlint\n",
+		"a module it replaces by a version":    goMod + "\nreplace github.com/rhysd/actionlint v1.7.12 => github.com/fork/actionlint v1.7.12\n",
+		"a required version of a pre-release":  "module x\n\nrequire github.com/rhysd/actionlint v1.7.12-rc.1\n",
+		"an empty go.mod":                      "",
+		"a require that is a comment":          "module x\n\n// require github.com/rhysd/actionlint v1.7.12\n",
+		"a module named in a trailing comment": "module x\n\nrequire golang.org/x/sync v0.1.0 // github.com/rhysd/actionlint v1.7.12\n",
+		"only modules it is a prefix of":       "module x\n\nrequire (\n\tgithub.com/rhysd/actionlint/v2 v2.0.0\n\tgithub.com/rhysd/actionlint-extra v1.0.0\n)\n",
 	}
 
 	for name, content := range cases {
@@ -162,19 +185,33 @@ func TestAGoModThatCannotBeBumpedIsRefusedBeforeAnythingIsAsked(t *testing.T) {
 	}
 }
 
-func TestAProxyAddressThatCouldLeakOrBeRewrittenIsRefused(t *testing.T) {
+// neverAsked is a transport for a test that must be refused before anything is sent: a request
+// fails the test, and nothing leaves the machine.
+type neverAsked struct{ t *testing.T }
+
+func (n neverAsked) RoundTrip(request *http.Request) (*http.Response, error) {
+	n.t.Errorf("a request was made to %s", request.URL.Redacted())
+
+	return nil, errors.New("no request is allowed")
+}
+
+func TestAProxyAddressThatCouldLeakOrBeRewrittenIsRefusedBeforeAnythingIsSent(t *testing.T) {
 	for name, address := range map[string]string{
 		"plain http":          "http://proxy.golang.org",
 		"credentials":         "https://user:pass@proxy.golang.org",
 		"no host":             "https://",
+		"a port and no host":  "https://:8080",
 		"a query":             "https://proxy.golang.org?x=1",
+		"a fragment":          "https://proxy.golang.org#x",
 		"something not a URL": "::not a url::",
 	} {
 		t.Run(name, func(t *testing.T) {
-			_, err := modbump.Run(context.Background(), http.DefaultClient, []byte(goMod), module, modbump.Options{ProxyAddress: address, Cooldown: time.Hour, Now: now})
+			client := &http.Client{Transport: neverAsked{t}}
 
-			if err == nil {
-				t.Errorf("want %q refused", address)
+			_, err := modbump.Run(context.Background(), client, []byte(goMod), module, modbump.Options{ProxyAddress: address, Cooldown: time.Hour, Now: now})
+
+			if err == nil || !strings.Contains(err.Error(), "proxy address") {
+				t.Errorf("want %q refused as a proxy address, got %v", address, err)
 			}
 		})
 	}

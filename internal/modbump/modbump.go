@@ -51,7 +51,7 @@ func Run(ctx context.Context, client *http.Client, goMod []byte, module string, 
 		return Result{}, fmt.Errorf("%q is not a module path that can be asked for", module)
 	}
 	proxy, err := url.Parse(o.ProxyAddress)
-	if err != nil || proxy.Scheme != "https" || proxy.Host == "" || proxy.User != nil || proxy.RawQuery != "" || proxy.Fragment != "" {
+	if err != nil || proxy.Scheme != "https" || proxy.Hostname() == "" || proxy.User != nil || proxy.RawQuery != "" || proxy.Fragment != "" {
 		return Result{}, fmt.Errorf("the proxy address %q must be a plain https address with a host, no credentials and no query", o.ProxyAddress)
 	}
 	current, err := required(goMod, module)
@@ -179,8 +179,8 @@ func lookup(ctx context.Context, client *http.Client, proxy *url.URL, module str
 	if err := json.Unmarshal(body, &found); err != nil {
 		return answer{}, fmt.Errorf("the latest version of %s is not JSON: %w", module, err)
 	}
-	if _, ok := bump.Compare(found.Version, found.Version); !ok {
-		return answer{}, fmt.Errorf("the latest version of %s (%q) is not a version of three numbers, so it is not a release", module, found.Version)
+	if _, ok := bump.Compare(found.Version, found.Version); !ok || !strings.HasPrefix(found.Version, "v") {
+		return answer{}, fmt.Errorf("the latest version of %s (%q) is not a version of three numbers with a leading v, so it is not a release", module, found.Version)
 	}
 	if found.Time.IsZero() {
 		return answer{}, fmt.Errorf("the latest version of %s (%s) has no time, so its age is unknown", module, found.Version)
