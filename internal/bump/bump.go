@@ -27,12 +27,14 @@ import (
 // that is not here is refused: its route is a decision that has not been made.
 var routes = map[string]string{
 	"shellcheck": "none upstream: the release as GitHub serves it is pinned by its sha256",
+	"zizmor":     "pypi-digest: the musl wheel is pinned by its sha256, which the download must match as PyPI publishes it",
 }
 
 // maxRelease bounds the answer to a release lookup.
 const maxRelease = 1 << 20
 
 var (
+	sha256Pattern  = regexp.MustCompile(`^[0-9a-f]{64}$`)
 	versionPattern = regexp.MustCompile(`^v?(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})$`)
 	namePattern    = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$`)
 )
@@ -41,6 +43,9 @@ var (
 type Options struct {
 	// APIAddress is the https address of the GitHub API.
 	APIAddress string
+	// PyPIAddress is the https address of PyPI, needed when a tool is a wheel. No token is sent
+	// to it.
+	PyPIAddress string
 	// Token is sent to the release lookup, and to nothing else. It may be empty.
 	Token string
 	// Cooldown is how old a release must be before it is taken.
@@ -83,7 +88,17 @@ func Run(ctx context.Context, client *http.Client, m toolchain.Manifest, o Optio
 			return Result{}, fmt.Errorf("%s cannot be bumped: no provenance route is decided for it, and a release is not taken on weaker evidence than upstream offers", name)
 		}
 
-		next, note, err := bumpTool(ctx, client, api, o, name, tool)
+		var next toolchain.Tool
+		var note string
+		var err error
+		if project, isWheel := pypiProjects[name]; isWheel {
+			var base *url.URL
+			if base, err = pypiBase(o.PyPIAddress); err == nil {
+				next, note, err = bumpWheel(ctx, client, base, o, project, tool)
+			}
+		} else {
+			next, note, err = bumpTool(ctx, client, api, o, name, tool)
+		}
 		if err != nil {
 			return Result{}, fmt.Errorf("%s: %w", name, err)
 		}
