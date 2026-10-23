@@ -85,6 +85,34 @@ func TestTheEmbeddedManifestPinsShellCheckForBothLinuxArchitectures(t *testing.T
 	}
 }
 
+func TestTheEmbeddedManifestPinsZizmorAsAMuslWheelFromPyPIForBothLinuxArchitectures(t *testing.T) {
+	manifest, err := toolchain.Load()
+	if err != nil {
+		t.Fatalf("the embedded manifest must load: %v", err)
+	}
+
+	for platform, arch := range map[string]string{"linux_amd64": "x86_64", "linux_arm64": "aarch64"} {
+		tool, asset, err := manifest.Lookup("zizmor", platform)
+		if err != nil {
+			t.Fatalf("zizmor must be pinned for %s: %v", platform, err)
+		}
+		// The version is the manifest's to move, so the test states what must hold of it, not what it is.
+		if tool.Version == "" {
+			t.Errorf("%s: no version", platform)
+		}
+		wheel := "zizmor-" + tool.Version + "-py3-none-musllinux_1_2_" + arch + ".whl"
+		if !strings.HasPrefix(asset.URL, "https://files.pythonhosted.org/packages/") || !strings.HasSuffix(asset.URL, "/"+wheel) {
+			t.Errorf("%s: URL %q is not the pinned release's %s on PyPI's file host", platform, asset.URL, wheel)
+		}
+		if want := "zizmor-" + tool.Version + ".data/scripts/zizmor"; asset.Member != want {
+			t.Errorf("%s: member %q, want %q", platform, asset.Member, want)
+		}
+		if got := toolchain.Pinned("zizmor"); got != tool.Version {
+			t.Errorf("Pinned(zizmor) = %q, the manifest pins %q", got, tool.Version)
+		}
+	}
+}
+
 func TestPinnedNamesTheReleaseTheEmbeddedManifestPins(t *testing.T) {
 	manifest, err := toolchain.Load()
 	if err != nil {
