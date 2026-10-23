@@ -131,7 +131,10 @@ func bumpTool(ctx context.Context, client *http.Client, api *url.URL, o Options,
 
 	next := toolchain.Tool{Version: latest.Tag, Assets: map[string]toolchain.Asset{}}
 	for platform, asset := range tool.Assets {
-		moved := strings.ReplaceAll(asset.URL, tool.Version, latest.Tag)
+		moved, err := moveAsset(asset.URL, tool.Version, latest.Tag)
+		if err != nil {
+			return toolchain.Tool{}, "", err
+		}
 		member := strings.ReplaceAll(asset.Member, tool.Version, latest.Tag)
 		pinned, err := toolchain.Pin(ctx, client, moved, member)
 		if err != nil {
@@ -141,6 +144,27 @@ func bumpTool(ctx context.Context, client *http.Client, api *url.URL, o Options,
 	}
 
 	return next, "", nil
+}
+
+// moveAsset moves the address of a release download to another version by changing the tag and
+// the file name and nothing else, so the host, the owner and the repository stay as pinned
+// however many times the version happens to occur in them. The address has been through
+// repositoryOf, so its path has the form /owner/name/releases/download/<tag>/<file>.
+func moveAsset(address, from, to string) (string, error) {
+	parsed, err := url.Parse(address)
+	if err != nil {
+		return "", fmt.Errorf("cannot move %q: %w", address, err)
+	}
+	segments := strings.Split(parsed.Path, "/")
+	if len(segments) != 7 {
+		return "", fmt.Errorf("cannot move %q: it is not a release download", address)
+	}
+	segments[5] = to
+	segments[6] = strings.ReplaceAll(segments[6], from, to)
+	parsed.Path = strings.Join(segments, "/")
+	parsed.RawPath = ""
+
+	return parsed.String(), nil
 }
 
 func copyOf(tool toolchain.Tool) toolchain.Tool {
@@ -159,8 +183,8 @@ func repositoryOf(tool toolchain.Tool) (string, error) {
 	repository := ""
 	for platform, asset := range tool.Assets {
 		address, err := url.Parse(asset.URL)
-		if err != nil || address.RawQuery != "" || address.Fragment != "" {
-			return "", fmt.Errorf("the asset for %s (%q) must be a plain address", platform, asset.URL)
+		if err != nil || address.Scheme != "https" || address.Host == "" || address.User != nil || address.RawQuery != "" || address.Fragment != "" {
+			return "", fmt.Errorf("the asset for %s (%q) must be a plain https address with a host, no credentials, no query and no fragment", platform, asset.URL)
 		}
 		parts := strings.Split(address.Path, "/")
 		if len(parts) != 7 || parts[0] != "" || parts[3] != "releases" || parts[4] != "download" || !namePattern.MatchString(parts[1]) || !namePattern.MatchString(parts[2]) {
@@ -202,7 +226,12 @@ func lookup(ctx context.Context, client *http.Client, api *url.URL, token, repos
 		request.Header.Set("Authorization", "Bearer "+token)
 	}
 
-	response, err := client.Do(request)
+	// A redirect is not followed: the token would go wherever it points, and GitHub's own answer
+	// to this request is not a redirect.
+	direct := *client
+	direct.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+
+	response, err := direct.Do(request)
 	if err != nil {
 		return release{}, fmt.Errorf("cannot ask %s for the latest release: %w", api.Host, err)
 	}

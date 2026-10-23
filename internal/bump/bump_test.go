@@ -71,8 +71,10 @@ func newUpstream(t *testing.T, latest string) *upstream {
 
 		if r.URL.Path == "/repos/koalaman/shellcheck/releases/latest" {
 			w.WriteHeader(u.status)
+			// A client that stops reading at its cap closes the connection, which fails this
+			// write; that is the behaviour under test, not a fault of the fake.
 			if _, err := w.Write([]byte(u.latest)); err != nil {
-				t.Error(err)
+				t.Log(err)
 			}
 
 			return

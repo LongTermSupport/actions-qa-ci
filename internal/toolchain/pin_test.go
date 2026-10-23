@@ -55,8 +55,9 @@ func TestPinRefusesWhatCannotBePinned(t *testing.T) {
 		"a failing response":         {http.StatusNotFound, tarball, "tool-1/tool", "404"},
 		"a member that is not there": {http.StatusOK, tarball, "tool-1/other", "no member"},
 		"a body that is not gzip":    {http.StatusOK, []byte("plain text"), "tool-1/tool", "gzip"},
-		"an unsafe member":           {http.StatusOK, tarball, "../tool", "member"},
-		"an absolute member":         {http.StatusOK, tarball, "/tool", "member"},
+		"an unsafe member":           {http.StatusOK, tarball, "../tool", "relative path"},
+		"an absolute member":         {http.StatusOK, tarball, "/tool", "relative path"},
+		"an empty member":            {http.StatusOK, tarball, "", "relative path"},
 	}
 
 	for name, c := range cases {
