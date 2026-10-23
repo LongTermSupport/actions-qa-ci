@@ -5,8 +5,11 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
 
+	"github.com/LongTermSupport/actions-qa-ci/internal/bump"
 	"github.com/LongTermSupport/actions-qa-ci/internal/toolchain"
 )
 
@@ -61,18 +64,41 @@ func TestAManifestThatCannotBePlacedLeavesNoTemporaryFile(t *testing.T) {
 
 func TestOnlyARegularManifestOfReasonableSizeIsRead(t *testing.T) {
 	dir := t.TempDir()
-	big := filepath.Join(dir, "big.json")
-	if err := os.WriteFile(big, []byte(strings.Repeat(" ", maxManifest+1)), 0o644); err != nil {
+	valid, err := bump.Marshal(validPin())
+	if err != nil {
 		t.Fatal(err)
 	}
-	fifoLike := filepath.Join(dir, "sub")
-	if err := os.Mkdir(fifoLike, 0o755); err != nil {
+	// A manifest that would parse, padded past the bound: only the size check refuses it.
+	big := filepath.Join(dir, "big.json")
+	if err := os.WriteFile(big, append(valid, bytes.Repeat([]byte(" "), maxManifest)...), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	directory := filepath.Join(dir, "sub")
+	if err := os.Mkdir(directory, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	fifo := filepath.Join(dir, "fifo")
+	if err := syscall.Mkfifo(fifo, 0o644); err != nil {
 		t.Fatal(err)
 	}
 
-	for name, path := range map[string]string{"a large file": big, "a directory": fifoLike} {
-		if _, err := readManifest(path); err == nil {
-			t.Errorf("%s was read as a manifest", name)
+	for name, path := range map[string]string{"a large file": big, "a directory": directory, "a FIFO": fifo} {
+		answered := make(chan error, 1)
+		go func() {
+			_, err := readManifest(path)
+			answered <- err
+		}()
+
+		select {
+		case err := <-answered:
+			if err == nil {
+				t.Errorf("%s was read as a manifest", name)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatalf("%s: reading it blocked; it must be refused without being opened", name)
 		}
+	}
+	if _, err := readManifest(filepath.Join(dir, "none.json")); err == nil {
+		t.Error("a missing file was read")
 	}
 }

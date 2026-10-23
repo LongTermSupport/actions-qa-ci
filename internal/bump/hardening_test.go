@@ -13,6 +13,17 @@ import (
 	"github.com/LongTermSupport/actions-qa-ci/internal/toolchain"
 )
 
+// withBoth returns the manifest with the address of each of its assets changed.
+func withBoth(manifest toolchain.Manifest, change func(address string) string) toolchain.Manifest {
+	tool := manifest.Tools["shellcheck"]
+	for platform, asset := range tool.Assets {
+		asset.URL = change(asset.URL)
+		tool.Assets[platform] = asset
+	}
+
+	return manifest
+}
+
 // withAmd64 returns the manifest with the address of its amd64 asset changed.
 func withAmd64(manifest toolchain.Manifest, change func(address string) string) toolchain.Manifest {
 	tool := manifest.Tools["shellcheck"]
@@ -26,6 +37,8 @@ func withAmd64(manifest toolchain.Manifest, change func(address string) string) 
 func TestAnAssetThatIsNotAPlainReleaseDownloadOfThePinnedVersionIsRefusedBeforeAnyRequest(t *testing.T) {
 	good := "/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.linux.x86_64.tar.gz"
 	cases := map[string]func(server string) string{
+		"plain http":           func(server string) string { return strings.Replace(server, "https://", "http://", 1) + good },
+		"a scheme of its own":  func(server string) string { return strings.Replace(server, "https://", "ftp://", 1) + good },
 		"no host":              func(string) string { return "https://" + good },
 		"an empty host":        func(string) string { return "https:///" + strings.TrimPrefix(good, "/") },
 		"credentials":          func(server string) string { return strings.Replace(server, "https://", "https://user:pw@", 1) + good },
@@ -53,7 +66,7 @@ func TestAnAssetThatIsNotAPlainReleaseDownloadOfThePinnedVersionIsRefusedBeforeA
 		t.Run(name, func(t *testing.T) {
 			u := newUpstream(t, release("v0.12.0", now.Add(-30*24*time.Hour)))
 			u.offer(t, "v0.12.0")
-			manifest := withAmd64(u.pinned(), func(string) string { return change(u.server.URL) })
+			manifest := withBoth(u.pinned(), func(string) string { return change(u.server.URL) })
 
 			got, err := bump.Run(context.Background(), u.server.Client(), manifest, u.options(""))
 

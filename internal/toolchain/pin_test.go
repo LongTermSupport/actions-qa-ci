@@ -44,6 +44,27 @@ func TestPinHashesTheArchiveAndTheMemberTakenOutOfIt(t *testing.T) {
 	}
 }
 
+func TestPinFollowsTheRedirectGitHubAnswersADownloadWith(t *testing.T) {
+	tarball := archive(t, "tool-1/tool", []byte(pinnedBinary))
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/released" {
+			http.Redirect(w, r, "/stored", http.StatusFound)
+
+			return
+		}
+		if _, err := w.Write(tarball); err != nil {
+			t.Error(err)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	asset, err := toolchain.Pin(context.Background(), server.Client(), server.URL+"/released", "tool-1/tool")
+
+	if err != nil || asset.ArchiveSHA256 != sum(tarball) {
+		t.Errorf("asset %+v, error %v; the real download is a redirect to a storage host", asset, err)
+	}
+}
+
 func TestPinRefusesWhatCannotBePinned(t *testing.T) {
 	tarball := archive(t, "tool-1/tool", []byte(pinnedBinary))
 	cases := map[string]struct {
