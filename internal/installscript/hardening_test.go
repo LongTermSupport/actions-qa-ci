@@ -297,6 +297,45 @@ printf '%s\n' "$out"
 	}
 }
 
+func TestADirectoryNameAlreadyTakenIsRefusedAndNeverRemoved(t *testing.T) {
+	realMkdir, err := exec.LookPath("mkdir")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cases := map[string]string{
+		"the working directory": `*"/actions-qa-ci-install."*`,
+		"the staging directory": `*"/.actions-qa-ci-install."*`,
+	}
+	for name, pattern := range cases {
+		t.Run(name, func(t *testing.T) {
+			r := newRelease(t)
+			home, temp, record := t.TempDir(), t.TempDir(), filepath.Join(t.TempDir(), "taken")
+			dir := shim(t, "mkdir", `for last; do :; done
+case "$last" in `+pattern+`) "`+realMkdir+`" -p "$last" && : > "$last/sentinel" && printf '%s\n' "$last" > "`+record+`" ;; esac
+exec "`+realMkdir+`" "$@"`)
+			command := exec.Command(shell(t), r.script)
+			command.Env = []string{"HOME=" + home, "PATH=" + dir + ":" + os.Getenv("PATH"), "TMPDIR=" + temp, "ACTIONS_QA_CI_BUNDLE=" + writeBundle(t, r)}
+
+			output, err := command.CombinedOutput()
+			if err == nil {
+				t.Errorf("the script finished successfully although its directory name was taken:\n%s", output)
+			}
+			if !strings.Contains(string(output), "cannot make the") {
+				t.Errorf("the script did not say it could not make the directory:\n%s", output)
+			}
+			taken, err := os.ReadFile(record)
+			if err != nil {
+				t.Fatalf("the shim never met the directory name: %v", err)
+			}
+			sentinel := filepath.Join(strings.TrimSpace(string(taken)), "sentinel")
+			if _, err := os.Stat(sentinel); err != nil {
+				t.Errorf("the script removed a directory it did not make: %v", err)
+			}
+		})
+	}
+}
+
 func TestEveryNameOfAMachineMapsToItsPlatformsBundle(t *testing.T) {
 	cases := map[string]string{"x86_64": "linux_amd64", "amd64": "linux_amd64", "aarch64": "linux_arm64", "arm64": "linux_arm64"}
 
