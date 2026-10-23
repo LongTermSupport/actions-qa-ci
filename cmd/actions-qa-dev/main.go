@@ -14,7 +14,7 @@ import (
 	"github.com/LongTermSupport/actions-qa-ci/internal/toolchain"
 )
 
-const usage = "usage: actions-qa-dev fetch <directory>"
+const usage = "usage: actions-qa-dev fetch <directory>\n       actions-qa-dev bundle --version X.Y.Z --platform linux_amd64 --program <actions-qa> --tools <directory> --licences <directory> --out <directory>"
 
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
@@ -30,16 +30,19 @@ func run(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
 		return complain(stderr, exitUsage, usage)
 	}
-	if args[0] != "fetch" {
+	if args[0] != "fetch" && args[0] != "bundle" {
 		return complain(stderr, exitUsage, fmt.Sprintf("actions-qa-dev: unknown command %q\n%s", args[0], usage))
 	}
-	if len(args) != 2 {
+	if args[0] == "fetch" && len(args) != 2 {
 		return complain(stderr, exitUsage, usage)
 	}
 
 	manifest, err := toolchain.Load()
 	if err != nil {
 		return complain(stderr, exitFault, fmt.Sprintf("actions-qa-dev: %v", err))
+	}
+	if args[0] == "bundle" {
+		return bundleCommand(manifest, args[1:], stdout, stderr)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)

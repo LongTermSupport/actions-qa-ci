@@ -70,6 +70,9 @@ branch named `feature/…`, `bugfix/…` or `chore/…`; the default branch is `
   A lane marked `Subject` is about the project, not one file, and runs once per whole-project run.
   `internal/scope` resolves the record's `analyse.include` patterns to tracked files, and a lane
   that `Covers` a kind of included file is widened to select them (`check.Widen`).
+- The release archive: `internal/bundle` builds the same bytes every time from the program, the
+  tools the manifest pins for the platform (each verified against its pin) and a licence file for
+  each; `actions-qa-dev bundle` writes it with `checksums.txt` and never replaces a release.
 - The only code that reaches the network is `internal/branchprotection`, and only under `check
   --online`: it reads the required status checks of a branch from the GitHub API, sends the token
   nowhere but the given https address, follows no redirect and never prints the token.
