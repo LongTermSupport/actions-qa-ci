@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -66,6 +67,10 @@ type pypi struct {
 	// tolerant lets a write fail: a client that stops reading an oversized answer is what the
 	// test is about.
 	tolerant bool
+	// stream, when above zero, is how many bytes of filler the answer is made of, written a
+	// megabyte at a time; sent is how many of them reached the socket.
+	stream int
+	sent   atomic.Int64
 }
 
 var platforms = map[string]string{"linux_amd64": "x86_64", "linux_arm64": "aarch64"}
@@ -92,6 +97,18 @@ func newPyPI(t *testing.T, latest string, age time.Duration) *pypi {
 				return
 			}
 			w.WriteHeader(p.status)
+			if p.stream > 0 {
+				chunk := make([]byte, 1<<20)
+				for int(p.sent.Load()) < p.stream {
+					written, err := w.Write(chunk)
+					p.sent.Add(int64(written))
+					if err != nil {
+						return
+					}
+				}
+
+				return
+			}
 			body := p.body
 			if body == "" {
 				encoded, err := json.Marshal(map[string]any{"info": map[string]string{"version": p.latest}, "urls": p.files})
@@ -245,6 +262,10 @@ func TestWhatPyPIOffersThatCannotBeTrustedIsRefused(t *testing.T) {
 		"a file on another host":          {func(p *pypi) { p.files[0].URL = "https://evil.example/packages/aa/bb/" + p.files[0].Filename }, "not at"},
 		"a file address with credentials": {func(p *pypi) { p.files[0].URL = strings.Replace(p.files[0].URL, "https://", "https://user:pass@", 1) }, "plain https"},
 		"a file address with a query":     {func(p *pypi) { p.files[0].URL += "?token=1" }, "plain https"},
+		"a file address over plain http":  {func(p *pypi) { p.files[0].URL = strings.Replace(p.files[0].URL, "https://", "http://", 1) }, "plain https"},
+		"a digest in capitals":            {func(p *pypi) { p.files[0].Digests.SHA256 = strings.ToUpper(p.files[0].Digests.SHA256) }, "no sha256"},
+		"a digest that is too short":      {func(p *pypi) { p.files[0].Digests.SHA256 = p.files[0].Digests.SHA256[:63] }, "no sha256"},
+		"a digest that is not hex":        {func(p *pypi) { p.files[0].Digests.SHA256 = strings.Repeat("z", 64) }, "no sha256"},
 		"a file address of another name":  {func(p *pypi) { p.files[0].URL = p.server.URL + "/packages/aa/bb/other.whl" }, "name"},
 		"a latest older than the pinned":  {func(p *pypi) { p.latest = "1.30.0" }, "older"},
 		"a pre-release latest":            {func(p *pypi) { p.latest = "1.32.0rc1" }, "three numbers"},
@@ -298,6 +319,76 @@ func TestAWheelAssetThatCannotBeMovedIsRefusedBeforeAnythingIsAsked(t *testing.T
 				t.Errorf("asked %q", p.paths)
 			}
 		})
+	}
+}
+
+func TestTheCooldownIsJudgedOnTheNewestFileOfTheRelease(t *testing.T) {
+	// one platform's file is old, the other's is an hour old: whichever the platforms are
+	// visited in, the release is inside the cooldown.
+	for _, fresh := range []int{0, 1} {
+		p := newPyPI(t, newWheelVersion, 5*24*time.Hour)
+		p.files[fresh].Upload = now.Add(-time.Hour).Format(time.RFC3339)
+
+		for range 40 {
+			got, err := p.run(t, p.pinned(t), p.options(""))
+
+			if err != nil || len(got.Changes) != 0 || len(got.Notes) != 1 || !strings.Contains(got.Notes[0], "cooldown") {
+				t.Fatalf("file %d fresh: got %+v, %v", fresh, got, err)
+			}
+		}
+	}
+}
+
+func TestAWheelWhoseMemberDoesNotHoldTheVersionIsRefusedBeforeAnythingIsAsked(t *testing.T) {
+	p := newPyPI(t, newWheelVersion, 5*24*time.Hour)
+	manifest := p.pinned(t)
+	tool := manifest.Tools["zizmor"]
+	for platform, asset := range tool.Assets {
+		asset.Member = "zizmor/scripts/zizmor"
+		tool.Assets[platform] = asset
+	}
+
+	_, err := p.run(t, manifest, p.options(""))
+
+	if err == nil || !strings.Contains(err.Error(), "member") {
+		t.Errorf("got %v; want the member refused", err)
+	}
+	if len(p.paths) != 0 {
+		t.Errorf("asked %q", p.paths)
+	}
+}
+
+func TestWheelsPinnedAtTwoHostsAreRefusedBeforeAnythingIsAsked(t *testing.T) {
+	p := newPyPI(t, newWheelVersion, 5*24*time.Hour)
+	manifest := p.pinned(t)
+	tool := manifest.Tools["zizmor"]
+	asset := tool.Assets["linux_arm64"]
+	asset.URL = strings.Replace(asset.URL, p.server.URL, "https://other.example", 1)
+	tool.Assets["linux_arm64"] = asset
+
+	_, err := p.run(t, manifest, p.options(""))
+
+	if err == nil || !strings.Contains(err.Error(), "two hosts") {
+		t.Errorf("got %v; want the two hosts refused", err)
+	}
+	if len(p.paths) != 0 {
+		t.Errorf("asked %q", p.paths)
+	}
+}
+
+func TestAnOversizedPyPIAnswerIsNotReadPastTheCap(t *testing.T) {
+	const streamed = 128 << 20
+	p := newPyPI(t, newWheelVersion, 5*24*time.Hour)
+	p.tolerant = true
+	p.stream = streamed
+
+	_, err := p.run(t, p.pinned(t), p.options(""))
+
+	if err == nil || !strings.Contains(err.Error(), "larger") {
+		t.Errorf("got %v; want the answer refused as larger than the cap", err)
+	}
+	if sent := p.sent.Load(); sent > streamed/2 {
+		t.Errorf("the client took %d of %d bytes; it must stop reading at the cap", sent, streamed)
 	}
 }
 
