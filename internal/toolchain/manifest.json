@@ -16,6 +16,23 @@
           "binarySha256": "127f13925eadd52c341bca0ebaf9ab0dbd78c6468f30a8f262a528bf8de47546"
         }
       }
+    },
+    "zizmor": {
+      "version": "1.31.1",
+      "assets": {
+        "linux_amd64": {
+          "url": "https://files.pythonhosted.org/packages/ba/48/a9b5bf90d2ac6db62c133e5e7a06b120dc2bf1f55addc88e363d9342c9fb/zizmor-1.31.1-py3-none-musllinux_1_2_x86_64.whl",
+          "archiveSha256": "e7fdf82d31cc67eb1d5030bf2372b25ee2a1c3ad05017e18da70ed138c4accd6",
+          "member": "zizmor-1.31.1.data/scripts/zizmor",
+          "binarySha256": "1531663bb46f0e48370ce46277df632d49d79b29c795e7aae820c90e5e633aaf"
+        },
+        "linux_arm64": {
+          "url": "https://files.pythonhosted.org/packages/2c/53/0841490dde334d8ecf590c008922d942da8bbb51a053ad61fd596591465f/zizmor-1.31.1-py3-none-musllinux_1_2_aarch64.whl",
+          "archiveSha256": "c5ccb17fd820bb1ddc63cc9a715e97c063025487e585f640389a86d9dfc97cda",
+          "member": "zizmor-1.31.1.data/scripts/zizmor",
+          "binarySha256": "8bad31a558322de5de0a3ba78d6443fe60c8f680ced2c19c479e213f6971a0b6"
+        }
+      }
     }
   }
 }
