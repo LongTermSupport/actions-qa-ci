@@ -224,6 +224,90 @@ func TestToolsBumpOfAManifestItCannotReadIsAToolchainFault(t *testing.T) {
 	}
 }
 
+const unreleasedChangelog = "# Changelog\n\n## Unreleased\n\n### Added\n\n- A thing.\n"
+
+// changelogFile writes a changelog in a directory of its own and returns its path.
+func changelogFile(t *testing.T, content string) string {
+	t.Helper()
+
+	path := filepath.Join(t.TempDir(), "CHANGELOG.md")
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(path, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	return path
+}
+
+func TestToolsBumpRecordsTheMoveInTheChangelogItIsGiven(t *testing.T) {
+	p := newBumpProject(t, releaseJSON("v0.12.0", 5*24*time.Hour))
+	changelog := changelogFile(t, unreleasedChangelog)
+
+	got := p.run("", append(p.args, "--changelog", changelog)...)
+
+	written, err := os.ReadFile(changelog)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.code != 0 || !strings.Contains(string(written), "- `shellcheck` moves from v0.11.0 to v0.12.0.") {
+		t.Errorf("got %+v, changelog:\n%s", got, written)
+	}
+	if info, err := os.Stat(changelog); err != nil || info.Mode().Perm() != 0o644 {
+		t.Errorf("mode %v, %v; the file's mode must be kept", info, err)
+	}
+	if entries, err := os.ReadDir(filepath.Dir(changelog)); err != nil || len(entries) != 1 {
+		t.Errorf("entries %v, %v; no temporary file may be left beside the changelog", entries, err)
+	}
+}
+
+func TestToolsBumpWithNothingToMoveLeavesTheChangelogAlone(t *testing.T) {
+	p := newBumpProject(t, releaseJSON("v0.11.0", 40*24*time.Hour))
+	changelog := changelogFile(t, unreleasedChangelog)
+
+	got := p.run("", append(p.args, "--changelog", changelog)...)
+
+	written, err := os.ReadFile(changelog)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.code != 0 || string(written) != unreleasedChangelog {
+		t.Errorf("got %+v, changelog:\n%s", got, written)
+	}
+}
+
+func TestToolsBumpThatCannotRecordTheMoveChangesNeitherFile(t *testing.T) {
+	for name, content := range map[string]string{
+		"a changelog with no Unreleased section": "# Changelog\n\n## 1.0.0\n\n- x\n",
+		"a changelog that is not there":          "",
+	} {
+		t.Run(name, func(t *testing.T) {
+			p := newBumpProject(t, releaseJSON("v0.12.0", 5*24*time.Hour))
+			path := filepath.Join(t.TempDir(), "absent.md")
+			if content != "" {
+				path = changelogFile(t, content)
+			}
+			before, err := os.ReadFile(p.manifest)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			got := p.run("", append(p.args, "--changelog", path)...)
+
+			after, readErr := os.ReadFile(p.manifest)
+			if got.code != 3 || readErr != nil || !bytes.Equal(before, after) {
+				t.Errorf("got %+v, read error %v; the manifest must not move when the changelog cannot say so", got, readErr)
+			}
+			if content != "" {
+				if kept, err := os.ReadFile(path); err != nil || string(kept) != content {
+					t.Errorf("the changelog changed: %q, %v", kept, err)
+				}
+			}
+		})
+	}
+}
+
 func TestToolsIsACommandOfTheProgram(t *testing.T) {
 	for _, args := range [][]string{{"tools"}, {"tools", "frobnicate"}} {
 		got := invoke(args...)
