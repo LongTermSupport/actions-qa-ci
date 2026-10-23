@@ -134,6 +134,64 @@ func TestBundleIsACommandOfTheProgramAndWithoutOptionsIsAUsageError(t *testing.T
 	}
 }
 
+func TestBundleLeavesNoHalfReleaseWhenTheChecksumsAreAlreadyThere(t *testing.T) {
+	p := release(t)
+	if err := os.MkdirAll(p.out, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(p.out, "checksums.txt"), []byte("an earlier release\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	got := build(p.manifest, p.args...)
+
+	if got.code != 3 || !strings.Contains(got.stderr, "checksums.txt") {
+		t.Errorf("got %+v, want exit 3 naming checksums.txt", got)
+	}
+	if _, err := os.Stat(filepath.Join(p.out, "actions-qa-ci_1.2.3_linux_amd64.tar.gz")); !os.IsNotExist(err) {
+		t.Errorf("the archive was left beside a release that was refused: %v", err)
+	}
+	if kept, err := os.ReadFile(filepath.Join(p.out, "checksums.txt")); err != nil || string(kept) != "an earlier release\n" {
+		t.Errorf("the earlier checksums were changed: %q, %v", kept, err)
+	}
+}
+
+func TestBundleWillNotWriteThroughASymbolicLinkAsTheOutputDirectory(t *testing.T) {
+	p := release(t)
+	elsewhere := t.TempDir()
+	if err := os.Symlink(elsewhere, p.out); err != nil {
+		t.Fatal(err)
+	}
+
+	got := build(p.manifest, p.args...)
+
+	if got.code != 3 || !strings.Contains(got.stderr, "symbolic link") {
+		t.Errorf("got %+v, want exit 3 naming the link", got)
+	}
+	if entries, err := os.ReadDir(elsewhere); err != nil || len(entries) != 0 {
+		t.Errorf("something was written through the link: %v, %v", entries, err)
+	}
+}
+
+func TestBundleWritesFilesNobodyElseCanChange(t *testing.T) {
+	p := release(t)
+
+	got := build(p.manifest, p.args...)
+
+	if got.code != 0 {
+		t.Fatalf("got %+v", got)
+	}
+	for _, name := range []string{"actions-qa-ci_1.2.3_linux_amd64.tar.gz", "checksums.txt"} {
+		info, err := os.Stat(filepath.Join(p.out, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if info.Mode().Perm()&0o133 != 0 {
+			t.Errorf("%s has mode %o; it must not be executable or writable by others", name, info.Mode().Perm())
+		}
+	}
+}
+
 func TestBundleDoesNotOverwriteAReleaseAlreadyThere(t *testing.T) {
 	p := release(t)
 

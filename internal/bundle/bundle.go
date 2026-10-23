@@ -9,6 +9,7 @@ import (
 	"compress/gzip"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -16,6 +17,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"syscall"
 
 	"github.com/LongTermSupport/actions-qa-ci/internal/toolchain"
 )
@@ -27,11 +29,14 @@ const ProgramName = "actions-qa"
 const ProjectLicence = "actions-qa-ci.txt"
 
 // maxFile bounds one file read into a bundle, so a wrong path cannot fill the memory.
-const maxFile = 256 << 20
+var maxFile = 256 << 20
 
 var (
 	versionPattern  = regexp.MustCompile(`^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$`)
 	platformPattern = regexp.MustCompile(`^[a-z0-9]+_[a-z0-9]+$`)
+	// namePattern is what a tool and a licence file may be called: it is put in an archive path
+	// and read by people, so nothing that could be misread, split or hidden is allowed.
+	namePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$`)
 )
 
 // Options are what a bundle is built from.
@@ -80,6 +85,9 @@ func Build(options Options) (Bundle, error) {
 
 	tools := make([]string, 0, len(options.Manifest.Tools))
 	for name := range options.Manifest.Tools {
+		if !namePattern.MatchString(name) || name == ProgramName {
+			return Bundle{}, fmt.Errorf("the manifest pins a tool named %q, which cannot be bundled beside %s", name, ProgramName)
+		}
 		tools = append(tools, name)
 	}
 	slices.Sort(tools)
@@ -91,13 +99,9 @@ func Build(options Options) (Bundle, error) {
 	entries := []entry{{name: "bin/" + ProgramName, mode: 0o755, content: program}}
 
 	for _, name := range tools {
-		binary, err := toolchain.Resolve(options.Manifest, name, options.Platform, options.ToolDirs)
+		content, err := readTool(options.Manifest, name, options.Platform, options.ToolDirs)
 		if err != nil {
 			return Bundle{}, fmt.Errorf("cannot bundle %s: %w", name, err)
-		}
-		content, err := readPlainFile(binary, name)
-		if err != nil {
-			return Bundle{}, err
 		}
 		entries = append(entries, entry{name: "bin/" + name, mode: 0o755, content: content})
 	}
@@ -146,6 +150,9 @@ func readLicences(dir string, subjects []string) ([]entry, error) {
 	var entries []entry
 	present := map[string]bool{}
 	for _, item := range listing {
+		if !namePattern.MatchString(item.Name()) {
+			return nil, fmt.Errorf("the licence file %q has a name that is not plain letters, digits, dot, dash and underscore", item.Name())
+		}
 		path := filepath.Join(dir, item.Name())
 		content, err := readPlainFile(path, "the licence "+item.Name())
 		if err != nil {
@@ -165,17 +172,51 @@ func readLicences(dir string, subjects []string) ([]entry, error) {
 	return entries, nil
 }
 
-// readPlainFile reads a regular file that is not a symbolic link, within a size bound.
-func readPlainFile(path, what string) ([]byte, error) {
-	link, err := os.Lstat(path)
+// readTool finds a tool in the first directory that holds an entry of its name and returns the
+// bytes it read, after checking those same bytes against the manifest's pin: what is bundled is
+// what was checked, with no second read between. A later directory is never consulted to cover
+// for an entry that fails, and PATH is never consulted.
+func readTool(m toolchain.Manifest, tool, platform string, dirs []string) ([]byte, error) {
+	pinned, asset, err := m.Lookup(tool, platform)
 	if err != nil {
-		return nil, fmt.Errorf("cannot read %s: %w", what, err)
+		return nil, err
 	}
-	if !link.Mode().IsRegular() {
-		return nil, fmt.Errorf("%s (%s) is not a plain file", what, path)
+	for _, dir := range dirs {
+		if !filepath.IsAbs(dir) {
+			return nil, fmt.Errorf("the directory %q to look for %s %s in is not absolute", dir, tool, pinned.Version)
+		}
 	}
 
-	file, err := os.Open(path)
+	for _, dir := range dirs {
+		candidate := filepath.Join(dir, tool)
+		if _, err := os.Lstat(candidate); errors.Is(err, os.ErrNotExist) {
+			continue
+		} else if err != nil {
+			return nil, fmt.Errorf("cannot inspect %s: %w", candidate, err)
+		}
+		content, err := readPlainFile(candidate, tool)
+		if err != nil {
+			return nil, err
+		}
+		digest := sha256.Sum256(content)
+		if got := hex.EncodeToString(digest[:]); got != asset.BinarySHA256 {
+			return nil, fmt.Errorf("%s %w: it is %s and the manifest pins %s", candidate, toolchain.ErrMismatch, got, asset.BinarySHA256)
+		}
+
+		return content, nil
+	}
+
+	return nil, fmt.Errorf("%s %s %w in %s", tool, pinned.Version, toolchain.ErrNotFound, strings.Join(dirs, ", "))
+}
+
+// readPlainFile reads a regular file that is not a symbolic link, within a size bound. The file
+// is opened without following a link and without waiting for a writer, and what is judged
+// regular is what was opened.
+func readPlainFile(path, what string) ([]byte, error) {
+	file, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
+	if errors.Is(err, syscall.ELOOP) {
+		return nil, fmt.Errorf("%s (%s) is a symbolic link, not a plain file", what, path)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("cannot read %s: %w", what, err)
 	}
@@ -185,11 +226,11 @@ func readPlainFile(path, what string) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cannot inspect %s: %w", what, err)
 	}
-	if !os.SameFile(link, opened) {
-		return nil, fmt.Errorf("%s (%s) changed while it was being read", what, path)
+	if !opened.Mode().IsRegular() {
+		return nil, fmt.Errorf("%s (%s) is not a plain file", what, path)
 	}
 
-	content, err := io.ReadAll(io.LimitReader(file, maxFile+1))
+	content, err := io.ReadAll(io.LimitReader(file, int64(maxFile)+1))
 	if err != nil {
 		return nil, fmt.Errorf("cannot read %s: %w", what, err)
 	}

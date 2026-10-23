@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -73,6 +74,11 @@ func bundleCommand(manifest toolchain.Manifest, args []string, stdout, stderr io
 // writeRelease writes the archive and checksums.txt into dir, creating it. A file already there
 // is an error: a release is written once, never replaced.
 func writeRelease(dir string, built bundle.Bundle) ([]string, error) {
+	if info, err := os.Lstat(dir); err == nil && info.Mode()&os.ModeSymlink != 0 {
+		return nil, fmt.Errorf("%s is a symbolic link; write the release into a directory", dir)
+	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return nil, fmt.Errorf("cannot inspect %s: %w", dir, err)
+	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, fmt.Errorf("cannot create %s: %w", dir, err)
 	}
@@ -84,10 +90,27 @@ func writeRelease(dir string, built bundle.Bundle) ([]string, error) {
 		{built.Name, built.Data},
 		{"checksums.txt", []byte(bundle.Checksums([]bundle.Bundle{built}))},
 	}
+
+	// Nothing is written unless neither file is there, so a refused release leaves no half of one.
+	for _, f := range files {
+		path := filepath.Join(dir, f.name)
+		if _, err := os.Lstat(path); err == nil {
+			return nil, fmt.Errorf("%s exists; a release is written once and never replaced", path)
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return nil, fmt.Errorf("cannot inspect %s: %w", path, err)
+		}
+	}
+
 	var written []string
 	for _, f := range files {
 		path := filepath.Join(dir, f.name)
 		if err := writeNew(path, f.content); err != nil {
+			for _, earlier := range written {
+				if removeErr := os.Remove(earlier); removeErr != nil {
+					err = errors.Join(err, fmt.Errorf("cannot remove %s: %w", earlier, removeErr))
+				}
+			}
+
 			return nil, err
 		}
 		written = append(written, path)
