@@ -54,6 +54,15 @@ jobs:
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
 
+      # The proposal is kept before any step runs the newly pinned binaries, so nothing they do to
+      # the working tree can change what is proposed.
+      - name: Keep the proposal
+        if: steps.moved.outputs.changed == 'true'
+        run: |
+          mkdir "$RUNNER_TEMP/proposal"
+          cp internal/toolchain/manifest.json "$RUNNER_TEMP/proposal/manifest.json"
+          cp "$RUNNER_TEMP/bump-report.txt" "$RUNNER_TEMP/proposal/bump-report.txt"
+
       - name: Formatting
         if: steps.moved.outputs.changed == 'true'
         run: test -z "$(gofmt -l .)"
@@ -75,13 +84,6 @@ jobs:
         env:
           ACTIONS_QA_CI_TOOLS_DIR: ${{ github.workspace }}/bin
         run: go run ./cmd/actions-qa check --format agent
-
-      - name: Keep the proposal
-        if: steps.moved.outputs.changed == 'true'
-        run: |
-          mkdir "$RUNNER_TEMP/proposal"
-          cp internal/toolchain/manifest.json "$RUNNER_TEMP/proposal/manifest.json"
-          cp "$RUNNER_TEMP/bump-report.txt" "$RUNNER_TEMP/proposal/bump-report.txt"
 
       - name: Upload the proposal
         if: steps.moved.outputs.changed == 'true'
@@ -123,6 +125,7 @@ jobs:
           git add internal/toolchain/manifest.json
           git commit -m "Move the pinned tools to their latest releases" -m "$(cat "$RUNNER_TEMP/proposal/bump-report.txt")"
           credentials="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          echo "::add-mask::$credentials"
           # The branch belongs to this workflow and is rebuilt from the default branch each run.
           git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $credentials" push --force origin chore/update-tools
 
