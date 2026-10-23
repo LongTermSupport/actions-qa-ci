@@ -72,13 +72,44 @@ func TestTheEmbeddedManifestPinsShellCheckForBothLinuxArchitectures(t *testing.T
 		if err != nil {
 			t.Fatalf("shellcheck must be pinned for %s: %v", platform, err)
 		}
-		if tool.Version != "v0.11.0" {
-			t.Errorf("%s: version = %q, want v0.11.0", platform, tool.Version)
+		// The version is the manifest's to move, so the test states what must hold of it, not what it is.
+		if tool.Version == "" {
+			t.Errorf("%s: no version", platform)
 		}
-		if !strings.HasPrefix(asset.URL, "https://github.com/koalaman/shellcheck/releases/download/v0.11.0/") {
+		if !strings.HasPrefix(asset.URL, "https://github.com/koalaman/shellcheck/releases/download/"+tool.Version+"/") {
 			t.Errorf("%s: URL %q is not the pinned release", platform, asset.URL)
 		}
+		if !strings.HasPrefix(asset.Member, "shellcheck-"+tool.Version+"/") {
+			t.Errorf("%s: member %q is not inside the pinned release", platform, asset.Member)
+		}
 	}
+}
+
+func TestPinnedNamesTheReleaseTheEmbeddedManifestPins(t *testing.T) {
+	manifest, err := toolchain.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for name, tool := range manifest.Tools {
+		if got := toolchain.Pinned(name); got != tool.Version {
+			t.Errorf("Pinned(%q) = %q, the manifest pins %q", name, got, tool.Version)
+		}
+	}
+}
+
+func TestPinnedStopsOnAToolTheManifestDoesNotPin(t *testing.T) {
+	defer func() {
+		recovered := recover()
+		message, isText := recovered.(string)
+		if !isText || !strings.Contains(message, "nosuchtool") {
+			t.Errorf("recovered %v, want a message naming the tool", recovered)
+		}
+	}()
+
+	version := toolchain.Pinned("nosuchtool")
+
+	t.Errorf("answered %q for a tool nobody pinned", version)
 }
 
 func TestParseAcceptsAWellFormedManifest(t *testing.T) {

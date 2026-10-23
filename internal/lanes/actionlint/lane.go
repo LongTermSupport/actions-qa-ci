@@ -23,12 +23,16 @@ const Version = "v1.7.12"
 // Tool names the backend on every finding it produces.
 const Tool = "actionlint " + Version
 
-// ShellcheckVersion is the ShellCheck release the lane runs on shell in run: steps. The
-// manifest pins the binary and a test keeps the two equal.
-const ShellcheckVersion = "v0.11.0"
+// ShellcheckVersion is the ShellCheck release the lane runs on shell in run: steps: the one the
+// manifest pins, which is the only place the version is written.
+func ShellcheckVersion() string {
+	return toolchain.Pinned("shellcheck")
+}
 
 // shellcheckTool names the backend on a finding that came from ShellCheck.
-const shellcheckTool = "shellcheck " + ShellcheckVersion + " via " + Tool
+func shellcheckTool() string {
+	return "shellcheck " + ShellcheckVersion() + " via " + Tool
+}
 
 // Lint runs actionlint over the workflow at a repository-relative path, with the working
 // directory as the repository root, and returns its findings in a stable order.
@@ -250,7 +254,7 @@ func convertShellcheck(path string, e *upstream.Error) (finding.Finding, bool, e
 	id := finding.ToolPrefix + ".shellcheck." + code
 	f := finding.Finding{
 		ID:         id,
-		Tool:       shellcheckTool,
+		Tool:       shellcheckTool(),
 		UpstreamID: code,
 		Path:       path,
 		Line:       max(e.Line, 1),

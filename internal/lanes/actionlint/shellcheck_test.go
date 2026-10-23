@@ -49,7 +49,7 @@ func TestAShellWarningInARunStepIsReportedUnderItsShellcheckCode(t *testing.T) {
 	if f.ID != "actionsqaci.shellcheck.SC2115" || f.UpstreamID != "SC2115" || f.Severity != finding.SeverityWarning {
 		t.Errorf("identity or severity: %+v", f)
 	}
-	if !strings.Contains(f.Tool, "shellcheck v0.11.0") || !strings.Contains(f.Tool, "actionlint "+actionlint.Version) {
+	if !strings.Contains(f.Tool, "shellcheck "+toolchain.Pinned("shellcheck")) || !strings.Contains(f.Tool, "actionlint "+actionlint.Version) {
 		t.Errorf("tool = %q, want both ShellCheck's pinned version and the lane that ran it", f.Tool)
 	}
 	if f.Path != workflowPath || f.Line < 1 || f.Col < 1 || f.DocPath != "docs/rules/actionsqaci.shellcheck.md" || f.Excepted {
@@ -64,18 +64,14 @@ func TestAShellWarningInARunStepIsReportedUnderItsShellcheckCode(t *testing.T) {
 }
 
 func TestTheShellcheckVersionIsTheOneTheManifestPins(t *testing.T) {
-	manifest, err := toolchain.Load()
-	if err != nil {
-		t.Fatal(err)
-	}
+	pinned := toolchain.Pinned("shellcheck")
 
-	for _, platform := range []string{"linux_amd64", "linux_arm64"} {
-		tool, asset, err := manifest.Lookup("shellcheck", platform)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if tool.Version != actionlint.ShellcheckVersion || !strings.Contains(asset.URL, "/"+actionlint.ShellcheckVersion+"/") {
-			t.Errorf("%s: the manifest pins %s (%s) but the lane says %s", platform, tool.Version, asset.URL, actionlint.ShellcheckVersion)
+	if got := actionlint.ShellcheckVersion(); got != pinned {
+		t.Errorf("the manifest pins %s but the lane says %s", pinned, got)
+	}
+	for _, family := range actionlint.Families() {
+		if !strings.Contains(family.Upstream, "shellcheck "+pinned) {
+			t.Errorf("family %s names its upstream %q, want the pinned %s", family.Name, family.Upstream, pinned)
 		}
 	}
 }

@@ -55,7 +55,7 @@ of this build yet, so no exception can be recorded today: change the script.
 
 ## Upstream
 
-ShellCheck v0.11.0, run by actionlint v1.7.12 through its ShellCheck integration:
+ShellCheck at the release `internal/toolchain/manifest.json` pins, run by actionlint v1.7.12 through its ShellCheck integration:
 <https://github.com/rhysd/actionlint/blob/v1.7.12/docs/checks.md#check-shellcheck-integration>.
 
 The page for a code is at `https://www.shellcheck.net/wiki/SC` followed by the four digits, for
