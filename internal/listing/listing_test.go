@@ -54,6 +54,32 @@ func TestNarrowMarksTheDefencesTheRecordTurnsOffEverywhere(t *testing.T) {
 	}
 }
 
+func TestAnOwnerListsTheReportsOfOtherToolsItAbsorbs(t *testing.T) {
+	reg, err := registry.New(
+		registry.Rule{ID: "actionsqaci.zizmor.template-injection", Summary: "No expansion puts attacker data into code", Absorbs: []string{"one report", "another report"}},
+		registry.Rule{ID: "actionsqaci.templateDrift", Summary: "A workflow matches its template"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got := map[string]listing.Entry{}
+	for _, entry := range listing.Active(reg) {
+		got[entry.ID] = entry
+	}
+
+	owner := got["actionsqaci.zizmor.template-injection"]
+	if !reflect.DeepEqual(owner.Absorbs, []string{"one report", "another report"}) {
+		t.Errorf("absorbs = %v", owner.Absorbs)
+	}
+	if want := "No expansion puts attacker data into code (also stands for one report; another report; the other tool's report is dropped)"; owner.Summary != want {
+		t.Errorf("summary = %q, want %q", owner.Summary, want)
+	}
+	if other := got["actionsqaci.templateDrift"]; other.Summary != "A workflow matches its template" || len(other.Absorbs) != 0 {
+		t.Errorf("a rule that absorbs nothing is listed as %+v", other)
+	}
+}
+
 func TestNarrowWithNoRecordChangesNothing(t *testing.T) {
 	reg := narrowingRegistry(t)
 	entries := listing.Active(reg)

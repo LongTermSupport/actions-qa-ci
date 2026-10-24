@@ -21,6 +21,9 @@ type Rule struct {
 	Summary string
 	// Upstream names the tool and version a bundled rule comes from; empty for first-party rules.
 	Upstream string
+	// Absorbs says which reports of another tool this rule stands for, because the hazard has one
+	// owner and the other tool's report of it is dropped. Each prints on one line.
+	Absorbs []string
 	// Check runs the rule on one file, given its repository-relative path, and returns only
 	// findings carrying this rule's identifier. It is nil for a rule that cannot run on its
 	// own, such as one a bundled backend reports only as part of its lane.
@@ -123,6 +126,11 @@ func validate(rule Rule) error {
 	}
 	if strings.ContainsFunc(rule.Summary, finding.IsControlOrSeparator) {
 		return fmt.Errorf("rule %s has a summary with a control character or line break; it must print on one line", rule.ID)
+	}
+	for _, absorbed := range rule.Absorbs {
+		if strings.TrimSpace(absorbed) == "" || strings.ContainsFunc(absorbed, finding.IsControlOrSeparator) {
+			return fmt.Errorf("rule %s absorbs a report that is blank or has a control character or line break; it must print on one line", rule.ID)
+		}
 	}
 
 	return nil

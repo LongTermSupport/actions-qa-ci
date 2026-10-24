@@ -11,12 +11,12 @@ type Kind struct {
 	Summary string
 }
 
-// kinds is every kind actionlint reports as itself, in no order that matters. Findings it
-// reports from the shellcheck and pyflakes integrations are other tools' and are not here.
+// kinds is every kind actionlint reports as itself and has a rule for, in no order that matters.
+// Findings it reports from the shellcheck and pyflakes integrations are other tools' and are not
+// here, nor is a kind whose every finding is a duplicate another rule owns (Duplicates).
 var kinds = []Kind{
 	{"syntax-check", "A workflow file is valid GitHub Actions workflow syntax"},
 	{"matrix", "A matrix has no duplicate values and no combination that matches nothing"},
-	{"credentials", "Container and service credentials come from secrets, never as literals"},
 	{"shell-name", "A step's shell is one GitHub provides"},
 	{"runner-label", "runs-on names a runner label that exists"},
 	{"events", "on: names real webhook events with valid event configuration"},
@@ -27,7 +27,7 @@ var kinds = []Kind{
 	{"glob", "Branch, tag and path filters are valid glob patterns"},
 	{"permissions", "permissions: uses real scopes with read, write or none"},
 	{"workflow-call", "A reusable-workflow call passes the inputs and secrets the callee declares"},
-	{"expression", "Every ${{ }} expression parses and type-checks, and none puts untrusted input into a script"},
+	{"expression", "Every ${{ }} expression parses and type-checks"},
 	{"deprecated-commands", "No set-output, save-state, set-env or add-path workflow command"},
 	{"if-cond", "An if: condition is not always true or always false"},
 }
@@ -40,6 +40,11 @@ func Kinds() []Kind {
 func known(kind string) bool {
 	for _, k := range kinds {
 		if k.Name == kind {
+			return true
+		}
+	}
+	for _, d := range duplicates {
+		if d.WholeKind && d.Kind == kind {
 			return true
 		}
 	}

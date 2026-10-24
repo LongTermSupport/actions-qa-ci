@@ -14,7 +14,8 @@ offline.
 A literal password is committed to history and readable by everyone who can read the repository.
 
 This rule owns the hazard class of a literal container credential. actionlint's `credentials`
-check reports the same hazard; a later change makes zizmor the only reporter.
+check reports the same hazard, and the lane drops it, so this is the one identifier a finding
+of it carries and the one an exception names.
 
 ## Correct construction
 

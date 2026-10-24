@@ -136,6 +136,11 @@ func TestTheKindsAreTheOnesActionlintCanReport(t *testing.T) {
 	for _, kind := range actionlint.Kinds() {
 		ours = append(ours, kind.Name)
 	}
+	for _, d := range actionlint.Duplicates() {
+		if d.WholeKind {
+			ours = append(ours, d.Kind)
+		}
+	}
 	slices.Sort(ours)
 
 	if strings.Join(reported, ",") != strings.Join(ours, ",") {

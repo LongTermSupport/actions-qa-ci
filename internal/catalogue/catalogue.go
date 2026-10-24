@@ -17,10 +17,24 @@ import (
 // identifier belongs to a defence of this build, for the checks that read the project record;
 // current gives the registry these rules are in, for the check that lists them.
 func Rules(known func(id string) bool, current func() *registry.Registry) []registry.Rule {
-	rules := append(actionlint.Rules(), zizmor.Rules()...)
+	rules := append(actionlint.Rules(), absorbing(zizmor.Rules(), actionlint.Duplicates())...)
 	rules = append(rules, firstparty.Rules(known)...)
 
 	return append(rules, firstparty.AgentSummaryRule(known, current))
+}
+
+// absorbing marks, on each rule that owns a hazard actionlint also reports, which of actionlint's
+// reports of it the lane drops.
+func absorbing(rules []registry.Rule, duplicates []actionlint.Duplicate) []registry.Rule {
+	for _, duplicate := range duplicates {
+		for i := range rules {
+			if rules[i].ID == duplicate.Owner {
+				rules[i].Absorbs = append(rules[i].Absorbs, duplicate.Report)
+			}
+		}
+	}
+
+	return rules
 }
 
 // Lanes returns the analyses `check` runs, in the order it runs them. The actionlint lane

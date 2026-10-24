@@ -49,12 +49,6 @@ var fixtures = map[string]pair{
 		red:   workflow(pushTrigger, "    strategy:\n      matrix:\n        os: [a, a]\n", runHi),
 		green: workflow(pushTrigger, "    strategy:\n      matrix:\n        os: [a, b]\n", runHi),
 	},
-	"credentials": {
-		red: workflow(pushTrigger,
-			"    container:\n      image: ghcr.io/x/y:1\n      credentials:\n        username: user\n        password: hunter2\n", runHi),
-		green: workflow(pushTrigger,
-			"    container:\n      image: ghcr.io/x/y:1\n      credentials:\n        username: user\n        password: ${{ secrets.REGISTRY_PASSWORD }}\n", runHi),
-	},
 	"shell-name": {
 		red:   workflow(pushTrigger, "", "    steps:\n      - run: echo hi\n        shell: bashh\n"),
 		green: workflow(pushTrigger, "", "    steps:\n      - run: echo hi\n        shell: bash\n"),

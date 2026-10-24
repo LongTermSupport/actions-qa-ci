@@ -61,8 +61,9 @@ time and reports each finding as `actionsqaci.zizmor.<audit>`, the audit's own k
 with a page under `docs/rules/` for every audit. It is found and verified the way ShellCheck is
 (beside the program, or in `ACTIONS_QA_CI_TOOLS_DIR`; never on `PATH`). Nothing of the project's or
 the caller's is applied to it: no configuration file (`--no-config`), no ignore comment honoured
-(`--no-ignores`; a finding a comment names is still reported), no network (`--offline`), an empty
-environment so that no token or `ZIZMOR_*` setting reaches it, and `--strict-collection`, so a
+(`--no-ignores`; a finding a comment names is still reported), no network (`--offline`), none of
+the caller's environment (only `NO_COLOR=1`) so that no token or `ZIZMOR_*` setting reaches it,
+and `--strict-collection`, so a
 file it cannot parse is a fault and not a clean run. Only the report decides: its exit codes are
 turned off. A zizmor killed by a signal, or that runs past five minutes or writes more than 32 MiB,
 leaves no verdict (exit 4); any other failure is exit 3.
@@ -75,6 +76,12 @@ them until the project record can enable them. The audits that need GitHub (`imp
 a pre-commit configuration, are held: they have an identifier and a page, `rule` says why it does
 not run them, and `dbf.json` declares the gap. A finding of an audit this build has no
 identifier for fails the lane, so a new zizmor audit cannot be passed over unseen.
+
+A hazard both tools report has one owner. actionlint's `credentials` kind and the "potentially
+untrusted" messages of its `expression` kind are dropped by the lane, because zizmor's
+`hardcoded-container-credentials` and `template-injection` own those hazards; a finding of either
+carries only the zizmor identifier, and so does the exception that records it. The type errors of
+the `expression` kind stay actionlint's. `actions-qa rules` states what each owner absorbs.
 
 ### The check command
 

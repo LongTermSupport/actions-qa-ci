@@ -201,6 +201,9 @@ func Convert(path string, errs []*upstream.Error) ([]finding.Finding, error) {
 		if !known(e.Kind) {
 			return nil, fmt.Errorf("actionlint reported a finding of kind %q, which this toolchain has no identifier for", e.Kind)
 		}
+		if dropped(e) {
+			continue
+		}
 
 		f := finding.Finding{
 			ID:         ID(e.Kind),

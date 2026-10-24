@@ -33,6 +33,20 @@ func TestARegistryListsItsRulesInIdentifierOrder(t *testing.T) {
 	}
 }
 
+func TestARegistryRefusesAnAbsorbedReportThatCannotPrintOnOneLine(t *testing.T) {
+	for name, absorbs := range map[string][]string{
+		"blank":     {"  "},
+		"two lines": {"one\ntwo"},
+		"escape":    {"one\x1b[2Jtwo"},
+	} {
+		r := registry.Rule{ID: templateInj, Summary: "s", Absorbs: absorbs}
+
+		if _, err := registry.New(r); err == nil {
+			t.Errorf("%s: the rule was accepted", name)
+		}
+	}
+}
+
 func TestARegistryRefusesAnIdentifierTwice(t *testing.T) {
 	if _, err := registry.New(rule(templateDrift), rule(templateDrift)); err == nil {
 		t.Fatal("a duplicate identifier was accepted; two rules would answer for one name")
