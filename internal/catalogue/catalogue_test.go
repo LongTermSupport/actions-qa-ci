@@ -3,10 +3,13 @@ package catalogue_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/LongTermSupport/actions-qa-ci/internal/catalogue"
+	"github.com/LongTermSupport/actions-qa-ci/internal/lanes/zizmor"
 	"github.com/LongTermSupport/actions-qa-ci/internal/pages"
+	"github.com/LongTermSupport/actions-qa-ci/internal/toolchain"
 )
 
 func TestTheShippedRulesFormAValidRegistry(t *testing.T) {
@@ -40,6 +43,41 @@ func TestTheShippedRegistryResolvesEveryShellcheckCodeThroughTheFamily(t *testin
 	}
 	if len(reg.Families()) != 1 {
 		t.Errorf("families = %+v, want the ShellCheck family alone", reg.Families())
+	}
+}
+
+func TestTheShippedRegistryHasARunnableRuleForEveryZizmorAudit(t *testing.T) {
+	reg, err := catalogue.Registry()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, audit := range zizmor.Audits() {
+		rule, known := reg.Lookup(zizmor.ID(audit.Name))
+		if !known || rule.Check == nil || rule.Upstream != zizmor.Tool() || !strings.HasPrefix(rule.Summary, audit.Summary) {
+			t.Errorf("%s does not resolve to a runnable rule of zizmor: %+v, %v", audit.Name, rule, known)
+		}
+		// A rule is listed as a standing defence, so one this build does not run says so there.
+		if audit.Held == "" && rule.Summary != audit.Summary {
+			t.Errorf("%s: summary %q, want %q", audit.Name, rule.Summary, audit.Summary)
+		}
+		if audit.Held != "" && !strings.Contains(rule.Summary, audit.Held) {
+			t.Errorf("%s: summary %q does not say why the audit is held: %q", audit.Name, rule.Summary, audit.Held)
+		}
+	}
+}
+
+func TestTheBundledToolsAreNamedWithTheirReleases(t *testing.T) {
+	versions := map[string]string{}
+	for _, extension := range catalogue.Extensions() {
+		versions[extension.Name] = extension.Version
+	}
+
+	if versions["zizmor"] == "" || versions["zizmor"] != toolchain.Pinned("zizmor") {
+		t.Errorf("extensions = %+v; zizmor must be named at the release the manifest pins", versions)
+	}
+	if versions["shellcheck"] != toolchain.Pinned("shellcheck") || versions["actionlint"] == "" {
+		t.Errorf("extensions = %+v", versions)
 	}
 }
 
@@ -130,13 +168,26 @@ func TestTheShippedLanesSelectExactlyWhatTheyAnalyse(t *testing.T) {
 		{"nativeSuppressionConfig", ".pinact.yaml", true},
 		{"nativeSuppressionConfig", ".github/workflows/ci.yml", false},
 		{"nativeSuppressionConfig", "sub/zizmor.yml", false},
+		{"zizmor", ".github/workflows/ci.yml", true},
+		{"zizmor", ".github/workflows/ci.yaml", true},
+		{"zizmor", ".github/workflows/sub/ci.yml", false},
+		{"zizmor", ".github/workflows/ci.yml.bak", false},
+		{"zizmor", "action.yml", true},
+		{"zizmor", ".github/actions/x/action.yaml", true},
+		{"zizmor", "other/action.yml", false},
+		{"zizmor", ".github/dependabot.yml", true},
+		{"zizmor", ".github/dependabot.yaml", true},
+		{"zizmor", "dependabot.yml", false},
+		{"zizmor", "sub/.github/dependabot.yml", false},
+		{"zizmor", ".github/actions-qa-ci.yml", false},
+		{"zizmor", "zizmor.yml", false},
 	}
 	for _, c := range cases {
 		if got := selects[c.lane](c.path); got != c.want {
 			t.Errorf("lane %s selects %s = %v, want %v", c.lane, c.path, got, c.want)
 		}
 	}
-	if len(lanes) != 8 {
+	if len(lanes) != 9 {
 		t.Errorf("lanes = %d; a lane added here needs cases above", len(lanes))
 	}
 }

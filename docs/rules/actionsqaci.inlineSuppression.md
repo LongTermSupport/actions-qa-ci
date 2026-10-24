@@ -21,9 +21,9 @@ A comment at the call site suppresses with nothing behind it: no hazard written 
 no decision, and no way for a reviewer or `actionsqaci.staleException` to find it again when the
 reason goes away. The three differ in what they do today. A `# shellcheck disable=` is honoured
 by the bundled ShellCheck, so it hides a finding in a script the rest of the toolchain never
-sees. zizmor and ratchet are not bundled yet; a `# zizmor: ignore` is honoured by anyone who
-runs zizmor bare, and will be inert once this toolchain runs zizmor with its ignores switched
-off, which leaves a comment that reads as if it worked.
+sees. This toolchain runs zizmor with its ignores switched off, so a `# zizmor: ignore` is
+inert here, which leaves a comment that reads as if it worked and is honoured by anyone who runs
+zizmor bare. ratchet is not bundled yet.
 
 ## Correct construction
 

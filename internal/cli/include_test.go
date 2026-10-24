@@ -70,7 +70,7 @@ func TestAFileNotIncludedStillCannotBeNamed(t *testing.T) {
 	}
 }
 
-func TestAnIncludedActionIsGuardedAgainstSuppressionAndNamedAsNotLinted(t *testing.T) {
+func TestAnIncludedActionIsGuardedAgainstSuppressionAndAuditedByZizmor(t *testing.T) {
 	includingRepository(t, map[string]string{"templates/lib/action.yml": includedAction})
 
 	got := runWith(t, realEnv(t, nil), "check", "--format", "agent")
@@ -78,8 +78,8 @@ func TestAnIncludedActionIsGuardedAgainstSuppressionAndNamedAsNotLinted(t *testi
 	if got.code != cli.ExitFindings || !strings.Contains(got.stdout, "templates/lib/action.yml:6") || !strings.Contains(got.stdout, "inlineSuppression") {
 		t.Errorf("exit %d, stdout %q, stderr %q; the suppression comment in an included action must be found", got.code, got.stdout, got.stderr)
 	}
-	if !strings.Contains(got.stderr, "no lane in this build analyses templates/lib/action.yml") {
-		t.Errorf("stderr %q; an action no lane lints must be named, so a clean result is not read as covering it", got.stderr)
+	if strings.Contains(got.stderr, "templates/lib/action.yml") {
+		t.Errorf("stderr %q; an included action zizmor audits is not one no lane analyses", got.stderr)
 	}
 }
 

@@ -38,14 +38,22 @@
   without end is exit 4, naming the lane and the file, and is never reported as clean; a lane
   that fails on its own account is exit 3. The `rule` harness still runs actionlint in its own
   process, which `dbf.json` declares.
+- The zizmor backend: a `zizmor` lane that audits workflows, composite actions and the
+  Dependabot file, reporting each finding as `actionsqaci.zizmor.<audit>` with a page for every
+  one of zizmor's audits and a red and a green fixture for each that runs. zizmor is the pinned
+  static executable taken from its PyPI wheel (verified by sha256, never taken from `PATH`),
+  run offline at its regular persona with no configuration, no honoured ignore comment and an
+  empty environment; a file it cannot parse is a fault and a zizmor ended by a signal or the
+  time limit is exit 4. The online audits, `forbidden-uses` and `insecure-url-scheme` have an
+  identifier and a page but are not run yet, and the pedantic and auditor audits show only in
+  `rule`; `dbf.json` declares both. The `rule` harness shows what any audit finds at zizmor's widest persona.
 - Two guards against suppression outside the project record. `actionsqaci.inlineSuppression`
   refuses a comment that tells a tool to leave a finding out (`# zizmor: ignore`,
   `# ratchet:exclude`, `# shellcheck disable=`) in a workflow or action, which closes the declared
   gap that a ShellCheck directive in a `run:` script went unreported.
   `actionsqaci.nativeSuppressionConfig` refuses a zizmor configuration file, an actionlint
   configuration with an `ignore` key and a pinact configuration with `ignore_actions`; `check`
-  now looks for those files by default. The guards read files and do not lint them, so a
-  composite action is still named as one no lane lints.
+  now looks for those files by default. The guards read files and do not lint them.
 - `actionsqaci.templateDrift` and the record's `templates` section (a `source` and its `copies`):
   a copy that differs from its source in any byte is a finding at the copy, naming the first
   differing line, and a source or copy that is missing, not a plain file or over 1 MiB is a
@@ -89,9 +97,9 @@
   that fails leaves the old file, and another name hard-linked to it keeps the old content.
 - The record's `analyse.include` section: patterns of tracked `.yml` or `.yaml` files outside the
   default set that the project wants analysed (a shipped template, say). An included workflow is
-  linted by actionlint and guarded against inline suppression; an included `action.yml` is
-  guarded against inline suppression and named on standard error as linted by no lane, like a
-  default-set action. Such a file can be named on the command line like any other. A pattern that
+  linted by actionlint and zizmor and guarded against inline suppression; an included
+  `action.yml` is audited by zizmor and guarded against inline suppression. Such a file can be
+  named on the command line like any other. A pattern that
   names no such file is an `actionsqaci.lintCoverage` finding at its entry; a file asked for that
   is a link, is missing or has an unprintable name is exit 4.
 - The `github` output format (`--format github`, or `ACTIONS_QA_FORMAT=github`): workflow
@@ -99,7 +107,7 @@
   format prints it. Every format now prints a path that starts `::` or `##[` quoted, so a file
   name cannot be read by the Actions runner as a workflow command.
 - `check --sarif <file>`: writes the findings as one SARIF 2.1.0 log with a single run (driver
-  `actions-qa-ci`, actionlint and ShellCheck as extensions with their versions, the upstream
+  `actions-qa-ci`, actionlint, ShellCheck and zizmor as extensions with their versions, the upstream
   identifier in each result's properties). A finding covered by an exception stays in the log with
   an external suppression. The file is never written through a symbolic link or to a pipe, and a
   link in the repository cannot send it outside; a log that is asked for and cannot be written is

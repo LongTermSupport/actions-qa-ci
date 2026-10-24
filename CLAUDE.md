@@ -62,6 +62,12 @@ branch named `feature/…`, `bugfix/…` or `chore/…`; the default branch is `
   runs in a child process (`internal/check/isolate.go`, started through the hidden `lane`
   command in `internal/cli/lane.go`), so a backend that crashes or hangs is exit 4, not a dead
   program.
+- The zizmor lane: `internal/lanes/zizmor` runs the pinned zizmor executable as a process of its
+  own (`lint`: no configuration, no honoured ignore, offline, an empty environment, a signal or
+  the time limit is `check.NoVerdictError`), reads its json-v1 report (`Convert`) and names each
+  audit by `Audits()`, the list the registry's rules and pages follow. An audit zizmor reports
+  that the list does not have fails the lane; one that cannot run here carries a `Held` reason.
+  Fixtures are pairs added with `addFixtures` in `fixtures_*_internal_test.go`.
 - Exceptions: `internal/locate` finds the job and step of a line, `internal/exceptions` applies
   the record's exceptions to findings and reports the stale ones.
 - The project record: `internal/record` loads `.github/actions-qa-ci.yml` and judges
@@ -89,8 +95,9 @@ branch named `feature/…`, `bugfix/…` or `chore/…`; the default branch is `
   `install.sh`, tested by running it with `sh` against real bundles; `actions-qa-dev
   install-script` fills the version and the checksums from `checksums.txt` into it and refuses
   a set of checksums that could not verify both platforms.
-- The only code that reaches the network is `internal/branchprotection`, and only under `check
-  --online`: it reads the required status checks of a branch from the GitHub API, sends the token
+- The shipped program reaches the network only in `internal/branchprotection`, and only under
+  `check --online` (the development tool `actions-qa-dev` also reaches release hosts, PyPI and the
+  module proxy to fetch and bump the pinned tools): it reads the required status checks of a branch from the GitHub API, sends the token
   nowhere but the given https address, follows no redirect and never prints the token.
 - The active defences as an agent reads them: `internal/listing` lists them (what `rules` prints)
   and `internal/agentsummary` renders and splices the generated region of `CLAUDE.md` or
@@ -131,5 +138,46 @@ its page offline.
 - `actionsqaci.staleException` — Every exception in the project record matches a finding in a full run
 - `actionsqaci.templateDrift` — Each declared copy of a template is byte-identical to its source, and a missing source or copy is a finding
 - `actionsqaci.unjustifiedException` — Every exception in the project record states a hazard, a scope and a decision, and every unanalysed file a hazard and a scope, none of them generic
+- `actionsqaci.zizmor.adhoc-packages` — No run: step installs a package by name; dependencies come from a lock file
+- `actionsqaci.zizmor.anonymous-definition` — Every workflow and action definition has a name:
+- `actionsqaci.zizmor.archived-uses` — No uses: refers to an archived repository
+- `actionsqaci.zizmor.artipacked` — Checkout does not leave credentials where an uploaded artifact could carry them out
+- `actionsqaci.zizmor.bot-conditions` — A bot is recognised by a check an attacker cannot spoof, not by github.actor
+- `actionsqaci.zizmor.cache-poisoning` — A release workflow does not read a cache that untrusted code could have written, and a privileged-trigger job does not write one
+- `actionsqaci.zizmor.concurrency-limits` — A workflow states a concurrency limit
+- `actionsqaci.zizmor.dangerous-triggers` — No workflow runs on a trigger that gives untrusted input a privileged token
+- `actionsqaci.zizmor.dependabot-cooldown` — Dependabot waits out a cooldown before it proposes a new release
+- `actionsqaci.zizmor.dependabot-execution` — Dependabot does not allow insecure external code execution
+- `actionsqaci.zizmor.excessive-permissions` — A workflow's token permissions are the least it needs
+- `actionsqaci.zizmor.forbidden-uses` — uses: stays inside the allow or deny list the project sets (not run by this build: it does nothing until it is given a policy, and the project record cannot yet give it one)
+- `actionsqaci.zizmor.github-app` — A GitHub App token is scoped to what the job needs and revoked when it ends
+- `actionsqaci.zizmor.github-env` — No step of a privileged-trigger workflow writes a non-literal value to GITHUB_ENV or GITHUB_PATH
+- `actionsqaci.zizmor.hardcoded-container-credentials` — Container and service credentials come from secrets, never as literals
+- `actionsqaci.zizmor.impostor-commit` — A pinned commit belongs to the repository it is pinned in, not to a fork of it (not run by this build: it asks GitHub about the repositories a workflow uses, and this build runs zizmor offline)
+- `actionsqaci.zizmor.insecure-commands` — ACTIONS_ALLOW_UNSECURE_COMMANDS is never set
+- `actionsqaci.zizmor.insecure-url-scheme` — A pre-commit repo: URL uses https or ssh, not http or git (not run by this build: it reads only a pre-commit configuration, and this build does not collect those)
+- `actionsqaci.zizmor.known-vulnerable-actions` — No uses: names an action version that has a published advisory (not run by this build: it asks GitHub about the repositories a workflow uses, and this build runs zizmor offline)
+- `actionsqaci.zizmor.misfeature` — No pip-install input, cmd shell or non-standard shell
+- `actionsqaci.zizmor.obfuscation` — uses: paths and expressions are written plainly, not obfuscated
+- `actionsqaci.zizmor.overprovisioned-secrets` — A step does not expose the whole secrets context
+- `actionsqaci.zizmor.ref-confusion` — A uses: ref is not a name that is both a branch and a tag (not run by this build: it asks GitHub about the repositories a workflow uses, and this build runs zizmor offline)
+- `actionsqaci.zizmor.ref-version-mismatch` — The version comment beside a pinned commit names that commit's release (not run by this build: it asks GitHub about the repositories a workflow uses, and this build runs zizmor offline)
+- `actionsqaci.zizmor.secrets-inherit` — A reusable workflow is given the secrets it needs, not secrets: inherit
+- `actionsqaci.zizmor.secrets-outside-env` — A secret is used only in a job that has a dedicated environment
+- `actionsqaci.zizmor.self-hosted-runner` — A job runs on a GitHub-hosted runner unless self-hosting is a recorded decision
+- `actionsqaci.zizmor.self-repository` — A step that uses an action of the repository's own checkout is written uses: $/path, not uses: ./path
+- `actionsqaci.zizmor.stale-action-refs` — A pinned commit is the commit of a release tag (not run by this build: it asks GitHub about the repositories a workflow uses, and this build runs zizmor offline)
+- `actionsqaci.zizmor.superfluous-actions` — No action does what the runner image already provides
+- `actionsqaci.zizmor.template-injection` — No ${{ }} expansion puts attacker-controllable data into code
+- `actionsqaci.zizmor.typosquat-uses` — No uses: names a repository that imitates a popular one
+- `actionsqaci.zizmor.undocumented-permissions` — Every entry of a permissions: block says why it is needed
+- `actionsqaci.zizmor.unpinned-images` — A container image is named by a digest, not by no tag, latest or a mutable tag
+- `actionsqaci.zizmor.unpinned-tools` — The known tool-downloading actions (setup-trivy, load-secrets-action) are given a version, not none or latest
+- `actionsqaci.zizmor.unpinned-uses` — uses: is pinned to a full commit SHA
+- `actionsqaci.zizmor.unredacted-secrets` — A secret is used whole, not as a field of structured data the runner would not redact
+- `actionsqaci.zizmor.unsound-condition` — An if: condition does not hold a fenced expression in a block scalar that keeps its newline, which makes it always true
+- `actionsqaci.zizmor.unsound-contains` — contains() searches a list, not a string a partial match could satisfy
+- `actionsqaci.zizmor.unsound-ternary` — A && / || pseudo-ternary does not have a statically falsy true value
+- `actionsqaci.zizmor.use-trusted-publishing` — A packaging workflow publishes with trusted publishing, not a long-lived token
 
 <!-- actions-qa-ci:end -->
