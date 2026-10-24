@@ -16,7 +16,7 @@
     },
     {
       "id": "zizmor-runs-offline-at-the-regular-persona",
-      "description": "The zizmor lane runs offline and at zizmor's regular persona. Its online audits (impostor-commit, known-vulnerable-actions, ref-confusion, ref-version-mismatch, stale-action-refs), forbidden-uses, which needs a policy, and insecure-url-scheme, which reads only a pre-commit configuration that is not collected, have an identifier and a page but are not run, and the run does not yet list them as skipped by name. The pedantic and auditor audits are shown by the rule harness (`rule`) but not by `check`, until the project record can enable them."
+      "description": "The zizmor lane runs offline and at zizmor's regular persona. Its online audits (impostor-commit, known-vulnerable-actions, ref-confusion, ref-version-mismatch, stale-action-refs), forbidden-uses, which needs a policy, and insecure-url-scheme, which reads only a pre-commit configuration that is not collected, have an identifier and a page but are not run, and every run of the lane names each of them on the diagnostic stream with its reason. The pedantic and auditor audits are shown by the rule harness (`rule`) but not by `check`, until the project record can enable them."
     },
     {
       "id": "zizmor-and-actionlint-both-report-untrusted-input",

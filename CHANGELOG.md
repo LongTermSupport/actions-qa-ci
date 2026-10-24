@@ -52,6 +52,8 @@
   is the only identifier a finding of it carries, and `rules` states what the owner absorbs.
   actionlint's "potentially untrusted" `expression` messages are kept, because zizmor's regular
   persona does not report a `fromJSON` of an untrusted input; `dbf.json` declares the overlap.
+  A run in which the zizmor lane analyses a file names, on stderr, each audit it does not run and
+  why, so a clean result is not read as covering the network audits.
 - Two guards against suppression outside the project record. `actionsqaci.inlineSuppression`
   refuses a comment that tells a tool to leave a finding out (`# zizmor: ignore`,
   `# ratchet:exclude`, `# shellcheck disable=`) in a workflow or action, which closes the declared

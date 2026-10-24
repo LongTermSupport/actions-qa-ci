@@ -66,6 +66,7 @@ func Lanes(reg *registry.Registry) []check.Lane {
 			},
 			Run:    zizmor.Lint,
 			Covers: check.Workflows | check.Actions,
+			NotRun: zizmorNotRun(),
 		},
 		{
 			Name:    "firstParty",
@@ -113,6 +114,18 @@ func Lanes(reg *registry.Registry) []check.Lane {
 			Guard:   true,
 		},
 	}
+}
+
+// zizmorNotRun is each audit of zizmor's that this build holds, with the reason.
+func zizmorNotRun() []check.NotRun {
+	var held []check.NotRun
+	for _, audit := range zizmor.Audits() {
+		if audit.Held != "" {
+			held = append(held, check.NotRun{ID: zizmor.ID(audit.Name), Reason: audit.Held})
+		}
+	}
+
+	return held
 }
 
 // Extensions returns the bundled tools this build runs, with the releases they are at, for a

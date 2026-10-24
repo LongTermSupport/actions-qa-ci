@@ -1,6 +1,7 @@
 package catalogue_test
 
 import (
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -8,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/LongTermSupport/actions-qa-ci/internal/catalogue"
+	"github.com/LongTermSupport/actions-qa-ci/internal/check"
 	"github.com/LongTermSupport/actions-qa-ci/internal/lanes/actionlint"
 	"github.com/LongTermSupport/actions-qa-ci/internal/lanes/zizmor"
 	"github.com/LongTermSupport/actions-qa-ci/internal/pages"
@@ -69,6 +71,42 @@ func TestTheShippedRegistryHasARunnableRuleForEveryZizmorAudit(t *testing.T) {
 		}
 		if audit.Held != "" && !strings.Contains(rule.Summary, audit.Held) {
 			t.Errorf("%s: summary %q does not say why the audit is held: %q", audit.Name, rule.Summary, audit.Held)
+		}
+	}
+}
+
+func TestTheZizmorLaneNamesEveryAuditThisBuildHoldsAndNoOther(t *testing.T) {
+	reg, err := catalogue.Registry()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var lane *check.Lane
+	for _, candidate := range catalogue.Lanes(reg) {
+		if candidate.Name == "zizmor" {
+			lane = &candidate
+		}
+	}
+	if lane == nil {
+		t.Fatal("there is no zizmor lane")
+	}
+
+	want := map[string]string{}
+	for _, audit := range zizmor.Audits() {
+		if audit.Held != "" {
+			want[zizmor.ID(audit.Name)] = audit.Held
+		}
+	}
+	got := map[string]string{}
+	for _, notRun := range lane.NotRun {
+		got[notRun.ID] = notRun.Reason
+	}
+	if !maps.Equal(got, want) {
+		t.Errorf("the lane says it does not run %v, the audits held are %v", got, want)
+	}
+	for _, other := range catalogue.Lanes(reg) {
+		if other.Name != "zizmor" && len(other.NotRun) != 0 {
+			t.Errorf("the %s lane says it does not run %v; nothing of it is held", other.Name, other.NotRun)
 		}
 	}
 }

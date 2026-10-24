@@ -38,6 +38,17 @@ type Lane struct {
 	// Covers says which kinds of file the project record includes (analyse.include) the lane
 	// analyses as well as the files Selects names; see Widen.
 	Covers Coverage
+	// NotRun names the checks the lane's backend has that this build does not run, each with
+	// why, so that a run says by name what a clean result does not cover.
+	NotRun []NotRun
+}
+
+// NotRun is one check a lane's backend has that the build leaves out.
+type NotRun struct {
+	// ID is the identifier of the rule that states the check.
+	ID string
+	// Reason is why it is not run.
+	Reason string
 }
 
 // LaneError is a lane failing on a file. It is a fault of the toolchain or of the file's
