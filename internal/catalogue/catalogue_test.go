@@ -104,6 +104,11 @@ func TestTheZizmorLaneNamesEveryAuditThisBuildHoldsAndNoOther(t *testing.T) {
 	if !maps.Equal(got, want) {
 		t.Errorf("the lane says it does not run %v, the audits held are %v", got, want)
 	}
+	for _, other := range catalogue.Lanes(reg) {
+		if other.Name != "zizmor" && len(other.NotRun) != 0 {
+			t.Errorf("the %s lane says it does not run %v; nothing of it is held", other.Name, other.NotRun)
+		}
+	}
 }
 
 func TestEveryReportActionlintDropsIsAbsorbedByARegisteredOwner(t *testing.T) {

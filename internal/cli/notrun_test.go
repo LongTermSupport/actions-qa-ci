@@ -1,6 +1,8 @@
 package cli_test
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -51,6 +53,54 @@ func TestCheckNamesTheSkippedAuditsWhenItIsGivenFiles(t *testing.T) {
 
 	if got.code != cli.ExitOK || strings.Count(got.stderr, "does not run") != 2 {
 		t.Errorf("exit %d, stderr %q", got.code, got.stderr)
+	}
+}
+
+func TestTheNoteIsPrintedWhicheverFileOfTheRunTheLaneAnalysed(t *testing.T) {
+	first, last := ".github/workflows/a.yml", ".github/workflows/z.yml"
+	for name, only := range map[string]string{"first": first, "last": last} {
+		repository(t, map[string]string{first: "on: push\n", last: "on: push\n"})
+		var run laneRun
+		lane := laneThatDoesNotRun(&run)
+		lane.Selects = func(path string) bool { return path == only }
+
+		got := runWith(t, checkEnv(t, lane), "check")
+
+		if strings.Count(got.stderr, "does not run") != 2 {
+			t.Errorf("%s file only: stderr %q; the lane looked at a file and has audits to skip", name, got.stderr)
+		}
+	}
+}
+
+func TestEveryChosenLaneThatAnalysedAFileNamesItsOwnSkippedAudits(t *testing.T) {
+	repository(t, map[string]string{workflowPath: "on: push\n"})
+	var run laneRun
+	second := run.lane("beta", yml, findsNothing)
+	second.NotRun = []check.NotRun{{ID: "actionsqaci.zizmor.stale-action-refs", Reason: "it needs the network"}}
+
+	got := runWith(t, checkEnv(t, laneThatDoesNotRun(&run), second), "check")
+
+	if !strings.Contains(got.stderr, "the alpha lane does not run actionsqaci.zizmor.forbidden-uses") || !strings.Contains(got.stderr, "the beta lane does not run actionsqaci.zizmor.stale-action-refs") {
+		t.Errorf("stderr %q; each lane speaks for itself", got.stderr)
+	}
+}
+
+func TestTheNoteDoesNotChangeWhatTheSarifLogHolds(t *testing.T) {
+	repository(t, map[string]string{workflowPath: "on: push\n"})
+	var run laneRun
+	log := filepath.Join(t.TempDir(), "out.sarif")
+
+	got := runWith(t, checkEnv(t, laneThatDoesNotRun(&run)), "check", "--sarif", log)
+
+	if got.code != cli.ExitOK || strings.Count(got.stderr, "does not run") != 2 {
+		t.Fatalf("exit %d, stderr %q", got.code, got.stderr)
+	}
+	written, err := os.ReadFile(log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(written), "does not run") {
+		t.Errorf("the SARIF log carries the diagnostic note: %s", written)
 	}
 }
 
