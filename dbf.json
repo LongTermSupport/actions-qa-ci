@@ -23,8 +23,8 @@
       "description": "actionlint's potentially-untrusted messages of its expression kind and zizmor's template-injection report the same hazard, so one expression can carry two identifiers and need two exceptions. The actionlint messages are kept because zizmor's regular persona, which check runs, does not report a fromJSON of an untrusted input; they are dropped once the default persona is decided."
     },
     {
-      "id": "zizmor-misses-two-credential-shapes-actionlint-reports",
-      "description": "actionlint's credentials kind is dropped in favour of zizmor's hardcoded-container-credentials, which does not report a container or service password that is a secret followed by a literal expression (${{ secrets.A }}${{ 'x' }}) or an empty one (null, ~)."
+      "id": "zizmor-misses-credential-shapes-actionlint-reports",
+      "description": "actionlint's credentials kind is dropped in favour of zizmor's hardcoded-container-credentials, which does not report a container or service password made of two or more expressions, in either order (${{ secrets.A }}${{ 'x' }}, ${{ 'x' }}${{ secrets.A }}), or an empty one (null, ~)."
     },
     {
       "id": "actionlint-runs-in-process",
