@@ -158,10 +158,11 @@ func TestOnlyTheLaneThatRunsAThirdPartyBackendIsIsolated(t *testing.T) {
 		isolated[lane.Name] = lane.Isolated
 	}
 
-	if len(isolated) != 8 || !isolated["actionlint"] {
+	if len(isolated) != 9 || !isolated["actionlint"] {
 		t.Errorf("isolated lanes = %v; actionlint runs a third-party parser and is isolated", isolated)
 	}
-	for _, name := range []string{"firstParty", "templateDrift", "requiredChecks", "lintCoverage", "agentSummaryCurrent", "inlineSuppression", "nativeSuppressionConfig"} {
+	// zizmor is a process of its own that its lane watches, so it is not run in a second one.
+	for _, name := range []string{"zizmor", "firstParty", "templateDrift", "requiredChecks", "lintCoverage", "agentSummaryCurrent", "inlineSuppression", "nativeSuppressionConfig"} {
 		if isolated[name] {
 			t.Errorf("lane %s is this program's own code and is not isolated", name)
 		}

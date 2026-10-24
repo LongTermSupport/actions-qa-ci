@@ -432,9 +432,9 @@ func TestTheProgramsOwnCheckOfARepositoryWithNothingToAnalyseIsClean(t *testing.
 func TestTheProgramsOwnCheckNamesItsLanesWhenOneIsMistyped(t *testing.T) {
 	repository(t, map[string]string{"README.md": "# x\n"})
 
-	got := runProgram(t, "check", "-t", "zizmor")
+	got := runProgram(t, "check", "-t", "zizmr")
 
-	if got.code != cli.ExitUsage || !strings.Contains(got.stderr, "actionlint, firstParty") {
+	if got.code != cli.ExitUsage || !strings.Contains(got.stderr, "actionlint, zizmor, firstParty") {
 		t.Errorf("exit %d, stderr %q", got.code, got.stderr)
 	}
 }

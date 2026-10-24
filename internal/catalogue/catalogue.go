@@ -6,6 +6,7 @@ import (
 	"github.com/LongTermSupport/actions-qa-ci/internal/check"
 	"github.com/LongTermSupport/actions-qa-ci/internal/firstparty"
 	"github.com/LongTermSupport/actions-qa-ci/internal/lanes/actionlint"
+	"github.com/LongTermSupport/actions-qa-ci/internal/lanes/zizmor"
 	"github.com/LongTermSupport/actions-qa-ci/internal/output"
 	"github.com/LongTermSupport/actions-qa-ci/internal/record"
 	"github.com/LongTermSupport/actions-qa-ci/internal/registry"
@@ -16,7 +17,8 @@ import (
 // identifier belongs to a defence of this build, for the checks that read the project record;
 // current gives the registry these rules are in, for the check that lists them.
 func Rules(known func(id string) bool, current func() *registry.Registry) []registry.Rule {
-	rules := append(actionlint.Rules(), firstparty.Rules(known)...)
+	rules := append(actionlint.Rules(), zizmor.Rules()...)
+	rules = append(rules, firstparty.Rules(known)...)
 
 	return append(rules, firstparty.AgentSummaryRule(known, current))
 }
@@ -39,6 +41,17 @@ func Lanes(reg *registry.Registry) []check.Lane {
 			Run:      actionlint.Lint,
 			Isolated: true,
 			Covers:   check.Workflows,
+		},
+		{
+			// zizmor is an executable that runs as a process of its own, and the lane judges how
+			// that process ended (a signal or the time limit is no verdict), so it is not
+			// isolated again in a child of this program.
+			Name: "zizmor",
+			Selects: func(path string) bool {
+				return check.IsWorkflow(path) || check.IsActionFile(path) || check.IsDependabotFile(path)
+			},
+			Run:    zizmor.Lint,
+			Covers: check.Workflows | check.Actions,
 		},
 		{
 			Name:    "firstParty",
@@ -94,6 +107,7 @@ func Extensions() []output.Extension {
 	return []output.Extension{
 		{Name: "actionlint", Version: actionlint.Version},
 		{Name: "shellcheck", Version: actionlint.ShellcheckVersion()},
+		{Name: "zizmor", Version: zizmor.Version()},
 	}
 }
 
