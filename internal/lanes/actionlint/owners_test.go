@@ -28,6 +28,20 @@ var untrustedInputs = map[string]fixture{
 		"    steps:\n      - run: echo ${{ join(github.event.commits.*.message) }}\n"),
 	"a fromJSON of the input": workflow(pushTrigger, "",
 		"    steps:\n      - run: echo ${{ fromJSON(github.event.issue.title) }}\n"),
+	"a branch name": workflow(pushTrigger, "",
+		"    steps:\n      - run: echo ${{ github.head_ref }}\n"),
+	"an object filter over every property": workflow(pushTrigger, "",
+		"    steps:\n      - run: echo ${{ toJSON(github.event.*.body) }}\n"),
+}
+
+func TestTheObjectFilterWordingIsOneOfTheUntrustedMessagesKept(t *testing.T) {
+	target := inProject(t, untrustedInputs["an object filter over every property"])
+
+	found, err := actionlint.Lint(target)
+
+	if err != nil || len(found) != 1 || !strings.Contains(found[0].Message, "object filter extracts potentially untrusted properties") {
+		t.Errorf("got %+v, %v; this fixture is the object-filter wording of the message", found, err)
+	}
 }
 
 func TestHardCodedContainerCredentialsAreNotReportedByActionlint(t *testing.T) {
