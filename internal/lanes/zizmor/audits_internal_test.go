@@ -3,6 +3,7 @@ package zizmor
 import (
 	"bytes"
 	"os"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -169,6 +170,51 @@ func TestEveryAuditIsOneThePinnedZizmorKnowsByThatName(t *testing.T) {
 	for _, a := range Audits() {
 		if !bytes.Contains(content, []byte(a.Name)) {
 			t.Errorf("the pinned zizmor does not contain the audit name %q; it may have been renamed or removed", a.Name)
+		}
+	}
+}
+
+func TestEveryAuditThePinnedZizmorHasIsOneTheListNames(t *testing.T) {
+	binary, err := pinnedZizmor()
+	if err != nil {
+		t.Fatal(err)
+	}
+	content, err := os.ReadFile(binary)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	known := map[string]bool{}
+	for _, a := range Audits() {
+		known[a.Name] = true
+	}
+	sources := regexp.MustCompile(`crates/zizmor/src/audit/([a-z_]+)\.rs`).FindAllSubmatch(content, -1)
+	if len(sources) == 0 {
+		t.Fatal("the pinned zizmor names no audit source file; this test reads the wrong thing")
+	}
+	for _, match := range sources {
+		name := strings.ReplaceAll(string(match[1]), "_", "-")
+		if name != "mod" && !known[name] {
+			t.Errorf("the pinned zizmor has an audit %q that the list does not: add it, with a page and a fixture pair", name)
+		}
+	}
+}
+
+func TestARuleSaysWhenCheckDoesNotReportItsAuditAndOnlyThen(t *testing.T) {
+	for _, name := range sortedKeys(fixtures) {
+		a, ok := audit(name)
+		if !ok {
+			t.Errorf("%s has a fixture and no entry in the list", name)
+
+			continue
+		}
+		if a.WiderPersonaOnly == fixtures[name].atDefault {
+			t.Errorf("%s: WiderPersonaOnly = %v but the lane's persona reports it = %v", name, a.WiderPersonaOnly, fixtures[name].atDefault)
+		}
+		for _, rule := range Rules() {
+			if rule.ID == ID(name) && strings.Contains(rule.Summary, widerPersonaNote) != a.WiderPersonaOnly {
+				t.Errorf("%s: the summary %q and WiderPersonaOnly = %v disagree", name, rule.Summary, a.WiderPersonaOnly)
+			}
 		}
 	}
 }

@@ -8,7 +8,7 @@ persona only, a hash pin with no version comment at all.
 
 This build does not run the audit yet. zizmor skips it unless it is given a GitHub API token,
 because it asks GitHub which release a commit belongs to, and this build runs zizmor offline with
-an empty environment. The rule keeps its identifier and this page so that a finding of it is never
+none of the caller's environment. The rule keeps its identifier and this page so that a finding of it is never
 an unknown one, and running the rule says why it is held.
 
 ## Hazard

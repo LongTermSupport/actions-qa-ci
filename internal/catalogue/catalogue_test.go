@@ -58,8 +58,12 @@ func TestTheShippedRegistryHasARunnableRuleForEveryZizmorAudit(t *testing.T) {
 			t.Errorf("%s does not resolve to a runnable rule of zizmor: %+v, %v", audit.Name, rule, known)
 		}
 		// A rule is listed as a standing defence, so one this build does not run says so there.
-		if audit.Held == "" && rule.Summary != audit.Summary {
+		if audit.Held == "" && !audit.WiderPersonaOnly && rule.Summary != audit.Summary {
 			t.Errorf("%s: summary %q, want %q", audit.Name, rule.Summary, audit.Summary)
+		}
+		// Likewise an audit `check` does not report is not listed as one it enforces.
+		if audit.WiderPersonaOnly && !strings.Contains(rule.Summary, "reported by the rule only") {
+			t.Errorf("%s: summary %q does not say check leaves the audit out", audit.Name, rule.Summary)
 		}
 		if audit.Held != "" && !strings.Contains(rule.Summary, audit.Held) {
 			t.Errorf("%s: summary %q does not say why the audit is held: %q", audit.Name, rule.Summary, audit.Held)

@@ -153,6 +153,7 @@ func TestWhatCannotBeReadAsAFindingIsAnErrorAndNeverCleanOrDropped(t *testing.T)
 		"an end before the start":                       encode(t, entry("artipacked", "d", "High", false, location(reportedPath, "Primary", "a", 5, 0, 2, 0))),
 		"a report that is not JSON":                     []byte("not json"),
 		"a report that is not a list":                   []byte(`{"ident":"artipacked"}`),
+		"a report that is null":                         []byte("null"),
 		"a report with something after the list":        []byte("[] []"),
 		"no report at all":                              nil,
 	}

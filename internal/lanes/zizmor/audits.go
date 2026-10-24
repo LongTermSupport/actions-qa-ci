@@ -2,6 +2,7 @@ package zizmor
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/LongTermSupport/actions-qa-ci/internal/finding"
 	"github.com/LongTermSupport/actions-qa-ci/internal/registry"
@@ -16,6 +17,23 @@ type Audit struct {
 	// Held is why this build does not run the audit, or empty when it does. The audit still has
 	// its identifier and its page, so that a finding of it is never an unknown one.
 	Held string
+	// WiderPersonaOnly is true when zizmor reports the audit only at its pedantic or auditor
+	// persona, which the lane's own persona is not, so `check` never shows it and only the rule
+	// does.
+	WiderPersonaOnly bool
+}
+
+// widerPersonaNote is what a rule's summary says of an audit `check` does not report.
+const widerPersonaNote = "reported by the rule only: zizmor's regular persona, which check runs, leaves it out"
+
+// widerPersonaOnly names the audits the regular persona does not report at all.
+var widerPersonaOnly = []string{
+	"anonymous-definition",
+	"concurrency-limits",
+	"secrets-outside-env",
+	"self-hosted-runner",
+	"superfluous-actions",
+	"undocumented-permissions",
 }
 
 const (
@@ -28,7 +46,26 @@ const (
 
 // audits is every audit zizmor reports a finding of, in alphabetical order: the files of
 // crates/zizmor/src/audit at the pinned release.
-var audits = []Audit{
+var audits = withPersonas(listed)
+
+// listedAudit is an audit as the list below writes it.
+type listedAudit struct{ name, summary, held string }
+
+func withPersonas(list []listedAudit) []Audit {
+	built := make([]Audit, 0, len(list))
+	for _, e := range list {
+		built = append(built, Audit{
+			Name:             e.name,
+			Summary:          e.summary,
+			Held:             e.held,
+			WiderPersonaOnly: slices.Contains(widerPersonaOnly, e.name),
+		})
+	}
+
+	return built
+}
+
+var listed = []listedAudit{
 	{"adhoc-packages", "No run: step installs a package by name; dependencies come from a lock file", ""},
 	{"anonymous-definition", "Every workflow and action definition has a name:", ""},
 	{"archived-uses", "No uses: refers to an archived repository", ""},
@@ -103,6 +140,9 @@ func Rules() []registry.Rule {
 			// The listing of defences shows the summary, and must not present as standing an
 			// audit this build does not run.
 			summary += " (not run by this build: " + a.Held + ")"
+		}
+		if a.WiderPersonaOnly {
+			summary += " (" + widerPersonaNote + ")"
 		}
 		rules = append(rules, registry.Rule{
 			ID:       ID(a.Name),

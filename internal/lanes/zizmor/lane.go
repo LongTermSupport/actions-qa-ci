@@ -88,7 +88,7 @@ func pinnedZizmor() (string, error) {
 //
 // Nothing of the project's or the caller's is applied. zizmor is not given its configuration
 // (an ignore there would suppress a finding with no recorded justification), is told to honour
-// no ignore comment, runs offline, and is started with an empty environment, so no token, no
+// no ignore comment, runs offline, and is started with an environment of its own (only NO_COLOR=1), so no token, no
 // configuration path and no option of the caller's reaches it. A file it cannot parse is an
 // error and not a clean run. It decides nothing by its exit code, only by the report it prints.
 func lint(binary, path, persona string, bound limits) ([]finding.Finding, error) {
@@ -217,13 +217,18 @@ type point struct {
 // Convert turns zizmor's json-v1 report for the file at path into findings. An audit the lane has
 // no identifier for is an error: relabelling or dropping it would hide a defence the upstream
 // added, so a bump that introduces one fails until it has a page and a fixture. So is a finding
-// that cannot be placed in the file, one zizmor says it ignored, and anything but a list.
+// that cannot be placed in the file, and anything but a list. A finding zizmor marks ignored is
+// reported like any other: the lane runs with ignores off, and the project record is where a
+// finding is suppressed.
 func Convert(path string, written []byte) ([]finding.Finding, error) {
 	decoder := json.NewDecoder(bytes.NewReader(written))
 
 	var reports []report
 	if err := decoder.Decode(&reports); err != nil {
 		return nil, fmt.Errorf("zizmor's report is not a list of findings: %s", finding.Escape(err.Error()))
+	}
+	if reports == nil {
+		return nil, errors.New("zizmor's report is not a list of findings: it is null")
 	}
 	if _, err := decoder.Token(); !errors.Is(err, io.EOF) {
 		return nil, errors.New("zizmor wrote more than its report")

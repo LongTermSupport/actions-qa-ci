@@ -43,7 +43,7 @@
   one of zizmor's audits and a red and a green fixture for each that runs. zizmor is the pinned
   static executable taken from its PyPI wheel (verified by sha256, never taken from `PATH`),
   run offline at its regular persona with no configuration, no honoured ignore comment and an
-  empty environment; a file it cannot parse is a fault and a zizmor ended by a signal or the
+  environment of the caller's; a file it cannot parse is a fault and a zizmor ended by a signal or the
   time limit is exit 4. The online audits, `forbidden-uses` and `insecure-url-scheme` have an
   identifier and a page but are not run yet, and the pedantic and auditor audits show only in
   `rule`; `dbf.json` declares both. The `rule` harness shows what any audit finds at zizmor's widest persona.

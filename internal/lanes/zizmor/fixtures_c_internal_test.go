@@ -57,7 +57,7 @@ func init() {
 		},
 		"use-trusted-publishing": {
 			// The documented form with a password: input is not used here, because zizmor gives it two
-			// primary locations and the lane refuses a finding with more than one.
+			// primary locations and the lane reports at the first, the step, not the credential line.
 			red: workflowOf("", cleanSteps+"      - name: publish\n        run: twine upload dist/*\n"),
 			green: single(header + "jobs:\n  a:\n    name: a\n    runs-on: ubuntu-latest\n    environment: pypi\n    permissions:\n      contents: read\n      id-token: write # exchanges the job's identity for a short-lived PyPI token\n    steps:\n" +
 				cleanSteps + "      - name: publish\n        uses: " + pypiPublishPin + "\n"),
