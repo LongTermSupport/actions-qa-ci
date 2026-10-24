@@ -9,7 +9,7 @@
   integration workflow.
 - The `rules [--json]` and `rule-doc <id>` commands, the rule registry, and the generated
   identifier index under `docs/rules/` with a self-audit that every rule has a complete page.
-- The actionlint backend, compiled in as a library: sixteen rules,
+- The actionlint backend, compiled in as a library: fifteen rules,
   `actionsqaci.actionlint.<kind>`, each with a page stating the correct construction and a red
   and a green fixture. The project's own actionlint configuration is deliberately not applied.
 - ShellCheck on the `bash` and `sh` scripts in `run:` steps, through actionlint:
@@ -42,11 +42,16 @@
   Dependabot file, reporting each finding as `actionsqaci.zizmor.<audit>` with a page for every
   one of zizmor's audits and a red and a green fixture for each that runs. zizmor is the pinned
   static executable taken from its PyPI wheel (verified by sha256, never taken from `PATH`),
-  run offline at its regular persona with no configuration, no honoured ignore comment and an
-  environment of the caller's; a file it cannot parse is a fault and a zizmor ended by a signal or the
-  time limit is exit 4. The online audits, `forbidden-uses` and `insecure-url-scheme` have an
+  run offline at its regular persona with no configuration, no honoured ignore comment and none
+  of the caller's environment; a file it cannot parse is a fault and a zizmor ended by a signal or
+  the time limit is exit 4. The online audits, `forbidden-uses` and `insecure-url-scheme` have an
   identifier and a page but are not run yet, and the pedantic and auditor audits show only in
   `rule`; `dbf.json` declares both. The `rule` harness shows what any audit finds at zizmor's widest persona.
+  A hazard both tools report has one owner where the owner reports everything the other would:
+  actionlint's `credentials` kind is dropped, so `actionsqaci.zizmor.hardcoded-container-credentials`
+  is the only identifier a finding of it carries, and `rules` states what the owner absorbs.
+  actionlint's "potentially untrusted" `expression` messages are kept, because zizmor's regular
+  persona does not report a `fromJSON` of an untrusted input; `dbf.json` declares the overlap.
 - Two guards against suppression outside the project record. `actionsqaci.inlineSuppression`
   refuses a comment that tells a tool to leave a finding out (`# zizmor: ignore`,
   `# ratchet:exclude`, `# shellcheck disable=`) in a workflow or action, which closes the declared

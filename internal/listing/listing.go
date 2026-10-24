@@ -6,6 +6,7 @@ import (
 	"cmp"
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/LongTermSupport/actions-qa-ci/internal/pages"
 	"github.com/LongTermSupport/actions-qa-ci/internal/record"
@@ -18,6 +19,9 @@ type Entry struct {
 	Summary  string `json:"summary"`
 	Upstream string `json:"upstream"`
 	DocPath  string `json:"docPath"`
+	// Absorbs names the reports of other tools this defence stands for, which are dropped where
+	// those tools report them, so that a hazard has the one owner and the one identifier.
+	Absorbs []string `json:"absorbs,omitempty"`
 	// NarrowedBy says how the project record turns the defence off, which is a narrowing of the
 	// method's standard and has to be visible wherever the defences are listed.
 	NarrowedBy []string `json:"narrowedBy,omitempty"`
@@ -57,7 +61,11 @@ func Narrow(reg *registry.Registry, entries []Entry, rec *record.Record) {
 func Active(reg *registry.Registry) []Entry {
 	entries := []Entry{}
 	for _, rule := range reg.All() {
-		entries = append(entries, Entry{ID: rule.ID, Summary: rule.Summary, Upstream: rule.Upstream, DocPath: registry.DocPath(rule.ID)})
+		summary := rule.Summary
+		if len(rule.Absorbs) > 0 {
+			summary += " (also stands for " + strings.Join(rule.Absorbs, "; ") + "; the other tool's report is dropped)"
+		}
+		entries = append(entries, Entry{ID: rule.ID, Summary: summary, Upstream: rule.Upstream, DocPath: registry.DocPath(rule.ID), Absorbs: rule.Absorbs})
 	}
 	for _, family := range reg.Families() {
 		entries = append(entries, Entry{ID: family.Name, Summary: family.Summary, Upstream: family.Upstream, DocPath: pages.Directory + "/" + family.Page + ".md"})

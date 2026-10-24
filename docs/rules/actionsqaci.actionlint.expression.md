@@ -13,6 +13,11 @@ An expression that does not type-check is wrong at run time, so a condition or a
 the author wrote. Untrusted input interpolated into a `run:` script is code injection: the value is
 pasted into the script before the shell sees it.
 
+`actionsqaci.zizmor.template-injection` reports the same hazard for most of these expressions.
+actionlint's report is kept because zizmor's regular persona, which `check` runs, does not report
+all of them (a `fromJSON` of an untrusted input is left to its pedantic persona), so one expression
+can carry both identifiers.
+
 ## Correct construction
 
 ```yaml

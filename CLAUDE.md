@@ -114,7 +114,6 @@ edit. Each line is a standing rule `actions-qa check` enforces; `actions-qa rule
 its page offline.
 
 - `actionsqaci.actionlint.action` — uses: names a well-formed action reference with a version and valid inputs
-- `actionsqaci.actionlint.credentials` — Container and service credentials come from secrets, never as literals
 - `actionsqaci.actionlint.deprecated-commands` — No set-output, save-state, set-env or add-path workflow command
 - `actionsqaci.actionlint.env-var` — Environment variable names contain no space, = or &
 - `actionsqaci.actionlint.events` — on: names real webhook events with valid event configuration
@@ -152,7 +151,7 @@ its page offline.
 - `actionsqaci.zizmor.forbidden-uses` — uses: stays inside the allow or deny list the project sets (not run by this build: it does nothing until it is given a policy, and the project record cannot yet give it one)
 - `actionsqaci.zizmor.github-app` — A GitHub App token is scoped to what the job needs and revoked when it ends
 - `actionsqaci.zizmor.github-env` — No step of a privileged-trigger workflow writes a non-literal value to GITHUB_ENV or GITHUB_PATH
-- `actionsqaci.zizmor.hardcoded-container-credentials` — Container and service credentials come from secrets, never as literals
+- `actionsqaci.zizmor.hardcoded-container-credentials` — Container and service credentials come from secrets, never as literals (also stands for actionlint's credentials kind; the other tool's report is dropped)
 - `actionsqaci.zizmor.impostor-commit` — A pinned commit belongs to the repository it is pinned in, not to a fork of it (not run by this build: it asks GitHub about the repositories a workflow uses, and this build runs zizmor offline)
 - `actionsqaci.zizmor.insecure-commands` — ACTIONS_ALLOW_UNSECURE_COMMANDS is never set
 - `actionsqaci.zizmor.insecure-url-scheme` — A pre-commit repo: URL uses https or ssh, not http or git (not run by this build: it reads only a pre-commit configuration, and this build does not collect those)

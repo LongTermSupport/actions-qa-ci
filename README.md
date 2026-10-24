@@ -8,7 +8,7 @@ identifier and a page stating the correct construction.
 This repository is being built in phases. What exists today is the core: the Go module, the
 conformance declaration, the finding model and identifier scheme, the rule registry, the output
 formats, the `version`, `rules`, `rule-doc`, `rule` and `check` commands, and the repository's own
-CI. The first backend is compiled in: actionlint, as sixteen rules, with ShellCheck running on the
+CI. The first backend is compiled in: actionlint, as fifteen rules, with ShellCheck running on the
 shell in `run:` steps. The remaining backends and the first-party checks arrive in later phases.
 
 ## Requirements
@@ -61,8 +61,9 @@ time and reports each finding as `actionsqaci.zizmor.<audit>`, the audit's own k
 with a page under `docs/rules/` for every audit. It is found and verified the way ShellCheck is
 (beside the program, or in `ACTIONS_QA_CI_TOOLS_DIR`; never on `PATH`). Nothing of the project's or
 the caller's is applied to it: no configuration file (`--no-config`), no ignore comment honoured
-(`--no-ignores`; a finding a comment names is still reported), no network (`--offline`), an empty
-environment so that no token or `ZIZMOR_*` setting reaches it, and `--strict-collection`, so a
+(`--no-ignores`; a finding a comment names is still reported), no network (`--offline`), none of
+the caller's environment (only `NO_COLOR=1`) so that no token or `ZIZMOR_*` setting reaches it,
+and `--strict-collection`, so a
 file it cannot parse is a fault and not a clean run. Only the report decides: its exit codes are
 turned off. A zizmor killed by a signal, or that runs past five minutes or writes more than 32 MiB,
 leaves no verdict (exit 4); any other failure is exit 3.
@@ -75,6 +76,15 @@ them until the project record can enable them. The audits that need GitHub (`imp
 a pre-commit configuration, are held: they have an identifier and a page, `rule` says why it does
 not run them, and `dbf.json` declares the gap. A finding of an audit this build has no
 identifier for fails the lane, so a new zizmor audit cannot be passed over unseen.
+
+A hazard both tools report has one owner, where the owner reports everything the other would.
+actionlint's `credentials` kind is dropped by the lane, because zizmor's
+`hardcoded-container-credentials` owns that hazard; a finding of it carries only the zizmor
+identifier, and so does the exception that records it. `actions-qa rules` states what an owner
+absorbs. The "potentially untrusted" messages of actionlint's `expression` kind are not dropped:
+zizmor's `template-injection` owns the hazard, but at the regular persona `check` runs it does not
+report a `fromJSON` of an untrusted input, so dropping them would lose those findings. Both
+identifiers can therefore appear for one expression, and `dbf.json` declares it.
 
 ### The check command
 

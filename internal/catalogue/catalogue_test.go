@@ -3,10 +3,12 @@ package catalogue_test
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/LongTermSupport/actions-qa-ci/internal/catalogue"
+	"github.com/LongTermSupport/actions-qa-ci/internal/lanes/actionlint"
 	"github.com/LongTermSupport/actions-qa-ci/internal/lanes/zizmor"
 	"github.com/LongTermSupport/actions-qa-ci/internal/pages"
 	"github.com/LongTermSupport/actions-qa-ci/internal/toolchain"
@@ -67,6 +69,25 @@ func TestTheShippedRegistryHasARunnableRuleForEveryZizmorAudit(t *testing.T) {
 		}
 		if audit.Held != "" && !strings.Contains(rule.Summary, audit.Held) {
 			t.Errorf("%s: summary %q does not say why the audit is held: %q", audit.Name, rule.Summary, audit.Held)
+		}
+	}
+}
+
+func TestEveryReportActionlintDropsIsAbsorbedByARegisteredOwner(t *testing.T) {
+	reg, err := catalogue.Registry()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, duplicate := range actionlint.Duplicates() {
+		owner, known := reg.Lookup(duplicate.Owner)
+		if !known {
+			t.Errorf("%s drops %s, and its owner %s is not a rule of this build", duplicate.Kind, duplicate.Report, duplicate.Owner)
+
+			continue
+		}
+		if !slices.Contains(owner.Absorbs, duplicate.Report) {
+			t.Errorf("%s absorbs %v, and does not say it stands for %q", owner.ID, owner.Absorbs, duplicate.Report)
 		}
 	}
 }
