@@ -74,7 +74,9 @@ them until the project record can enable them. The audits that need GitHub (`imp
 `known-vulnerable-actions`, `ref-confusion`, `ref-version-mismatch`, `stale-action-refs`),
 `forbidden-uses`, which does nothing without a policy, and `insecure-url-scheme`, which reads only
 a pre-commit configuration, are held: they have an identifier and a page, `rule` says why it does
-not run them, and `dbf.json` declares the gap. A finding of an audit this build has no
+not run them, `check` names each of them, with its reason, on stderr whenever the zizmor lane is
+among those it runs (`actions-qa: the zizmor lane does not run <identifier>: <reason>`, so a
+clean result is not read as covering them), and `dbf.json` declares the gap. A finding of an audit this build has no
 identifier for fails the lane, so a new zizmor audit cannot be passed over unseen.
 
 A hazard both tools report has one owner. actionlint's `credentials` kind and the "potentially

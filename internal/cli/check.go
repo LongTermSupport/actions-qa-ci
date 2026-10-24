@@ -123,11 +123,28 @@ func checkCommand(env Env, args []string, stdout, stderr io.Writer) int {
 			return fault(stderr, fmt.Errorf("cannot write output: %w", err))
 		}
 	}
+	if err := noteNotRun(lanes, stderr); err != nil {
+		return fault(stderr, fmt.Errorf("cannot write output: %w", err))
+	}
 	if hasUnexcepted(found) {
 		return ExitFindings
 	}
 
 	return ExitOK
+}
+
+// noteNotRun names, on the diagnostic stream, each check of a chosen lane's backend that this
+// build does not run and why, so a clean result is not read as covering it.
+func noteNotRun(lanes []check.Lane, stderr io.Writer) error {
+	for _, lane := range lanes {
+		for _, skipped := range lane.NotRun {
+			if _, err := fmt.Fprintf(stderr, "actions-qa: the %s lane does not run %s: %s\n", finding.Escape(lane.Name), finding.Escape(skipped.ID), finding.Escape(skipped.Reason)); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
 
 type checkArguments struct {

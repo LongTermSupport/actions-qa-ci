@@ -51,7 +51,8 @@
   untrusted" `expression` messages are dropped, so `actionsqaci.zizmor.hardcoded-container-credentials`
   and `actionsqaci.zizmor.template-injection` are the only identifiers a finding of them carries (a
   type error of the `expression` kind stays actionlint's), and `rules` states what each owner
-  absorbs.
+  absorbs. A run that includes the zizmor lane names, on stderr, each audit it does not run and
+  why, so a clean result is not read as covering the network audits.
 - Two guards against suppression outside the project record. `actionsqaci.inlineSuppression`
   refuses a comment that tells a tool to leave a finding out (`# zizmor: ignore`,
   `# ratchet:exclude`, `# shellcheck disable=`) in a workflow or action, which closes the declared
