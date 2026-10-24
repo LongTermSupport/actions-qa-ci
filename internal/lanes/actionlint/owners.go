@@ -1,13 +1,15 @@
 package actionlint
 
 import (
-	"regexp"
-
 	upstream "github.com/rhysd/actionlint"
 )
 
 // Duplicate is a report of actionlint's that another rule owns, which the lane therefore drops: a
 // hazard reported twice would carry two identifiers and need two exceptions.
+//
+// A report is dropped only where the owner reports everything the dropped report would. zizmor's
+// regular persona does not (it leaves a fromJSON of an untrusted input to its pedantic persona),
+// so actionlint's "potentially untrusted" expression messages are not dropped.
 type Duplicate struct {
 	// Report says which of actionlint's reports is dropped.
 	Report string
@@ -17,10 +19,6 @@ type Duplicate struct {
 	WholeKind bool
 	// Owner is the identifier of the rule that reports the hazard instead.
 	Owner string
-
-	// messages is what a finding of the kind says when it is this duplicate, for a kind that also
-	// carries findings that stay (a type error is actionlint's alone).
-	messages []*regexp.Regexp
 }
 
 var duplicates = []Duplicate{
@@ -29,15 +27,6 @@ var duplicates = []Duplicate{
 		Kind:      "credentials",
 		WholeKind: true,
 		Owner:     "actionsqaci.zizmor.hardcoded-container-credentials",
-	},
-	{
-		Report: "actionlint's expression findings that call an input potentially untrusted",
-		Kind:   "expression",
-		Owner:  "actionsqaci.zizmor.template-injection",
-		messages: []*regexp.Regexp{
-			regexp.MustCompile(`(?s)^".*" is potentially untrusted\. avoid using it directly in inline scripts`),
-			regexp.MustCompile(`(?s)^object filter extracts potentially untrusted properties `),
-		},
 	},
 }
 
@@ -49,16 +38,8 @@ func Duplicates() []Duplicate {
 // dropped says whether actionlint's error is a duplicate of a hazard another rule owns.
 func dropped(e *upstream.Error) bool {
 	for _, d := range duplicates {
-		if d.Kind != e.Kind {
-			continue
-		}
-		if d.WholeKind {
+		if d.WholeKind && d.Kind == e.Kind {
 			return true
-		}
-		for _, message := range d.messages {
-			if message.MatchString(e.Message) {
-				return true
-			}
 		}
 	}
 

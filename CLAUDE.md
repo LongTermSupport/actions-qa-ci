@@ -117,7 +117,7 @@ its page offline.
 - `actionsqaci.actionlint.deprecated-commands` — No set-output, save-state, set-env or add-path workflow command
 - `actionsqaci.actionlint.env-var` — Environment variable names contain no space, = or &
 - `actionsqaci.actionlint.events` — on: names real webhook events with valid event configuration
-- `actionsqaci.actionlint.expression` — Every ${{ }} expression parses and type-checks
+- `actionsqaci.actionlint.expression` — Every ${{ }} expression parses and type-checks, and none puts untrusted input into a script
 - `actionsqaci.actionlint.glob` — Branch, tag and path filters are valid glob patterns
 - `actionsqaci.actionlint.id` — Job and step IDs are unique and well formed
 - `actionsqaci.actionlint.if-cond` — An if: condition is not always true or always false
@@ -167,7 +167,7 @@ its page offline.
 - `actionsqaci.zizmor.self-repository` — A step that uses an action of the repository's own checkout is written uses: $/path, not uses: ./path
 - `actionsqaci.zizmor.stale-action-refs` — A pinned commit is the commit of a release tag (not run by this build: it asks GitHub about the repositories a workflow uses, and this build runs zizmor offline)
 - `actionsqaci.zizmor.superfluous-actions` — No action does what the runner image already provides (reported by the rule only: zizmor's regular persona, which check runs, leaves it out)
-- `actionsqaci.zizmor.template-injection` — No ${{ }} expansion puts attacker-controllable data into code (also stands for actionlint's expression findings that call an input potentially untrusted; the other tool's report is dropped)
+- `actionsqaci.zizmor.template-injection` — No ${{ }} expansion puts attacker-controllable data into code
 - `actionsqaci.zizmor.typosquat-uses` — No uses: names a repository that imitates a popular one
 - `actionsqaci.zizmor.undocumented-permissions` — Every entry of a permissions: block says why it is needed (reported by the rule only: zizmor's regular persona, which check runs, leaves it out)
 - `actionsqaci.zizmor.unpinned-images` — A container image is named by a digest, not by no tag, latest or a mutable tag

@@ -9,7 +9,7 @@
   integration workflow.
 - The `rules [--json]` and `rule-doc <id>` commands, the rule registry, and the generated
   identifier index under `docs/rules/` with a self-audit that every rule has a complete page.
-- The actionlint backend, compiled in as a library: sixteen rules,
+- The actionlint backend, compiled in as a library: fifteen rules,
   `actionsqaci.actionlint.<kind>`, each with a page stating the correct construction and a red
   and a green fixture. The project's own actionlint configuration is deliberately not applied.
 - ShellCheck on the `bash` and `sh` scripts in `run:` steps, through actionlint:
@@ -47,12 +47,13 @@
   the time limit is exit 4. The online audits, `forbidden-uses` and `insecure-url-scheme` have an
   identifier and a page but are not run yet, and the pedantic and auditor audits show only in
   `rule`; `dbf.json` declares both. The `rule` harness shows what any audit finds at zizmor's widest persona.
-  A hazard both tools report has one owner: actionlint's `credentials` kind and its "potentially
-  untrusted" `expression` messages are dropped, so `actionsqaci.zizmor.hardcoded-container-credentials`
-  and `actionsqaci.zizmor.template-injection` are the only identifiers a finding of them carries (a
-  type error of the `expression` kind stays actionlint's), and `rules` states what each owner
-  absorbs. A run in which the zizmor lane analyses a file names, on stderr, each audit it does not
-  run and why, so a clean result is not read as covering the network audits.
+  A hazard both tools report has one owner where the owner reports everything the other would:
+  actionlint's `credentials` kind is dropped, so `actionsqaci.zizmor.hardcoded-container-credentials`
+  is the only identifier a finding of it carries, and `rules` states what the owner absorbs.
+  actionlint's "potentially untrusted" `expression` messages are kept, because zizmor's regular
+  persona does not report a `fromJSON` of an untrusted input; `dbf.json` declares the overlap.
+  A run in which the zizmor lane analyses a file names, on stderr, each audit it does not run and
+  why, so a clean result is not read as covering the network audits.
 - Two guards against suppression outside the project record. `actionsqaci.inlineSuppression`
   refuses a comment that tells a tool to leave a finding out (`# zizmor: ignore`,
   `# ratchet:exclude`, `# shellcheck disable=`) in a workflow or action, which closes the declared

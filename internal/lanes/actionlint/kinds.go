@@ -27,7 +27,7 @@ var kinds = []Kind{
 	{"glob", "Branch, tag and path filters are valid glob patterns"},
 	{"permissions", "permissions: uses real scopes with read, write or none"},
 	{"workflow-call", "A reusable-workflow call passes the inputs and secrets the callee declares"},
-	{"expression", "Every ${{ }} expression parses and type-checks"},
+	{"expression", "Every ${{ }} expression parses and type-checks, and none puts untrusted input into a script"},
 	{"deprecated-commands", "No set-output, save-state, set-env or add-path workflow command"},
 	{"if-cond", "An if: condition is not always true or always false"},
 }

@@ -8,7 +8,7 @@ identifier and a page stating the correct construction.
 This repository is being built in phases. What exists today is the core: the Go module, the
 conformance declaration, the finding model and identifier scheme, the rule registry, the output
 formats, the `version`, `rules`, `rule-doc`, `rule` and `check` commands, and the repository's own
-CI. The first backend is compiled in: actionlint, as sixteen rules, with ShellCheck running on the
+CI. The first backend is compiled in: actionlint, as fifteen rules, with ShellCheck running on the
 shell in `run:` steps. The remaining backends and the first-party checks arrive in later phases.
 
 ## Requirements
@@ -79,11 +79,14 @@ analyses at least one file (`actions-qa: the zizmor lane does not run <identifie
 clean result is not read as covering them), and `dbf.json` declares the gap. A finding of an audit this build has no
 identifier for fails the lane, so a new zizmor audit cannot be passed over unseen.
 
-A hazard both tools report has one owner. actionlint's `credentials` kind and the "potentially
-untrusted" messages of its `expression` kind are dropped by the lane, because zizmor's
-`hardcoded-container-credentials` and `template-injection` own those hazards; a finding of either
-carries only the zizmor identifier, and so does the exception that records it. The type errors of
-the `expression` kind stay actionlint's. `actions-qa rules` states what each owner absorbs.
+A hazard both tools report has one owner, where the owner reports everything the other would.
+actionlint's `credentials` kind is dropped by the lane, because zizmor's
+`hardcoded-container-credentials` owns that hazard; a finding of it carries only the zizmor
+identifier, and so does the exception that records it. `actions-qa rules` states what an owner
+absorbs. The "potentially untrusted" messages of actionlint's `expression` kind are not dropped:
+zizmor's `template-injection` owns the hazard, but at the regular persona `check` runs it does not
+report a `fromJSON` of an untrusted input, so dropping them would lose those findings. Both
+identifiers can therefore appear for one expression, and `dbf.json` declares it.
 
 ### The check command
 
