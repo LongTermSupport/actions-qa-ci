@@ -1,7 +1,6 @@
 package actionlint_test
 
 import (
-	"slices"
 	"strings"
 	"testing"
 
@@ -10,18 +9,16 @@ import (
 	"github.com/LongTermSupport/actions-qa-ci/internal/lanes/actionlint"
 )
 
-const (
-	credentialsOwner = "actionsqaci.zizmor.hardcoded-container-credentials"
-	injectionOwner   = "actionsqaci.zizmor.template-injection"
-)
+const credentialsOwner = "actionsqaci.zizmor.hardcoded-container-credentials"
 
 // hardCodedPassword is a workflow actionlint's credentials kind reports. zizmor owns the hazard,
 // so the lane reports nothing of it.
 var hardCodedPassword = workflow(pushTrigger,
 	"    container:\n      image: ghcr.io/x/y:1\n      credentials:\n        username: user\n        password: hunter2\n", runHi)
 
-// untrustedInputs are the ways actionlint words "this expression puts untrusted input into a
-// script". zizmor owns the hazard; the type errors of the same kind stay actionlint's.
+// untrustedInputs are workflows whose expression actionlint calls potentially untrusted. zizmor's
+// regular persona does not report every one of them (a fromJSON of the input is only a
+// pedantic-persona finding), so the lane keeps actionlint's report of all of them.
 var untrustedInputs = map[string]fixture{
 	"a run step": workflow(pushTrigger, "",
 		"    steps:\n      - run: echo ${{ github.event.issue.title }}\n"),
@@ -29,53 +26,37 @@ var untrustedInputs = map[string]fixture{
 		"    steps:\n      - uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea\n        with:\n          script: console.log('${{ github.event.pull_request.body }}')\n"),
 	"an object filter": workflow(pushTrigger, "",
 		"    steps:\n      - run: echo ${{ join(github.event.commits.*.message) }}\n"),
-	"head_ref": workflow(pushTrigger, "",
-		"    steps:\n      - run: echo ${{ github.head_ref }}\n"),
+	"a fromJSON of the input": workflow(pushTrigger, "",
+		"    steps:\n      - run: echo ${{ fromJSON(github.event.issue.title) }}\n"),
 }
 
-func TestWhatZizmorOwnsIsNotReportedByActionlint(t *testing.T) {
-	cases := map[string]fixture{"hard-coded container credentials": hardCodedPassword}
-	for name, fx := range untrustedInputs {
-		cases["untrusted input in "+name] = fx
-	}
-
-	for _, name := range sortedKeys(cases) {
-		target := inProject(t, cases[name])
-
-		found, err := actionlint.Lint(target)
-
-		if err != nil || len(found) != 0 {
-			t.Errorf("%s: got %+v, %v; zizmor owns the hazard and actionlint reports none of it", name, found, err)
-		}
-	}
-}
-
-func TestATypeErrorOfTheExpressionKindStaysWhereAnUntrustedInputIsDropped(t *testing.T) {
-	target := inProject(t, workflow(pushTrigger, "",
-		"    steps:\n      - run: echo ${{ github.event.issue.title }}\n      - run: echo ${{ github.evnt }}\n"))
+func TestHardCodedContainerCredentialsAreNotReportedByActionlint(t *testing.T) {
+	target := inProject(t, hardCodedPassword)
 
 	found, err := actionlint.Lint(target)
 
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(found) != 1 || found[0].ID != "actionsqaci.actionlint.expression" || !strings.Contains(found[0].Message, "evnt") {
-		t.Errorf("got %+v; the type error is actionlint's alone", found)
+	if err != nil || len(found) != 0 {
+		t.Errorf("got %+v, %v; zizmor owns the hazard and actionlint reports none of it", found, err)
 	}
 }
 
-func TestTheDropsAreTheDuplicatesAndEachNamesItsOwner(t *testing.T) {
-	var owners []string
-	for _, d := range actionlint.Duplicates() {
-		owners = append(owners, d.Owner)
-		if strings.TrimSpace(d.Report) == "" {
-			t.Errorf("a duplicate owned by %s does not say what is dropped", d.Owner)
+func TestAnUntrustedInputIsStillReportedByActionlintWhereZizmorsRegularPersonaMissesIt(t *testing.T) {
+	for _, name := range sortedKeys(untrustedInputs) {
+		target := inProject(t, untrustedInputs[name])
+
+		found, err := actionlint.Lint(target)
+
+		if err != nil || len(found) != 1 || found[0].ID != "actionsqaci.actionlint.expression" || !strings.Contains(found[0].Message, "potentially untrusted") {
+			t.Errorf("%s: got %+v, %v; dropping this report would leave a hazard nobody reports", name, found, err)
 		}
 	}
-	slices.Sort(owners)
+}
 
-	if got, want := strings.Join(owners, ","), credentialsOwner+","+injectionOwner; got != want {
-		t.Errorf("the duplicates are owned by %s, want %s", got, want)
+func TestTheOnlyDuplicateDroppedIsTheCredentialsKindAndItNamesItsOwner(t *testing.T) {
+	duplicates := actionlint.Duplicates()
+
+	if len(duplicates) != 1 || duplicates[0].Owner != credentialsOwner || duplicates[0].Kind != "credentials" || !duplicates[0].WholeKind || strings.TrimSpace(duplicates[0].Report) == "" {
+		t.Errorf("duplicates = %+v", duplicates)
 	}
 }
 

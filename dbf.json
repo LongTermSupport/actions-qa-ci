@@ -19,6 +19,14 @@
       "description": "The zizmor lane runs offline and at zizmor's regular persona. Its online audits (impostor-commit, known-vulnerable-actions, ref-confusion, ref-version-mismatch, stale-action-refs), forbidden-uses, which needs a policy, and insecure-url-scheme, which reads only a pre-commit configuration that is not collected, have an identifier and a page but are not run, and the run does not yet list them as skipped by name. The pedantic and auditor audits are shown by the rule harness (`rule`) but not by `check`, until the project record can enable them."
     },
     {
+      "id": "zizmor-and-actionlint-both-report-untrusted-input",
+      "description": "actionlint's potentially-untrusted messages of its expression kind and zizmor's template-injection report the same hazard, so one expression can carry two identifiers and need two exceptions. The actionlint messages are kept because zizmor's regular persona, which check runs, does not report a fromJSON of an untrusted input; they are dropped once the default persona is decided."
+    },
+    {
+      "id": "zizmor-misses-two-credential-shapes-actionlint-reports",
+      "description": "actionlint's credentials kind is dropped in favour of zizmor's hardcoded-container-credentials, which does not report a container or service password that is a secret followed by a literal expression (${{ secrets.A }}${{ 'x' }}) or an empty one (null, ~)."
+    },
+    {
       "id": "actionlint-runs-in-process",
       "description": "`check` runs the actionlint lane in a child process with a time limit, so a workflow that crashes its parser or never finishes is exit 4; but the `rule` harness still runs actionlint inside its own process, so a workflow built to recurse without bound (a million nested parentheses) ends `rule` with the Go runtime's own exit code 2, and one built to be slow runs there without a time bound."
     },
