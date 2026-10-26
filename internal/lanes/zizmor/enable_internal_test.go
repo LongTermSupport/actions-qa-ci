@@ -1,11 +1,14 @@
 package zizmor
 
 import (
+	"errors"
 	"os"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/LongTermSupport/actions-qa-ci/internal/check"
 	"github.com/LongTermSupport/actions-qa-ci/internal/finding"
 )
 
@@ -15,9 +18,13 @@ import (
 func personaReports(t *testing.T) (binary, record string) {
 	t.Helper()
 
-	regular := string(encode(t, entry("artipacked", "d", "Medium", false, location(reportedPath, "Primary", "a", 0, 0, 0, 1))))
+	// The regular finding is below the ones the wider persona adds, so that a list not put in order
+	// afterwards is noticed. The wider persona also reports an audit the regular one runs (as
+	// template-injection does for more expansions), which enabling another audit must not bring.
+	regular := string(encode(t, entry("artipacked", "d", "Medium", false, location(reportedPath, "Primary", "a", 5, 0, 5, 1))))
 	auditor := string(encode(t,
-		entry("artipacked", "d", "Medium", false, location(reportedPath, "Primary", "a", 0, 0, 0, 1)),
+		entry("artipacked", "d", "Medium", false, location(reportedPath, "Primary", "a", 5, 0, 5, 1)),
+		entry("template-injection", "d", "Low", false, location(reportedPath, "Primary", "t", 3, 0, 3, 1)),
 		entry("concurrency-limits", "d", "Low", false, location(reportedPath, "Primary", "b", 1, 0, 1, 1)),
 		entry("undocumented-permissions", "d", "Low", false, location(reportedPath, "Primary", "c", 2, 0, 2, 1)),
 	))
@@ -79,6 +86,42 @@ func TestAnEnabledAuditIsReportedAndNoOtherOfTheWiderPersona(t *testing.T) {
 	}
 	if got := upstreamIDs(found); !slices.Equal(got, []string{"artipacked", "concurrency-limits"}) {
 		t.Errorf("findings = %q; want the regular persona's and only the enabled audit of the wider one", got)
+	}
+}
+
+func TestTheFindingsAreInTheOrderTheLaneReportsThemWhateverRanFirst(t *testing.T) {
+	found, err := lintEnabling(personaBinary(t), reportedPath, []string{"concurrency-limits", "undocumented-permissions"}, testLimits)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	var lines []int
+	for _, f := range found {
+		lines = append(lines, f.Line)
+	}
+	if !slices.IsSorted(lines) || len(lines) != 3 {
+		t.Errorf("lines = %v; want the three findings in line order", lines)
+	}
+}
+
+func TestTheWiderRunIsHeldToTheSameTimeAndOutputLimitsAsTheRegularOne(t *testing.T) {
+	slow := standInBinary(t, `case "$*" in
+*--persona=auditor*) sleep 20 ;;
+*) echo '[]' ;;
+esac`)
+	_, err := lintEnabling(slow, reportedPath, []string{"concurrency-limits"}, limits{timeout: 300 * time.Millisecond, maxOutput: 1 << 20, maxStderr: 4 << 10})
+	var ended *check.NoVerdictError
+	if !errors.As(err, &ended) {
+		t.Errorf("a wider run past the time limit: err = %v; want no verdict", err)
+	}
+
+	loud := standInBinary(t, `case "$*" in
+*--persona=auditor*) yes '[]' | while read -r line; do echo "$line"; done ;;
+*) echo '[]' ;;
+esac`)
+	_, err = lintEnabling(loud, reportedPath, []string{"concurrency-limits"}, limits{timeout: 10 * time.Second, maxOutput: 64, maxStderr: 4 << 10})
+	if !errors.As(err, &ended) {
+		t.Errorf("a wider run that writes past the output limit: err = %v; want no verdict", err)
 	}
 }
 

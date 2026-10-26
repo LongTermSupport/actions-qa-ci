@@ -128,6 +128,20 @@ func TestALaneThatCannotEnableWhatItOffersIsRefused(t *testing.T) {
 	}
 }
 
+func TestAnIsolatedLaneCannotHoldDefencesBack(t *testing.T) {
+	// The child process an isolated lane runs in is started without the project record, so what
+	// the record enabled would silently not happen.
+	var asked [][]string
+	lane := offering("o", &asked)
+	lane.Isolated = true
+
+	_, err := check.Run([]check.Lane{lane}, []string{"x"})
+
+	if err == nil || !strings.Contains(err.Error(), "o") {
+		t.Errorf("err = %v; want the lane refused and named", err)
+	}
+}
+
 func TestALaneFailingToEnableIsAnError(t *testing.T) {
 	boom := errors.New("cannot enable")
 	lane := plain("p")

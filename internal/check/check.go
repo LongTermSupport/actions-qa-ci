@@ -127,6 +127,8 @@ func validate(lanes []Lane) error {
 			return fmt.Errorf("lane %s is defined twice", lane.Name)
 		case len(lane.OptIn) > 0 && lane.Enable == nil:
 			return fmt.Errorf("lane %s holds defences back and cannot enable them", lane.Name)
+		case len(lane.OptIn) > 0 && lane.Isolated:
+			return fmt.Errorf("lane %s holds defences back and runs in a child process that cannot be told which to enable", lane.Name)
 		}
 		seen[lane.Name] = true
 	}
