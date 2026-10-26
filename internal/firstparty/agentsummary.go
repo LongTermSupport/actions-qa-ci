@@ -43,6 +43,7 @@ func CheckAgentSummaryCurrent(known func(id string) bool, current func() *regist
 
 		entries := listing.Active(reg)
 		listing.Narrow(reg, entries, rec)
+		listing.Enable(entries, rec)
 		want, err := agentsummary.Region(entries)
 		if err != nil {
 			return nil, err

@@ -67,6 +67,8 @@ func Lanes(reg *registry.Registry) []check.Lane {
 			Run:    zizmor.Lint,
 			Covers: check.Workflows | check.Actions,
 			NotRun: zizmorNotRun(),
+			OptIn:  zizmorOptIn(),
+			Enable: zizmor.Enabling,
 		},
 		{
 			Name:    "firstParty",
@@ -114,6 +116,18 @@ func Lanes(reg *registry.Registry) []check.Lane {
 			Guard:   true,
 		},
 	}
+}
+
+// zizmorOptIn is each audit of zizmor's that the lane runs only where the project record asks.
+func zizmorOptIn() []string {
+	var ids []string
+	for _, audit := range zizmor.Audits() {
+		if audit.OptIn() {
+			ids = append(ids, zizmor.ID(audit.Name))
+		}
+	}
+
+	return ids
 }
 
 // zizmorNotRun is each audit of zizmor's that this build holds, with the reason.

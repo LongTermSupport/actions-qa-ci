@@ -6,8 +6,8 @@ A workflow does not use an action whose work the runner image already does with 
 zizmor keeps a list of such actions (for example the Rust toolchain installer, where `rustup` is
 already on the runner, or the release actions, where `gh release create` is) and flags each
 `uses:` that names one. This is a pedantic-persona audit: the lane's default run does not report
-it, and only the rule's own harness shows it until the project record enables it. It needs no
-network.
+it, so `actions-qa check` reports it only where the project record's `calibrations.enable` names
+this identifier, and the rule's own harness always shows it. It needs no network.
 
 ## Hazard
 

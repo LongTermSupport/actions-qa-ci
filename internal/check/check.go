@@ -41,6 +41,11 @@ type Lane struct {
 	// NotRun names the checks the lane's backend has that this build does not run, each with
 	// why, so that a run says by name what a clean result does not cover.
 	NotRun []NotRun
+	// OptIn names the defences the lane runs only where the project record asks for them, by
+	// identifier. A lane that has any also has Enable.
+	OptIn []string
+	// Enable returns the lane's run with the given defences of OptIn switched on.
+	Enable func(ids []string) (func(path string) ([]finding.Finding, error), error)
 }
 
 // NotRun is one check a lane's backend has that the build leaves out.
@@ -120,6 +125,10 @@ func validate(lanes []Lane) error {
 			return fmt.Errorf("lane %s cannot run", lane.Name)
 		case seen[lane.Name]:
 			return fmt.Errorf("lane %s is defined twice", lane.Name)
+		case len(lane.OptIn) > 0 && lane.Enable == nil:
+			return fmt.Errorf("lane %s holds defences back and cannot enable them", lane.Name)
+		case len(lane.OptIn) > 0 && lane.Isolated:
+			return fmt.Errorf("lane %s holds defences back and runs in a child process that cannot be told which to enable", lane.Name)
 		}
 		seen[lane.Name] = true
 	}

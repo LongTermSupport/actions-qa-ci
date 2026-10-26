@@ -8,8 +8,8 @@ name. The value is passed through an `env:` variable and the script reads it as 
 
 At the regular persona, which the lane runs by default, zizmor reports the expansions of contexts
 an attacker can control. At the pedantic and auditor personas, which only the rule's own harness
-shows until the project record's `enable` exists, it reports every expansion in a code context. The
-audit works offline.
+shows (the project record cannot enable part of an audit the lane already runs), it reports every
+expansion in a code context. The audit works offline.
 
 ## Hazard
 

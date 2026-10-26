@@ -69,8 +69,24 @@ turned off. A zizmor killed by a signal, or that runs past five minutes or write
 leaves no verdict (exit 4); any other failure is exit 3.
 
 The lane runs at zizmor's `regular` persona. The pedantic and auditor audits have identifiers
-and pages, and `actions-qa rule <id> <path>` shows what each finds, but `check` does not report
-them until the project record can enable them. The audits that need GitHub (`impostor-commit`,
+and pages, and `actions-qa rule <id> <path>` shows what each finds, but `check` reports one
+only where the project record asks for it:
+
+```yaml
+version: 1
+calibrations:
+  enable:
+    - actionsqaci.zizmor.concurrency-limits
+```
+
+An audit named there is run at zizmor's auditor persona as well, and only its findings are kept,
+so enabling one audit changes what no other reports; its findings are excepted like any other.
+Only an audit the regular persona leaves out and this build runs can be enabled (the six whose
+rule says so: `anonymous-definition`, `concurrency-limits`, `secrets-outside-env`,
+`self-hosted-runner`, `superfluous-actions`, `undocumented-permissions`); anything else is
+refused with the entry's line. Asking for a defence makes the standard stricter, so it needs no
+justification. `actions-qa rules` shows an enabled audit with an `enabled:` line. The audits that
+need GitHub (`impostor-commit`,
 `known-vulnerable-actions`, `ref-confusion`, `ref-version-mismatch`, `stale-action-refs`),
 `forbidden-uses`, which does nothing without a policy, and `insecure-url-scheme`, which reads only
 a pre-commit configuration, are held: they have an identifier and a page, `rule` says why it does

@@ -5,9 +5,9 @@
 A workflow states a `concurrency` group with `cancel-in-progress: true`, or with an expression
 that is true in most cases. A workflow with no suitable `concurrency` setting is reported.
 
-zizmor reports this at the pedantic persona. The lane runs the regular persona, so this rule is
-shown only by its own harness until the project record's `enable` exists. The audit works
-offline.
+zizmor reports this at the pedantic persona. The lane runs the regular persona, so `actions-qa
+check` reports it only where the project record's `calibrations.enable` names this identifier; this
+rule's own harness always shows it. The audit works offline.
 
 ## Hazard
 

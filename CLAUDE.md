@@ -138,12 +138,12 @@ its page offline.
 - `actionsqaci.templateDrift` — Each declared copy of a template is byte-identical to its source, and a missing source or copy is a finding
 - `actionsqaci.unjustifiedException` — Every exception in the project record states a hazard, a scope and a decision, and every unanalysed file a hazard and a scope, none of them generic
 - `actionsqaci.zizmor.adhoc-packages` — No run: step installs a package by name; dependencies come from a lock file
-- `actionsqaci.zizmor.anonymous-definition` — Every workflow and action definition has a name: (reported by the rule only: zizmor's regular persona, which check runs, leaves it out)
+- `actionsqaci.zizmor.anonymous-definition` — Every workflow and action definition has a name: (not reported by check unless the project record's calibrations.enable names it: zizmor's regular persona, which check runs, leaves it out)
 - `actionsqaci.zizmor.archived-uses` — No uses: refers to an archived repository
 - `actionsqaci.zizmor.artipacked` — Checkout does not leave credentials where an uploaded artifact could carry them out
 - `actionsqaci.zizmor.bot-conditions` — A bot is recognised by a check an attacker cannot spoof, not by github.actor
 - `actionsqaci.zizmor.cache-poisoning` — A release workflow does not read a cache that untrusted code could have written, and a privileged-trigger job does not write one
-- `actionsqaci.zizmor.concurrency-limits` — A workflow states a concurrency limit (reported by the rule only: zizmor's regular persona, which check runs, leaves it out)
+- `actionsqaci.zizmor.concurrency-limits` — A workflow states a concurrency limit (not reported by check unless the project record's calibrations.enable names it: zizmor's regular persona, which check runs, leaves it out)
 - `actionsqaci.zizmor.dangerous-triggers` — No workflow runs on a trigger that gives untrusted input a privileged token
 - `actionsqaci.zizmor.dependabot-cooldown` — Dependabot waits out a cooldown before it proposes a new release
 - `actionsqaci.zizmor.dependabot-execution` — Dependabot does not allow insecure external code execution
@@ -162,14 +162,14 @@ its page offline.
 - `actionsqaci.zizmor.ref-confusion` — A uses: ref is not a name that is both a branch and a tag (not run by this build: it asks GitHub about the repositories a workflow uses, and this build runs zizmor offline)
 - `actionsqaci.zizmor.ref-version-mismatch` — The version comment beside a pinned commit names that commit's release (not run by this build: it asks GitHub about the repositories a workflow uses, and this build runs zizmor offline)
 - `actionsqaci.zizmor.secrets-inherit` — A reusable workflow is given the secrets it needs, not secrets: inherit
-- `actionsqaci.zizmor.secrets-outside-env` — A secret is used only in a job that has a dedicated environment (reported by the rule only: zizmor's regular persona, which check runs, leaves it out)
-- `actionsqaci.zizmor.self-hosted-runner` — A job runs on a GitHub-hosted runner unless self-hosting is a recorded decision (reported by the rule only: zizmor's regular persona, which check runs, leaves it out)
+- `actionsqaci.zizmor.secrets-outside-env` — A secret is used only in a job that has a dedicated environment (not reported by check unless the project record's calibrations.enable names it: zizmor's regular persona, which check runs, leaves it out)
+- `actionsqaci.zizmor.self-hosted-runner` — A job runs on a GitHub-hosted runner unless self-hosting is a recorded decision (not reported by check unless the project record's calibrations.enable names it: zizmor's regular persona, which check runs, leaves it out)
 - `actionsqaci.zizmor.self-repository` — A step that uses an action of the repository's own checkout is written uses: $/path, not uses: ./path
 - `actionsqaci.zizmor.stale-action-refs` — A pinned commit is the commit of a release tag (not run by this build: it asks GitHub about the repositories a workflow uses, and this build runs zizmor offline)
-- `actionsqaci.zizmor.superfluous-actions` — No action does what the runner image already provides (reported by the rule only: zizmor's regular persona, which check runs, leaves it out)
+- `actionsqaci.zizmor.superfluous-actions` — No action does what the runner image already provides (not reported by check unless the project record's calibrations.enable names it: zizmor's regular persona, which check runs, leaves it out)
 - `actionsqaci.zizmor.template-injection` — No ${{ }} expansion puts attacker-controllable data into code
 - `actionsqaci.zizmor.typosquat-uses` — No uses: names a repository that imitates a popular one
-- `actionsqaci.zizmor.undocumented-permissions` — Every entry of a permissions: block says why it is needed (reported by the rule only: zizmor's regular persona, which check runs, leaves it out)
+- `actionsqaci.zizmor.undocumented-permissions` — Every entry of a permissions: block says why it is needed (not reported by check unless the project record's calibrations.enable names it: zizmor's regular persona, which check runs, leaves it out)
 - `actionsqaci.zizmor.unpinned-images` — A container image is named by a digest, not by no tag, latest or a mutable tag
 - `actionsqaci.zizmor.unpinned-tools` — The known tool-downloading actions (setup-trivy, load-secrets-action) are given a version, not none or latest
 - `actionsqaci.zizmor.unpinned-uses` — uses: is pinned to a full commit SHA

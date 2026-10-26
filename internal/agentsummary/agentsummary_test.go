@@ -37,6 +37,19 @@ func TestRegionListsEveryDefenceAndWhatNarrowsIt(t *testing.T) {
 	}
 }
 
+func TestRegionSaysWhichDefencesTheRecordAsksFor(t *testing.T) {
+	region, err := agentsummary.Region([]listing.Entry{
+		{ID: "actionsqaci.zizmor.concurrency-limits", Summary: "A workflow states a concurrency limit", EnabledBy: []string{"actionsqaci.zizmor.concurrency-limits is enabled by .github/actions-qa-ci.yml:4"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if want := "  - enabled: actionsqaci.zizmor.concurrency-limits is enabled by .github/actions-qa-ci.yml:4\n"; !strings.Contains(region, want) {
+		t.Errorf("region should contain %q:\n%s", want, region)
+	}
+}
+
 func TestRegionOfNoDefencesSaysSo(t *testing.T) {
 	region, err := agentsummary.Region(nil)
 	if err != nil || !strings.Contains(region, "No defence is active") {
@@ -49,6 +62,7 @@ func TestRegionRefusesTextThatCouldEndTheRegionOrStartAnotherLine(t *testing.T) 
 		"a newline in the summary":    {ID: "a.b", Summary: "one\ntwo"},
 		"a marker in the summary":     {ID: "a.b", Summary: agentsummary.End},
 		"a newline in a narrowing":    {ID: "a.b", Summary: "s", NarrowedBy: []string{"x\ny"}},
+		"a newline in an enabling":    {ID: "a.b", Summary: "s", EnabledBy: []string{"x\ny"}},
 		"a carriage return":           {ID: "a.b", Summary: "x\ry"},
 		"a backtick in an identifier": {ID: "a`b", Summary: "s"},
 	} {

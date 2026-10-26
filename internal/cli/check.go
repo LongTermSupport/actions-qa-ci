@@ -61,6 +61,10 @@ func checkCommand(env Env, args []string, stdout, stderr io.Writer) int {
 		return code
 	}
 	lanes = check.Widen(lanes, included)
+	lanes, err := check.Enabling(lanes, rec.Enabled())
+	if err != nil {
+		return fault(stderr, err)
+	}
 
 	files, code := filesToCheck(lanes, arguments.files, stderr)
 	if code != ExitOK {
@@ -313,8 +317,24 @@ func validateRecord(env Env, stderr io.Writer) (*record.Record, int) {
 	if err != nil {
 		return nil, fault(stderr, err)
 	}
+	if reasons := unofferedDefences(env.Lanes, rec); len(reasons) > 0 {
+		return nil, refuseInvalid(stderr, &record.InvalidError{Path: path, Reasons: reasons})
+	}
 
 	return rec, ExitOK
+}
+
+// unofferedDefences says, for each defence the record asks the lanes to run, why no lane can: it
+// is one that already runs, one this build does not run, or not one a lane runs at all.
+func unofferedDefences(lanes []check.Lane, rec *record.Record) []string {
+	var reasons []string
+	for i, enabled := range rec.Calibrations.Enable {
+		if !check.Offers(lanes, enabled.ID) {
+			reasons = append(reasons, fmt.Sprintf("enable entry %d (line %d): %s cannot be enabled: no lane of this build holds it back, because it already runs, this build does not run it, or it belongs to no lane", i+1, enabled.Line, enabled.ID))
+		}
+	}
+
+	return reasons
 }
 
 // filesToCheck is the files named on the command line, each of which some chosen lane must

@@ -4,8 +4,9 @@
 
 A job runs on a GitHub-hosted runner. zizmor flags `runs-on` that names a self-hosted runner,
 including runner services such as namespace. This audit runs at zizmor's pedantic persona only, so
-the lane does not report it by default: the rule's own harness shows it until the project record's
-`enable` exists. It does not use the network.
+the lane does not report it by default: `actions-qa check` reports it only where the project
+record's `calibrations.enable` names this identifier, and the rule's own harness always shows it.
+It does not use the network.
 
 ## Hazard
 

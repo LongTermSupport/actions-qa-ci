@@ -6,7 +6,8 @@ A job or service `container.image` names its image by digest. Two cases are repo
 
 - an image with no tag, or the `latest` tag, which the lane reports by default (regular persona);
 - an image with any other tag that is not pinned to a `sha256` digest, which only the pedantic
-  persona reports, so only the rule's own harness shows it until the project record enables it.
+  persona reports, so only the rule's own harness shows it (the project record cannot enable part
+  of an audit the lane already runs).
 
 It needs no network.
 

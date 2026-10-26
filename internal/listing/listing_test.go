@@ -80,6 +80,41 @@ func TestAnOwnerListsTheReportsOfOtherToolsItAbsorbs(t *testing.T) {
 	}
 }
 
+func TestEnableMarksTheDefencesTheRecordAsksFor(t *testing.T) {
+	reg := narrowingRegistry(t)
+	rec := &record.Record{Calibrations: record.Calibrations{Enable: []record.Enabled{
+		{ID: "actionsqaci.templateDrift", Line: 5},
+		{ID: "actionsqaci.nonsense", Line: 6},
+	}}}
+	entries := listing.Active(reg)
+
+	listing.Enable(entries, rec)
+
+	got := map[string][]string{}
+	for _, entry := range entries {
+		got[entry.ID] = entry.EnabledBy
+	}
+	want := map[string][]string{
+		"actionsqaci.shellcheck.SC<nnnn>": nil,
+		"actionsqaci.templateDrift":       {"actionsqaci.templateDrift is enabled by " + record.Path + ":5"},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("enabled by %v; want %v", got, want)
+	}
+}
+
+func TestEnableWithNoRecordChangesNothing(t *testing.T) {
+	entries := listing.Active(narrowingRegistry(t))
+
+	listing.Enable(entries, nil)
+
+	for _, entry := range entries {
+		if len(entry.EnabledBy) != 0 {
+			t.Errorf("%s enabled by %v", entry.ID, entry.EnabledBy)
+		}
+	}
+}
+
 func TestNarrowWithNoRecordChangesNothing(t *testing.T) {
 	reg := narrowingRegistry(t)
 	entries := listing.Active(reg)

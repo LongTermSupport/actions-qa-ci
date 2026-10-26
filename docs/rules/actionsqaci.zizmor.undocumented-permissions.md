@@ -5,8 +5,8 @@
 Each entry of an explicit `permissions:` block carries a comment saying why the permission is
 needed. An entry without one is reported. `contents: read` is not reported, since nearly every job
 needs it. This is a pedantic-persona audit about maintainability: the lane's default run does not
-report it, and only the rule's own harness shows it until the project record enables it. It needs
-no network.
+report it, so `actions-qa check` reports it only where the project record's `calibrations.enable`
+names this identifier, and the rule's own harness always shows it. It needs no network.
 
 ## Hazard
 

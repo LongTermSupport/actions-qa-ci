@@ -75,7 +75,7 @@ func TestParseRefusesWhatIsNotAWellFormedRecord(t *testing.T) {
 		"blank version":             {"version: ''\n", "version"},
 		"not yaml":                  {"version: [\n", "not valid"},
 		"a list at the top":         {"- version\n", "not valid"},
-		"unknown top field":         {"version: 1\ncalibrations: {}\n", "calibrations"},
+		"unknown top field":         {"version: 1\nlabels: {}\n", "labels"},
 		"unknown entry field":       {exception("    reason: because\n"), "reason"},
 		"duplicate key":             {"version: 1\nversion: 2\n", "already defined"},
 		"second document":           {"version: 1\n---\nversion: 2\n", "more than one document"},

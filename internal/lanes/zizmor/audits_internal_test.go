@@ -212,7 +212,13 @@ func TestARuleSaysWhenCheckDoesNotReportItsAuditAndOnlyThen(t *testing.T) {
 			t.Errorf("%s: WiderPersonaOnly = %v but the lane's persona reports it = %v", name, a.WiderPersonaOnly, fixtures[name].atDefault)
 		}
 		for _, rule := range Rules() {
-			if rule.ID == ID(name) && strings.Contains(rule.Summary, widerPersonaNote) != a.WiderPersonaOnly {
+			if rule.ID != ID(name) {
+				continue
+			}
+			if strings.Contains(rule.Summary, optInNote) != a.OptIn() {
+				t.Errorf("%s: the summary %q and OptIn = %v disagree", name, rule.Summary, a.OptIn())
+			}
+			if strings.Contains(rule.Summary, widerPersonaNote) != (a.WiderPersonaOnly && !a.OptIn()) {
 				t.Errorf("%s: the summary %q and WiderPersonaOnly = %v disagree", name, rule.Summary, a.WiderPersonaOnly)
 			}
 		}
