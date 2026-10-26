@@ -54,7 +54,10 @@ func notOptIn(a Audit) string {
 // auditor persona. Nothing else of the wider persona is kept, so enabling one audit changes what
 // no other audit reports.
 func lintEnabling(binary, path string, names []string, bound limits) ([]finding.Finding, error) {
-	regular, err := lint(binary, path, personaRegular, bound)
+	// Both runs go through one call, so that they are held to the same limits.
+	at := func(persona string) ([]finding.Finding, error) { return lint(binary, path, persona, bound) }
+
+	regular, err := at(personaRegular)
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +65,7 @@ func lintEnabling(binary, path string, names []string, bound limits) ([]finding.
 		return regular, nil
 	}
 
-	wider, err := lint(binary, path, personaAuditor, bound)
+	wider, err := at(personaAuditor)
 	if err != nil {
 		return nil, err
 	}

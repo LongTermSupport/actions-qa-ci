@@ -115,30 +115,33 @@ func TestADefenceIsEnabledOnlyOnceWhateverTheOrder(t *testing.T) {
 }
 
 func TestALaneThatCannotEnableWhatItOffersIsRefused(t *testing.T) {
-	lane := plain("p")
+	lane := plain("cannotenable")
 	lane.OptIn = []string{optInA}
 
 	_, err := check.Enabling([]check.Lane{lane}, []string{optInA})
 
-	if err == nil || !strings.Contains(err.Error(), "p") {
+	if err == nil || !strings.Contains(err.Error(), "cannotenable") {
 		t.Errorf("err = %v; want the lane named", err)
 	}
-	if _, err := check.Run([]check.Lane{lane}, []string{"x"}); err == nil {
-		t.Error("a run with such a lane should be refused")
+	if _, err := check.Run([]check.Lane{lane}, []string{"x"}); err == nil || !strings.Contains(err.Error(), "cannotenable") {
+		t.Errorf("a run with such a lane should be refused, naming it: %v", err)
 	}
 }
 
 func TestAnIsolatedLaneCannotHoldDefencesBack(t *testing.T) {
 	// The child process an isolated lane runs in is started without the project record, so what
 	// the record enabled would silently not happen.
-	var asked [][]string
-	lane := offering("o", &asked)
-	lane.Isolated = true
+	for name, optIn := range map[string][]string{"one defence": {optInA}, "two defences": {optInA, optInB}} {
+		var asked [][]string
+		lane := offering("isolatedlane", &asked)
+		lane.Isolated = true
+		lane.OptIn = optIn
 
-	_, err := check.Run([]check.Lane{lane}, []string{"x"})
+		_, err := check.Run([]check.Lane{lane}, []string{"x"})
 
-	if err == nil || !strings.Contains(err.Error(), "o") {
-		t.Errorf("err = %v; want the lane refused and named", err)
+		if err == nil || !strings.Contains(err.Error(), "isolatedlane") {
+			t.Errorf("%s: err = %v; want the lane refused and named", name, err)
+		}
 	}
 }
 
