@@ -45,8 +45,10 @@
   run offline at its regular persona with no configuration, no honoured ignore comment and none
   of the caller's environment; a file it cannot parse is a fault and a zizmor ended by a signal or
   the time limit is exit 4. The online audits, `forbidden-uses` and `insecure-url-scheme` have an
-  identifier and a page but are not run yet, and the pedantic and auditor audits show only in
-  `rule`; `dbf.json` declares both. The `rule` harness shows what any audit finds at zizmor's widest persona.
+  identifier and a page but are not run yet; `dbf.json` declares it. The pedantic and auditor
+  audits the regular persona leaves out are reported by `check` where the project record's
+  `calibrations.enable` names them, and `actions-qa rules` shows each such audit with an `enabled:`
+  line. The `rule` harness shows what any audit finds at zizmor's widest persona.
   A hazard both tools report has one owner where the owner reports everything the other would:
   actionlint's `credentials` kind is dropped, so `actionsqaci.zizmor.hardcoded-container-credentials`
   is the only identifier a finding of it carries, and `rules` states what the owner absorbs.

@@ -66,8 +66,11 @@ func TestTheShippedRegistryHasARunnableRuleForEveryZizmorAudit(t *testing.T) {
 			t.Errorf("%s: summary %q, want %q", audit.Name, rule.Summary, audit.Summary)
 		}
 		// Likewise an audit `check` does not report is not listed as one it enforces.
-		if audit.WiderPersonaOnly && !strings.Contains(rule.Summary, "reported by the rule only") {
+		if audit.WiderPersonaOnly && !strings.Contains(rule.Summary, "regular persona, which check runs, leaves it out") {
 			t.Errorf("%s: summary %q does not say check leaves the audit out", audit.Name, rule.Summary)
+		}
+		if audit.OptIn() && !strings.Contains(rule.Summary, "calibrations.enable") {
+			t.Errorf("%s: summary %q does not say the project record can enable the audit", audit.Name, rule.Summary)
 		}
 		if audit.Held != "" && !strings.Contains(rule.Summary, audit.Held) {
 			t.Errorf("%s: summary %q does not say why the audit is held: %q", audit.Name, rule.Summary, audit.Held)
@@ -252,5 +255,58 @@ func TestTheShippedLanesSelectExactlyWhatTheyAnalyse(t *testing.T) {
 	}
 	if len(lanes) != 9 {
 		t.Errorf("lanes = %d; a lane added here needs cases above", len(lanes))
+	}
+}
+
+func TestTheZizmorLaneHoldsBackExactlyTheAuditsTheRegularPersonaLeavesOutAndThisBuildRuns(t *testing.T) {
+	reg, err := catalogue.Registry()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var want []string
+	for _, audit := range zizmor.Audits() {
+		if audit.WiderPersonaOnly && audit.Held == "" {
+			want = append(want, zizmor.ID(audit.Name))
+		}
+	}
+	slices.Sort(want)
+
+	for _, lane := range catalogue.Lanes(reg) {
+		got := slices.Clone(lane.OptIn)
+		slices.Sort(got)
+		if lane.Name != "zizmor" {
+			if len(got) != 0 {
+				t.Errorf("lane %s holds %q back; only the zizmor lane has defences to enable", lane.Name, got)
+			}
+
+			continue
+		}
+		if !slices.Equal(got, want) || len(want) == 0 {
+			t.Errorf("the zizmor lane holds back %q, want %q", got, want)
+		}
+		if lane.Enable == nil {
+			t.Error("the zizmor lane cannot enable what it holds back")
+		}
+		for _, id := range got {
+			if _, known := reg.Lookup(id); !known {
+				t.Errorf("%s is held back by a lane and is no rule", id)
+			}
+		}
+	}
+}
+
+func TestEveryRuleASummaryCallsOptInIsHeldBackByALane(t *testing.T) {
+	reg, err := catalogue.Registry()
+	if err != nil {
+		t.Fatal(err)
+	}
+	lanes := catalogue.Lanes(reg)
+
+	for _, rule := range reg.All() {
+		says := strings.Contains(rule.Summary, "calibrations.enable")
+		if offered := check.Offers(lanes, rule.ID); says != offered {
+			t.Errorf("%s: its summary names calibrations.enable = %v, a lane holds it back = %v", rule.ID, says, offered)
+		}
 	}
 }

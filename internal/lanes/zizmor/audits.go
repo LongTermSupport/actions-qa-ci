@@ -23,8 +23,13 @@ type Audit struct {
 	WiderPersonaOnly bool
 }
 
-// widerPersonaNote is what a rule's summary says of an audit `check` does not report.
-const widerPersonaNote = "reported by the rule only: zizmor's regular persona, which check runs, leaves it out"
+const (
+	// optInNote is what a rule's summary says of an audit `check` reports only where the project
+	// record asks for it.
+	optInNote = "not reported by check unless the project record's calibrations.enable names it: zizmor's regular persona, which check runs, leaves it out"
+	// widerPersonaNote is what it says of one `check` cannot be asked to report.
+	widerPersonaNote = "reported by the rule only: zizmor's regular persona, which check runs, leaves it out"
+)
 
 // widerPersonaOnly names the audits the regular persona does not report at all.
 var widerPersonaOnly = []string{
@@ -141,7 +146,10 @@ func Rules() []registry.Rule {
 			// audit this build does not run.
 			summary += " (not run by this build: " + a.Held + ")"
 		}
-		if a.WiderPersonaOnly {
+		switch {
+		case a.OptIn():
+			summary += " (" + optInNote + ")"
+		case a.WiderPersonaOnly:
 			summary += " (" + widerPersonaNote + ")"
 		}
 		rules = append(rules, registry.Rule{

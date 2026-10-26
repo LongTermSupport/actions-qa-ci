@@ -57,11 +57,12 @@ const Path = ".github/actions-qa-ci.yml"
 
 // document is a record as the YAML decoder reads it, before its entries are checked.
 type document struct {
-	Version    string           `yaml:"version"`
-	Analyse    analyseDocument  `yaml:"analyse"`
-	Templates  []*Template      `yaml:"templates"`
-	Required   []*RequiredCheck `yaml:"requiredChecks"`
-	Exceptions []*Exception     `yaml:"exceptions"`
+	Version    string               `yaml:"version"`
+	Analyse    analyseDocument      `yaml:"analyse"`
+	Calibrate  calibrationsDocument `yaml:"calibrations"`
+	Templates  []*Template          `yaml:"templates"`
+	Required   []*RequiredCheck     `yaml:"requiredChecks"`
+	Exceptions []*Exception         `yaml:"exceptions"`
 }
 
 // maxSize bounds a record: a file a person wrote is nowhere near it.
@@ -74,6 +75,8 @@ type Record struct {
 	Version string `yaml:"version"`
 	// Analyse states which workflow-shaped files the project does not analyse.
 	Analyse Analyse `yaml:"analyse"`
+	// Calibrations state how the lanes run.
+	Calibrations Calibrations `yaml:"calibrations"`
 	// Templates declare the copies that have to stay byte-identical to a source.
 	Templates []Template `yaml:"templates"`
 	// RequiredChecks are the status check contexts the project requires before a merge.
@@ -184,10 +187,10 @@ func Parse(data []byte, known func(id string) bool) (*Record, error) {
 		return nil, invalid("it has more than one document")
 	}
 
-	if len(layout.lines) != len(doc.Exceptions) || len(layout.templateLines) != len(doc.Templates) || len(layout.requiredLines) != len(doc.Required) || len(layout.unanalysedLines) != len(doc.Analyse.Unanalysed) || len(layout.includeLines) != len(doc.Analyse.Include) {
-		return nil, invalid(fmt.Sprintf("cannot match %d exceptions, %d templates, %d required checks, %d unanalysed entries and %d included patterns to their %d, %d, %d, %d and %d lines",
-			len(doc.Exceptions), len(doc.Templates), len(doc.Required), len(doc.Analyse.Unanalysed), len(doc.Analyse.Include),
-			len(layout.lines), len(layout.templateLines), len(layout.requiredLines), len(layout.unanalysedLines), len(layout.includeLines)))
+	if len(layout.lines) != len(doc.Exceptions) || len(layout.templateLines) != len(doc.Templates) || len(layout.requiredLines) != len(doc.Required) || len(layout.unanalysedLines) != len(doc.Analyse.Unanalysed) || len(layout.includeLines) != len(doc.Analyse.Include) || len(layout.enableLines) != len(doc.Calibrate.Enable) {
+		return nil, invalid(fmt.Sprintf("cannot match %d exceptions, %d templates, %d required checks, %d unanalysed entries, %d included patterns and %d enabled defences to their %d, %d, %d, %d, %d and %d lines",
+			len(doc.Exceptions), len(doc.Templates), len(doc.Required), len(doc.Analyse.Unanalysed), len(doc.Analyse.Include), len(doc.Calibrate.Enable),
+			len(layout.lines), len(layout.templateLines), len(layout.requiredLines), len(layout.unanalysedLines), len(layout.includeLines), len(layout.enableLines)))
 	}
 
 	rec := &Record{
@@ -199,6 +202,7 @@ func Parse(data []byte, known func(id string) bool) (*Record, error) {
 			Include:    make([]Included, 0, len(doc.Analyse.Include)),
 			Unanalysed: make([]Unanalysed, 0, len(doc.Analyse.Unanalysed)),
 		},
+		Calibrations: Calibrations{Enable: make([]Enabled, 0, len(doc.Calibrate.Enable))},
 	}
 	var faults []string
 	if layout.versionTag != "" && layout.versionTag != "!!int" && layout.versionTag != "!!str" {
@@ -215,6 +219,15 @@ func Parse(data []byte, known func(id string) bool) (*Record, error) {
 			continue
 		}
 		rec.Analyse.Include = append(rec.Analyse.Include, Included{Path: *entry, Line: layout.includeLines[i]})
+	}
+	for i, entry := range doc.Calibrate.Enable {
+		if entry == nil {
+			faults = append(faults, fmt.Sprintf("enable entry %d (line %d) is empty", i+1, layout.enableLines[i]))
+			rec.Calibrations.Enable = append(rec.Calibrations.Enable, Enabled{Line: layout.enableLines[i], null: true})
+
+			continue
+		}
+		rec.Calibrations.Enable = append(rec.Calibrations.Enable, Enabled{ID: *entry, Line: layout.enableLines[i]})
 	}
 	for i, entry := range doc.Analyse.Unanalysed {
 		if entry == nil {
@@ -278,6 +291,8 @@ type layout struct {
 	unanalysedLines []int
 	// includeLines are the lines of the entries of analyse.include.
 	includeLines []int
+	// enableLines are the lines of the entries of calibrations.enable.
+	enableLines []int
 	// templateCopies is how many entries each template's copies list is written with, or -1
 	// where it is not a list. The decoder turns a null entry into nothing, so only the node
 	// tree can say that one was written.
@@ -322,6 +337,8 @@ func readLayout(data []byte) (layout, error) {
 		case "analyse":
 			found.unanalysedLines = writtenEntries(top[i+1], "unanalysed")
 			found.includeLines = writtenEntries(top[i+1], "include")
+		case "calibrations":
+			found.enableLines = writtenEntries(top[i+1], "enable")
 		case "exceptions":
 			if top[i+1].Kind != yaml.SequenceNode {
 				continue
@@ -407,6 +424,7 @@ func (r *Record) faults(known func(id string) bool) []string {
 
 	faults = append(faults, analyseFaults(r.Analyse.Unanalysed)...)
 	faults = append(faults, includeFaults(r.Analyse.Include)...)
+	faults = append(faults, enableFaults(r.Calibrations.Enable, known)...)
 	faults = append(faults, templateFaults(r.Templates)...)
 	faults = append(faults, requiredCheckFaults(r.RequiredChecks)...)
 

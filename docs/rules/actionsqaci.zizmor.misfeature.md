@@ -10,8 +10,8 @@ A workflow uses none of three features GitHub Actions offers but zizmor consider
   auditor persona.
 
 The first two run at the regular persona, which the lane reports by default; the third is shown
-only by the rule's own harness until the project record's `enable` exists. The audit does not use
-the network.
+only by the rule's own harness (the project record cannot enable part of an audit the lane already
+runs). The audit does not use the network.
 
 ## Hazard
 

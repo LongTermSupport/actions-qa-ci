@@ -12,7 +12,7 @@ import (
 )
 
 // narrowByRecord marks, on the entries `rules` lists, each defence the project record turns off
-// everywhere. A narrowing of the method's standard is the Owner's, so wherever the defences are
+// everywhere, and each it asks the lanes to run. A narrowing of the method's standard is the Owner's, so wherever the defences are
 // listed it is shown beside the defence it narrows. A record that is not valid is refused here
 // as it is by `check`: listing as if it were not there would hide the narrowing.
 func narrowByRecord(env Env, entries []listing.Entry, stderr io.Writer) int {
@@ -27,6 +27,7 @@ func narrowByRecord(env Env, entries []listing.Entry, stderr io.Writer) int {
 	}
 
 	listing.Narrow(env.Registry, entries, rec)
+	listing.Enable(entries, rec)
 
 	return ExitOK
 }

@@ -25,6 +25,26 @@ type Entry struct {
 	// NarrowedBy says how the project record turns the defence off, which is a narrowing of the
 	// method's standard and has to be visible wherever the defences are listed.
 	NarrowedBy []string `json:"narrowedBy,omitempty"`
+	// EnabledBy says how the project record asks for a defence the lanes run only on request.
+	EnabledBy []string `json:"enabledBy,omitempty"`
+}
+
+// Enable marks, on the entries, each defence the project record asks the lanes to run. A nil
+// record asks for none.
+func Enable(entries []Entry, rec *record.Record) {
+	if rec == nil {
+		return
+	}
+
+	for _, enabled := range rec.Calibrations.Enable {
+		for i := range entries {
+			if entries[i].ID == enabled.ID {
+				entries[i].EnabledBy = append(entries[i].EnabledBy, fmt.Sprintf("%s is enabled by %s:%d", enabled.ID, record.Path, enabled.Line))
+
+				break
+			}
+		}
+	}
 }
 
 // Narrow marks, on the entries, each defence the project record turns off everywhere. A narrowing

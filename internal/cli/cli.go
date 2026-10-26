@@ -285,6 +285,9 @@ func rules(env Env, args []string, stdout, stderr io.Writer) int {
 		for _, narrowing := range entry.NarrowedBy {
 			out.WriteString("    narrowed: " + narrowing + "\n")
 		}
+		for _, enabling := range entry.EnabledBy {
+			out.WriteString("    enabled: " + enabling + "\n")
+		}
 	}
 	if len(active) == 0 {
 		out.WriteString("no rules are active\n")

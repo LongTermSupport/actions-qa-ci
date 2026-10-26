@@ -44,6 +44,12 @@ func Region(entries []listing.Entry) (string, error) {
 			}
 			lines = append(lines, "  - narrowed: "+narrowing)
 		}
+		for _, enabling := range entry.EnabledBy {
+			if err := plain(enabling, "enabling of "+entry.ID, false); err != nil {
+				return "", err
+			}
+			lines = append(lines, "  - enabled: "+enabling)
+		}
 	}
 	if len(lines) == 0 {
 		lines = append(lines, "No defence is active.")

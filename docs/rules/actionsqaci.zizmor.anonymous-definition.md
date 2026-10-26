@@ -4,8 +4,9 @@
 
 Every workflow and every composite action definition has a top-level `name:`. The audit is of
 zizmor's pedantic persona, because a missing name has no security impact of its own. The lane runs
-the regular persona, so `actions-qa check` does not report it; only this rule's own harness shows
-it, until the project record's `enable` exists. It works offline.
+the regular persona, so `actions-qa check` reports it only where the project record's
+`calibrations.enable` names this identifier; this rule's own harness always shows it. It works
+offline.
 
 ## Hazard
 

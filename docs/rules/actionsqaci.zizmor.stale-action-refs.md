@@ -7,7 +7,7 @@ is never an unknown one. The audit asks GitHub about the repositories a workflow
 build runs zizmor offline.
 
 Once it runs, a `uses:` pinned to a commit that no Git tag points to is reported. It is a
-pedantic audit, shown by the rule's own harness until the project record's `enable` exists.
+pedantic audit, so it will be one the project record enables.
 
 ## Hazard
 
