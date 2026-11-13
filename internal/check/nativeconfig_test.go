@@ -74,6 +74,19 @@ func TestIsNativeSuppressionConfigIsTheClosedSetOfNames(t *testing.T) {
 	}
 }
 
+func TestIsDependabotFileIsTheDependabotConfigurationOfTheDefaultSet(t *testing.T) {
+	for _, name := range []string{".github/dependabot.yml", ".github/dependabot.yaml"} {
+		if !check.IsDependabotFile(name) {
+			t.Errorf("%s should be a Dependabot file", name)
+		}
+	}
+	for _, name := range []string{"", "dependabot.yml", ".github/dependabot.yaml.bak", ".github/workflows/dependabot.yml", "sub/.github/dependabot.yml", ".github/actions-qa-ci.yml"} {
+		if check.IsDependabotFile(name) {
+			t.Errorf("%q should not be one", name)
+		}
+	}
+}
+
 func TestIsActionFileIsAnActionOfTheDefaultSet(t *testing.T) {
 	for _, name := range []string{"action.yml", "action.yaml", ".github/actions/x/action.yml", ".github/actions/x/y/action.yaml"} {
 		if !check.IsActionFile(name) {

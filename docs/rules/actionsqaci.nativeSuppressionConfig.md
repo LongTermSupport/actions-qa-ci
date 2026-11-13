@@ -25,8 +25,9 @@ cannot be reported when they stop matching anything, and actionlint's `ignore` i
 expression over the message text, so one entry can quietly cover findings it was never written
 for. The bundled actionlint run never reads its file (it passes an empty configuration of its
 own), which makes it worse: the file looks as if it works, and a person running the tool by hand
-sees something different from the gate. zizmor and pinact are not bundled yet; the check forbids
-their files now so that the day they are, no suppression is waiting for them.
+sees something different from the gate. The bundled zizmor run is given no configuration either
+(`--no-config`), with the same result. pinact is not bundled yet; the check forbids its files now
+so that the day it is, no suppression is waiting for it.
 
 ## Correct construction
 

@@ -1,9 +1,11 @@
 package cli_test
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
+	"github.com/LongTermSupport/actions-qa-ci/internal/check"
 	"github.com/LongTermSupport/actions-qa-ci/internal/cli"
 )
 
@@ -55,14 +57,40 @@ func TestAConfigurationFileThatSuppressesIsAFindingOfCheckAndNotNamedAsUnanalyse
 	}
 }
 
+const cleanAction = "name: x\ndescription: y\nruns:\n  using: composite\n  steps: []\n"
+
 func TestAnActionFileOnlyTheGuardReadsIsStillNamedAsNotLinted(t *testing.T) {
 	t.Setenv("ACTIONS_QA_CI_TOOLS_DIR", toolsDirectory(t))
-	repository(t, map[string]string{workflowPath: cleanWorkflow, "action.yml": "name: x\ndescription: y\nruns:\n  using: composite\n  steps: []\n"})
+	repository(t, map[string]string{workflowPath: cleanWorkflow, "action.yml": cleanAction})
+	env := realEnv(t, nil)
+	env.Lanes = slices.DeleteFunc(slices.Clone(env.Lanes), func(lane check.Lane) bool { return lane.Name == "zizmor" })
 
-	result := runWith(t, realEnv(t, nil), "check", "--format", "agent")
+	result := runWith(t, env, "check", "--format", "agent")
 
 	if result.code != cli.ExitOK || !strings.Contains(result.stderr, "no lane in this build analyses action.yml") {
 		t.Errorf("exit = %d; stderr %.300q; the guard is not a lint of the action, so it is still named", result.code, result.stderr)
+	}
+}
+
+func TestAnActionFileIsAuditedByZizmorAndSoNotNamedAsNotLinted(t *testing.T) {
+	t.Setenv("ACTIONS_QA_CI_TOOLS_DIR", toolsDirectory(t))
+	repository(t, map[string]string{workflowPath: cleanWorkflow, "action.yml": cleanAction})
+
+	result := runWith(t, realEnv(t, nil), "check", "--format", "agent")
+
+	if result.code != cli.ExitOK || strings.Contains(result.stderr, "action.yml") {
+		t.Errorf("exit = %d; stderr %.300q; an action zizmor audits is not one no lane analyses", result.code, result.stderr)
+	}
+}
+
+func TestAnActionZizmorFindsSomethingInIsAFindingOfCheck(t *testing.T) {
+	t.Setenv("ACTIONS_QA_CI_TOOLS_DIR", toolsDirectory(t))
+	repository(t, map[string]string{workflowPath: cleanWorkflow, "action.yml": "name: x\ndescription: y\nruns:\n  using: composite\n  steps:\n    - uses: actions/checkout@v4\n"})
+
+	result := runWith(t, realEnv(t, nil), "check", "--format", "agent")
+
+	if result.code != cli.ExitFindings || !strings.Contains(result.stdout, "action.yml:") || !strings.Contains(result.stdout, "actionsqaci.zizmor.unpinned-uses") {
+		t.Errorf("exit = %d; stdout %.400q; stderr %.300q", result.code, result.stdout, result.stderr)
 	}
 }
 

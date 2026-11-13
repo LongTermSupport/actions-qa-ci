@@ -62,6 +62,12 @@ var defaultSingles = []string{
 	".github/actions-qa-ci.yml",
 }
 
+// IsDependabotFile says whether a repository-relative path is the Dependabot configuration of
+// the default set.
+func IsDependabotFile(file string) bool {
+	return file == ".github/dependabot.yml" || file == ".github/dependabot.yaml"
+}
+
 // IsDefaultFile says whether a repository-relative path is a file Discover finds by itself.
 func IsDefaultFile(file string) bool {
 	return IsWorkflow(file) || IsActionFile(file) || IsNativeSuppressionConfig(file) || slices.Contains(defaultSingles, file)

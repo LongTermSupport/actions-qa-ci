@@ -53,10 +53,34 @@ ShellCheck on `PATH` is never used. In a development checkout, `go run ./cmd/act
 bin` downloads it, and `ACTIONS_QA_CI_TOOLS_DIR=$PWD/bin` points the program at it. pyflakes
 integration is not enabled.
 
+### The zizmor lane
+
+The `zizmor` lane runs zizmor (the release the manifest pins, a static musl executable taken out
+of the PyPI wheel; the SARIF log names it) over one workflow, action or Dependabot file at a
+time and reports each finding as `actionsqaci.zizmor.<audit>`, the audit's own kebab-case name,
+with a page under `docs/rules/` for every audit. It is found and verified the way ShellCheck is
+(beside the program, or in `ACTIONS_QA_CI_TOOLS_DIR`; never on `PATH`). Nothing of the project's or
+the caller's is applied to it: no configuration file (`--no-config`), no ignore comment honoured
+(`--no-ignores`; a finding a comment names is still reported), no network (`--offline`), an empty
+environment so that no token or `ZIZMOR_*` setting reaches it, and `--strict-collection`, so a
+file it cannot parse is a fault and not a clean run. Only the report decides: its exit codes are
+turned off. A zizmor killed by a signal, or that runs past five minutes or writes more than 32 MiB,
+leaves no verdict (exit 4); any other failure is exit 3.
+
+The lane runs at zizmor's `regular` persona. The pedantic and auditor audits have identifiers
+and pages, and `actions-qa rule <id> <path>` shows what each finds, but `check` does not report
+them until the project record can enable them. The audits that need GitHub (`impostor-commit`,
+`known-vulnerable-actions`, `ref-confusion`, `ref-version-mismatch`, `stale-action-refs`),
+`forbidden-uses`, which does nothing without a policy, and `insecure-url-scheme`, which reads only
+a pre-commit configuration, are held: they have an identifier and a page, `rule` says why it does
+not run them, and `dbf.json` declares the gap. A finding of an audit this build has no
+identifier for fails the lane, so a new zizmor audit cannot be passed over unseen.
+
 ### The check command
 
 `actions-qa check` validates the project record, then runs the lanes (`actionlint`, which carries
-ShellCheck's findings; `firstParty`, which checks the record; and two guards against suppression,
+ShellCheck's findings; `zizmor`, which audits workflows, actions and the Dependabot file;
+`firstParty`, which checks the record; and two guards against suppression,
 `inlineSuppression` and `nativeSuppressionConfig`, described below) over the files the project
 has and prints every finding. It must be run from the repository root, which holds `.git`: from
 anywhere else it would find nothing and read as clean, so it refuses.
@@ -65,11 +89,11 @@ anywhere else it would find nothing and read as clean, so it refuses.
   `action.yaml` under `.github/actions` and at the root, `.github/dependabot.yml` or
   `.github/dependabot.yaml`, the project record, and the configuration files of the bundled
   tools (`zizmor.yml`, `.github/actionlint.yaml`, `.pinact.yaml` and their other spellings, see
-  `actionsqaci.nativeSuppressionConfig`). A lane analyses the files it covers; today actionlint
-  covers the workflows and the first-party lane covers the record. A file of the default set
-  that no lane of the build lints is named on standard error, so a clean result is not read as
-  covering it: the guards read the workflows and actions for suppression comments but do not
-  lint them, so a composite action is still named. Naming files on the command line analyses only those, and
+  `actionsqaci.nativeSuppressionConfig`). A lane analyses the files it covers; actionlint
+  covers the workflows, zizmor the workflows, the actions and the Dependabot file, and the
+  first-party lane the record. A file of the default set that no lane of the build lints is
+  named on standard error, so a clean result is not read as covering it: the guards read the
+  workflows and actions for suppression comments but do not lint them. Naming files on the command line analyses only those, and
   a file no chosen lane covers is refused rather than passed over. A symbolic link or other
   non-file where the default set looks (a directory named like a workflow or an action, at any depth) stops the run with exit 4, and so does a project record that is a symbolic link or any other
   non-file, and a file of the default set whose name holds a character that cannot be printed on
