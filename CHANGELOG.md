@@ -108,3 +108,7 @@
   findings, exiting 1 when it fires.
 - The `text`, `agent` and `json` output formats, and the finding model with its identifier
   scheme.
+
+### Changed
+
+- `zizmor` moves from 1.31.1 to 1.32.0.
