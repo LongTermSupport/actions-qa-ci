@@ -15,6 +15,33 @@ shell in `run:` steps. The remaining backends and the first-party checks arrive 
 
 - Go, to build from source. A released bundle needs nothing on the host.
 
+## Adopt it in a workflow
+
+One step runs it. Pin the action to the full commit of a release tag; that commit's `VERSION`
+file names the release it installs, and the release's `install.sh` checks the bundle against the
+sha256 written into it before anything runs:
+
+```yaml
+      - uses: actions/checkout@<sha> # with persist-credentials: false
+      - uses: LongTermSupport/actions-qa-ci@<commit of the release tag> # vX.Y.Z
+```
+
+The inputs are `version` (empty: the release the `VERSION` file names) and `args` (default
+`check --format github`, split on whitespace). Setting `ACTIONS_QA_CI_BUNDLE` and
+`ACTIONS_QA_CI_INSTALL_SCRIPT` in the step's `env` installs from local files instead of the
+release download. Outside Actions, download a release's `install.sh`, read it, and run
+`sh install.sh [--prefix DIR]`.
+
+## Releases
+
+A release is cut from `CHANGELOG.md`, never by hand. A push to `main` that changes the changelog
+runs `.github/workflows/release.yml`, which runs the gate and then either opens (or refreshes) the
+`Release vX.Y.Z` pull request from `chore/release`, cutting the Unreleased entries into the next
+version and writing it to `VERSION`, or, once that pull request is merged, publishes the release
+at the merge: the `linux_amd64` and `linux_arm64` bundles, `checksums.txt` and `install.sh`.
+Merging the release pull request is the decision to release. `actions-qa-dev release
+next|cut|pending|notes` makes every decision; its package comment states the version policy.
+
 ## Use
 
 ```bash
@@ -181,8 +208,19 @@ Its `analyse.include` section lists patterns of tracked `.yml` and `.yaml` files
 default set that the project wants analysed, such as a template it ships. Each file a pattern
 names is linted by actionlint and guarded against inline suppression as a workflow, or only
 guarded as an action when it is named `action.yml` or `action.yaml`. A pattern that names no
-such file is an `actionsqaci.lintCoverage` finding. The other sections the design gives the
-record arrive with the checks that use them.
+such file is an `actionsqaci.lintCoverage` finding.
+
+Four checks on every workflow hold what starts it, and how often, to a pragmatic CI:
+`actionsqaci.docsOnlyPush` (a push of documentation alone starts no run),
+`actionsqaci.pushConcurrency` (runs on `main` collapse), `actionsqaci.workflowRunFanout` (a job
+started by `workflow_run` runs only on the conclusions it names) and `actionsqaci.scheduleBudget`
+(a schedule starts at most hourly runs). The record's `docsOnly` section adds files a docs-only
+change touches (`paths`) and events to check (`events`, `pull_request` beside `push`) to the
+defaults, and its `scheduleBudget.maxRunsPerDay` lowers the budget from 24; neither can narrow a
+check, so a workflow that must run anyway is an exception with its reason. Each page says what is
+read and how.
+
+The other sections the design gives the record arrive with the checks that use them.
 
 ### Exit codes
 

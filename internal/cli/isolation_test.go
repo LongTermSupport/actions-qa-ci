@@ -30,8 +30,12 @@ func TestMain(m *testing.M) {
 }
 
 const cleanWorkflow = `name: ci
-on: push
+on:
+  push:
+    paths: ['**.go']
 permissions: {}
+concurrency:
+  group: ci-${{ github.ref }}
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -158,7 +162,7 @@ func TestOnlyTheLaneThatRunsAThirdPartyBackendIsIsolated(t *testing.T) {
 		isolated[lane.Name] = lane.Isolated
 	}
 
-	if len(isolated) != 8 || !isolated["actionlint"] {
+	if len(isolated) != 12 || !isolated["actionlint"] {
 		t.Errorf("isolated lanes = %v; actionlint runs a third-party parser and is isolated", isolated)
 	}
 	for _, name := range []string{"firstParty", "templateDrift", "requiredChecks", "lintCoverage", "agentSummaryCurrent", "inlineSuppression", "nativeSuppressionConfig"} {

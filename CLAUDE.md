@@ -27,7 +27,8 @@ its rule backends. This file holds the binding floor; the depth is one link away
 - **Releases come from the changelog**: never choose a version or cut a tag by hand. A change a
   consumer can notice carries an `## Unreleased` entry in `CHANGELOG.md`.
 - **The repository passes its own checks**: every workflow has `permissions: {}` at the top
-  with per-job grants, `concurrency` with cancel-in-progress, `uses:` pinned to a full commit
+  with per-job grants, `concurrency` with cancel-in-progress (except `release.yml`, whose runs are
+  serialised and never cancelled, so a release is never half published), `uses:` pinned to a full commit
   SHA, and `persist-credentials: false` on checkout.
 - **Public by default**: this repository is public. No secret, credential, internal host or
   private path belongs in a file, a commit message or an issue.
@@ -89,6 +90,11 @@ branch named `feature/…`, `bugfix/…` or `chore/…`; the default branch is `
   `install.sh`, tested by running it with `sh` against real bundles; `actions-qa-dev
   install-script` fills the version and the checksums from `checksums.txt` into it and refuses
   a set of checksums that could not verify both platforms.
+- Releasing: `internal/release` decides the version from `CHANGELOG.md` (its package comment is
+  the policy) and `actions-qa-dev release` exposes it; `scripts/build-release.sh` builds every
+  asset of a release, `.github/workflows/release.yml` proposes and publishes, and CI builds a trial
+  release and runs the root `action.yml` against it on every pull request. `licences/` holds each
+  pinned tool's licence at its pinned tag; the program's is `LICENSE`.
 - The only code that reaches the network is `internal/branchprotection`, and only under `check
   --online`: it reads the required status checks of a branch from the GitHub API, sends the token
   nowhere but the given https address, follows no redirect and never prints the token.
@@ -123,13 +129,17 @@ its page offline.
 - `actionsqaci.actionlint.syntax-check` — A workflow file is valid GitHub Actions workflow syntax
 - `actionsqaci.actionlint.workflow-call` — A reusable-workflow call passes the inputs and secrets the callee declares
 - `actionsqaci.agentSummaryCurrent` — The generated region of CLAUDE.md or AGENTS.md lists the defences this build has and what the project record narrows
+- `actionsqaci.docsOnlyPush` — A push that changes only documentation starts no run: every push-triggered workflow has a paths or paths-ignore filter that leaves docs out
 - `actionsqaci.inlineSuppression` — No comment tells zizmor, ratchet or ShellCheck to leave a finding out
 - `actionsqaci.lintCoverage` — Every git-tracked file that is workflow-shaped or action-shaped is analysed, or declared unanalysed with a justification
 - `actionsqaci.nativeSuppressionConfig` — No tool's own configuration file suppresses a finding: zizmor's file, an actionlint ignore, a pinact ignore_actions
+- `actionsqaci.pushConcurrency` — A workflow triggered by a push to main has a concurrency group keyed so that runs on main collapse
 - `actionsqaci.requiredChecks` — Every status check the project record requires is the name of a job in a workflow triggered on pull_request
+- `actionsqaci.scheduleBudget` — A workflow's cron schedules start no more runs a day than the budget, hourly unless the project record states less
 - `actionsqaci.shellcheck.SC<nnnn>` — Shell in a run: step has no ShellCheck error or warning
 - `actionsqaci.staleException` — Every exception in the project record matches a finding in a full run
 - `actionsqaci.templateDrift` — Each declared copy of a template is byte-identical to its source, and a missing source or copy is a finding
 - `actionsqaci.unjustifiedException` — Every exception in the project record states a hazard, a scope and a decision, and every unanalysed file a hazard and a scope, none of them generic
+- `actionsqaci.workflowRunFanout` — A job started by workflow_run gates on an allowlist of the watched run's conclusions, so a cancelled run starts nothing
 
 <!-- actions-qa-ci:end -->

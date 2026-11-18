@@ -14,7 +14,7 @@ import (
 	"github.com/LongTermSupport/actions-qa-ci/internal/toolchain"
 )
 
-const usage = "usage: actions-qa-dev fetch <directory>\n       actions-qa-dev bundle --version X.Y.Z --platform linux_amd64 --program <actions-qa> --tools <directory> --licences <directory> --out <directory>\n       actions-qa-dev install-script --version X.Y.Z --checksums <checksums.txt> --out <install.sh>\n       actions-qa-dev tools bump --manifest <manifest.json> [--changelog <CHANGELOG.md>] [--api https://api.github.com] [--pypi https://pypi.org] [--cooldown 72h]\n       actions-qa-dev modules bump --gomod <go.mod> --module <path> [--changelog <CHANGELOG.md>] [--proxy https://proxy.golang.org] [--cooldown 72h]"
+const usage = "usage: actions-qa-dev fetch <directory>\n       actions-qa-dev fetch --platform linux_arm64 <directory>\n       actions-qa-dev release next|cut|pending|notes …\n       actions-qa-dev bundle --version X.Y.Z --platform linux_amd64 --program <actions-qa> --tools <directory> --licences <directory> --out <directory>\n       actions-qa-dev install-script --version X.Y.Z --checksums <checksums.txt> --out <install.sh>\n       actions-qa-dev tools bump --manifest <manifest.json> [--changelog <CHANGELOG.md>] [--api https://api.github.com] [--pypi https://pypi.org] [--cooldown 72h]\n       actions-qa-dev modules bump --gomod <go.mod> --module <path> [--changelog <CHANGELOG.md>] [--proxy https://proxy.golang.org] [--cooldown 72h]"
 
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
@@ -49,11 +49,22 @@ func run(args []string, stdout, stderr io.Writer) int {
 	if args[0] == "install-script" {
 		return installScriptCommand(args[1:], stdout, stderr)
 	}
+	if args[0] == "release" {
+		return releaseCommand(args[1:], stdout, stderr)
+	}
 	if args[0] != "fetch" && args[0] != "bundle" {
 		return complain(stderr, exitUsage, fmt.Sprintf("actions-qa-dev: unknown command %q\n%s", args[0], usage))
 	}
-	if args[0] == "fetch" && len(args) != 2 {
-		return complain(stderr, exitUsage, usage)
+	platform, dir := toolchain.Platform(), ""
+	if args[0] == "fetch" {
+		switch {
+		case len(args) == 2 && args[1] != "--platform":
+			dir = args[1]
+		case len(args) == 4 && args[1] == "--platform" && args[2] != "":
+			platform, dir = args[2], args[3]
+		default:
+			return complain(stderr, exitUsage, usage)
+		}
 	}
 
 	manifest, err := toolchain.Load()
@@ -67,7 +78,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
-	paths, err := toolchain.FetchAll(ctx, http.DefaultClient, manifest, toolchain.Platform(), args[1])
+	paths, err := toolchain.FetchAll(ctx, http.DefaultClient, manifest, platform, dir)
 	if err != nil {
 		return complain(stderr, exitFault, fmt.Sprintf("actions-qa-dev: %v", err))
 	}

@@ -1,0 +1,197 @@
+name: Release
+
+# Releases come from the changelog. A push to main that changes CHANGELOG.md runs this workflow.
+# When a released version in the changelog has no tag yet, it builds that release and publishes
+# it at the pushed commit. Otherwise, when the Unreleased section holds entries, it opens the
+# release pull request, or brings the open one up to date, which cuts them into the next version
+# and writes it to VERSION. Merging that pull request is the decision to release; this workflow
+# never merges it. A pull request opened with the workflow token starts no CI run, so the gate runs
+# here, in the job that builds, before anything is proposed or published.
+#
+# It runs on push rather than on workflow_run of CI, so it acts with no input from another run.
+# Runs are serialised and never cancelled, so a release is never left half published.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - CHANGELOG.md
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: release-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    name: Gate and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    outputs:
+      pending: ${{ steps.decide.outputs.pending }}
+      next: ${{ steps.decide.outputs.next }}
+    steps:
+      - name: Check out the repository with its tags
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      # No build cache: what is published is built from the module and the pinned downloads alone.
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Formatting
+        run: test -z "$(gofmt -l .)"
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Fetch the pinned third-party binaries
+        run: go run ./cmd/actions-qa-dev fetch bin
+
+      - name: Test
+        run: go test ./...
+
+      - name: Check this repository with its own program
+        env:
+          ACTIONS_QA_CI_TOOLS_DIR: ${{ github.workspace }}/bin
+        run: go run ./cmd/actions-qa check --format agent
+
+      - name: Decide whether to publish a release or propose one
+        id: decide
+        run: |
+          git tag --list 'v*' > "$RUNNER_TEMP/tags.txt"
+          pending="$(go run ./cmd/actions-qa-dev release pending --changelog CHANGELOG.md --tags "$RUNNER_TEMP/tags.txt")"
+          next=""
+          if [ -n "$pending" ]; then
+            recorded="$(tr -d '[:space:]' < VERSION)"
+            if [ "$recorded" != "$pending" ]; then
+              echo "::error::CHANGELOG.md releases $pending but VERSION says '$recorded'; the action would install the wrong release"
+              exit 1
+            fi
+          else
+            next="$(go run ./cmd/actions-qa-dev release next --changelog CHANGELOG.md)"
+          fi
+          echo "pending=$pending" >> "$GITHUB_OUTPUT"
+          echo "next=$next" >> "$GITHUB_OUTPUT"
+          echo "pending release: ${pending:-none}; next release: ${next:-none}"
+
+      - name: Build the release
+        if: steps.decide.outputs.pending != ''
+        env:
+          VERSION: ${{ steps.decide.outputs.pending }}
+        run: |
+          sh scripts/build-release.sh "$VERSION" "$RUNNER_TEMP/out/assets"
+          go run ./cmd/actions-qa-dev release notes --changelog CHANGELOG.md --version "$VERSION" > "$RUNNER_TEMP/out/notes.md"
+
+      - name: Cut the next release
+        if: steps.decide.outputs.next != ''
+        env:
+          NEXT: ${{ steps.decide.outputs.next }}
+        run: |
+          go run ./cmd/actions-qa-dev release cut --changelog CHANGELOG.md --date "$(date -u +%F)" --version-file VERSION
+          mkdir -p "$RUNNER_TEMP/out"
+          cp CHANGELOG.md VERSION "$RUNNER_TEMP/out/"
+          go run ./cmd/actions-qa-dev release notes --changelog CHANGELOG.md --version "$NEXT" > "$RUNNER_TEMP/out/notes.md"
+
+      - name: Upload what the next job needs
+        if: steps.decide.outputs.pending != '' || steps.decide.outputs.next != ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release
+          path: ${{ runner.temp }}/out
+          if-no-files-found: error
+
+  publish:
+    name: Publish the release
+    needs: gate
+    if: needs.gate.outputs.pending != '' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Download the release
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release
+          path: ${{ runner.temp }}/release
+
+      # One call creates the tag and the release, so a re-run never finds one without the other.
+      - name: Create the tag and the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.gate.outputs.pending }}
+        run: |
+          gh release create "v$VERSION" "$RUNNER_TEMP"/release/assets/* \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "v$VERSION" --notes-file "$RUNNER_TEMP/release/notes.md"
+
+  propose:
+    name: Open or update the release pull request
+    needs: gate
+    if: needs.gate.outputs.next != '' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Download the cut changelog
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release
+          path: ${{ runner.temp }}/release
+
+      - name: Commit the cut to chore/release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NEXT: ${{ needs.gate.outputs.next }}
+        run: |
+          cp "$RUNNER_TEMP/release/CHANGELOG.md" CHANGELOG.md
+          cp "$RUNNER_TEMP/release/VERSION" VERSION
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b chore/release
+          git add CHANGELOG.md VERSION
+          git commit -m "Release v$NEXT"
+          credentials="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          echo "::add-mask::$credentials"
+          # The branch belongs to this workflow and is rebuilt from main each run.
+          git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $credentials" push --force origin chore/release
+
+      - name: Open the pull request, or bring the open one up to date
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NEXT: ${{ needs.gate.outputs.next }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          {
+            echo "Merging this pull request releases v$NEXT. The notes:"
+            echo
+            cat "$RUNNER_TEMP/release/notes.md"
+            echo
+            echo "The gate ran on main before the cut ($RUN_URL). The CI workflow does not run on a"
+            echo "pull request opened with the workflow token; the release workflow runs the gate again"
+            echo "on the merge before it publishes. This workflow does not merge it."
+          } > "$RUNNER_TEMP/body.md"
+          number="$(gh pr list --repo "$GITHUB_REPOSITORY" --head chore/release --state open --json number --jq '.[0].number')"
+          if [ -n "$number" ]; then
+            gh pr edit "$number" --repo "$GITHUB_REPOSITORY" --title "Release v$NEXT" --body-file "$RUNNER_TEMP/body.md"
+          else
+            gh pr create --repo "$GITHUB_REPOSITORY" --base main --head chore/release --title "Release v$NEXT" --body-file "$RUNNER_TEMP/body.md"
+          fi

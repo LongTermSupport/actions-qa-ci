@@ -27,7 +27,7 @@ func TestARequiredCheckAPullRequestJobProducesMakesCheckClean(t *testing.T) {
 	t.Setenv("ACTIONS_QA_CI_TOOLS_DIR", toolsDirectory(t))
 	repository(t, map[string]string{
 		".github/actions-qa-ci.yml": requiredRecordFor,
-		".github/workflows/ci.yml":  strings.Replace(cleanWorkflow, "on: push", "on: pull_request", 1),
+		".github/workflows/ci.yml":  strings.Replace(cleanWorkflow, "  push:", "  pull_request:", 1),
 	})
 
 	result := runWith(t, realEnv(t, nil), "check", "--format", "agent")

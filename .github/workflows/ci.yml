@@ -5,6 +5,17 @@ on:
   push:
     branches:
       - main
+    # A push of documentation alone starts no run on main. The Markdown this program embeds or
+    # a release is cut from, and the files agents read as instructions, are code here.
+    paths:
+      - "**"
+      - "!**.md"
+      - "!docs/**"
+      - "docs/rules/**"
+      - "CHANGELOG.md"
+      - "**/CLAUDE.md"
+      - "**/AGENTS.md"
+      - ".github/**"
 
 permissions: {}
 
@@ -16,7 +27,7 @@ jobs:
   CI:
     name: CI
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     permissions:
       contents: read
     steps:
@@ -47,3 +58,18 @@ jobs:
         env:
           ACTIONS_QA_CI_TOOLS_DIR: ${{ github.workspace }}/bin
         run: go run ./cmd/actions-qa check --format agent
+
+      # The release path, proven for a trial version: both bundles, checksums.txt and install.sh
+      # as the release workflow builds them, then the action at this commit installing the amd64
+      # bundle and checking this repository with the installed program.
+      - name: Build the release assets for a trial version
+        run: sh scripts/build-release.sh 0.0.0 "$RUNNER_TEMP/trial-release"
+
+      - name: Run the action from this commit against the trial release
+        uses: ./
+        env:
+          ACTIONS_QA_CI_BUNDLE: ${{ runner.temp }}/trial-release/actions-qa-ci_0.0.0_linux_amd64.tar.gz
+          ACTIONS_QA_CI_INSTALL_SCRIPT: ${{ runner.temp }}/trial-release/install.sh
+        with:
+          version: 0.0.0
+          args: check --format github

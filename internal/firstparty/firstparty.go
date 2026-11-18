@@ -22,7 +22,7 @@ const (
 // Rules returns the first-party checks. known says whether an identifier belongs to a defence
 // of this build, which the record's exceptions have to name.
 func Rules(known func(id string) bool) []registry.Rule {
-	return []registry.Rule{{
+	rules := []registry.Rule{{
 		ID:      UnjustifiedException,
 		Summary: "Every exception in the project record states a hazard, a scope and a decision, and every unanalysed file a hazard and a scope, none of them generic",
 		Check:   CheckRecord(known),
@@ -48,6 +48,7 @@ func Rules(known func(id string) bool) []registry.Rule {
 		Summary: "Every status check the project record requires is the name of a job in a workflow triggered on pull_request",
 		Check:   CheckRequiredChecks(known),
 	}, lintCoverageRule(known)}
+	return append(rules, TriggerRules(known)...)
 }
 
 // CheckRecord is the check on the project record at a path: a finding for each justification
