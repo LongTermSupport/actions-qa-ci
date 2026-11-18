@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.1.2 — 2026-11-18
+
 ### Changed
 
 - `actionsqaci.pushConcurrency` accepts a run per push beside a shared group per pull request:
