@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.1.0 — 2026-11-18
+
 ### Added
 
 - The repository floor: the Go module, the `actions-qa` command with `version [--json]` and
