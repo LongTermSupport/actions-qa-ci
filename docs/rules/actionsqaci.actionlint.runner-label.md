@@ -2,9 +2,11 @@
 
 ## What it forbids or requires
 
-`runs-on` names a runner label that exists: a GitHub-hosted label or one of the preset labels of a
-self-hosted runner. The project's own actionlint list of custom runner labels is not applied, so
-the message's suggestion to add a label to `actionlint.yaml` does not apply here.
+`runs-on` names a runner label that exists: a GitHub-hosted label, one of the preset labels of a
+self-hosted runner, or a custom label the project declares under `self-hosted-runner: labels:` in
+its actionlint configuration, `.github/actionlint.yaml` (or `.github/actionlint.yml` when there is
+no `.yaml`). Those labels are the only part of that file the lane applies; its ignores and
+configuration variables are not.
 
 ## Hazard
 
@@ -19,11 +21,26 @@ jobs:
     runs-on: ubuntu-latest
 ```
 
+A job on a self-hosted pool names labels the project declares once:
+
+```yaml
+# .github/actionlint.yaml
+self-hosted-runner:
+  labels:
+    - linux-pool
+```
+
+```yaml
+jobs:
+  build:
+    runs-on: [self-hosted, linux-pool]
+```
+
 ## Exceptions
 
-A custom self-hosted label is recorded in the project record with the file, this identifier and a
-justification that names the runner pool that carries the label. The project record is not part of
-this build yet, so no exception can be recorded today and a custom label is reported.
+None needed for a custom label: declare it in the actionlint configuration, which names the
+project's runner pool once rather than once per workflow file. A label the configuration does not
+declare is reported.
 
 ## Upstream
 

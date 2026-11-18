@@ -3,8 +3,11 @@
 package actionlint
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -41,10 +44,11 @@ func shellcheckTool() string {
 // verified against the manifest before it runs; one that is absent or differs fails the lane, and
 // the one on PATH is never used.
 //
-// The project's own actionlint configuration is never applied: an ignore pattern there would
-// suppress findings without a recorded justification. Suppression is the project record's job.
-// (actionlint still parses the file while it locates the project, so a malformed one is an
-// error here.)
+// Of the project's own actionlint configuration, only the self-hosted runner labels are applied:
+// they declare which custom labels exist, so `runs-on` is judged against the project's real
+// runner pool. Its ignore patterns and configuration variables are never applied: an ignore
+// would suppress findings without a recorded justification, and suppression is the project
+// record's job. A malformed configuration is an error here.
 func Lint(path string) ([]finding.Finding, error) {
 	// actionlint takes a directory for the project root only when it holds .git (a directory,
 	// or a file in a linked worktree) and .github/workflows as a directory.
@@ -74,7 +78,11 @@ func Lint(path string) ([]finding.Finding, error) {
 	}
 	defer restore()
 
-	config, cleanup, err := emptyConfig()
+	labels, err := projectRunnerLabels()
+	if err != nil {
+		return nil, err
+	}
+	config, cleanup, err := labelsConfig(labels)
 	if err != nil {
 		return nil, err
 	}
@@ -156,25 +164,65 @@ func pinnedShellcheck() (string, error) {
 	return binary, nil
 }
 
-// emptyConfig writes a configuration that ignores nothing, because the linter reads the
-// project's own configuration unless it is handed one.
-func emptyConfig() (path string, cleanup func(), err error) {
+// projectConfigNames are the files actionlint reads as the project's configuration, in the order
+// it looks for them: the first that exists is the configuration.
+var projectConfigNames = []string{".github/actionlint.yaml", ".github/actionlint.yml"}
+
+// projectRunnerLabels returns the self-hosted runner labels the project's actionlint
+// configuration declares, or none when it has no configuration. A configuration that cannot be
+// read or parsed is an error, never an empty declaration.
+func projectRunnerLabels() ([]string, error) {
+	for _, name := range projectConfigNames {
+		data, err := os.ReadFile(filepath.FromSlash(name))
+		if errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return nil, fmt.Errorf("cannot read the project's actionlint configuration %s: %w", name, err)
+		}
+		cfg, err := upstream.ParseConfig(data)
+		if err != nil {
+			return nil, fmt.Errorf("cannot parse the project's actionlint configuration %s: %w", name, err)
+		}
+
+		return cfg.SelfHostedRunner.Labels, nil
+	}
+
+	return nil, nil
+}
+
+// labelsConfig writes a configuration that declares the given self-hosted runner labels and
+// ignores nothing, because the linter reads the project's own configuration unless it is handed
+// one.
+func labelsConfig(labels []string) (path string, cleanup func(), err error) {
+	var content struct {
+		SelfHostedRunner struct {
+			Labels []string `json:"labels"`
+		} `json:"self-hosted-runner"`
+	}
+	content.SelfHostedRunner.Labels = append([]string{}, labels...)
+	// JSON is YAML, and encoding/json quotes every label, so no label can be read as anything else.
+	data, err := json.Marshal(content)
+	if err != nil {
+		return "", nil, fmt.Errorf("cannot write the actionlint configuration: %w", err)
+	}
+
 	dir, err := os.MkdirTemp("", "actions-qa-actionlint-")
 	if err != nil {
-		return "", nil, fmt.Errorf("cannot create an empty actionlint configuration: %w", err)
+		return "", nil, fmt.Errorf("cannot create the actionlint configuration: %w", err)
 	}
 	remove := func() {
-		// Nothing depends on the removal succeeding: the directory holds one empty file.
+		// Nothing depends on the removal succeeding: the directory holds one generated file.
 		if removeErr := os.RemoveAll(dir); removeErr != nil {
 			fmt.Fprintf(os.Stderr, "actions-qa: cannot remove %s: %v\n", dir, removeErr)
 		}
 	}
 
 	path = filepath.Join(dir, "actionlint.yaml")
-	if err := os.WriteFile(path, []byte("{}\n"), 0o600); err != nil {
+	if err := os.WriteFile(path, append(data, '\n'), 0o600); err != nil {
 		remove()
 
-		return "", nil, fmt.Errorf("cannot create an empty actionlint configuration: %w", err)
+		return "", nil, fmt.Errorf("cannot create the actionlint configuration: %w", err)
 	}
 
 	return path, remove, nil
