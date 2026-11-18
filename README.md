@@ -61,10 +61,11 @@ the registry and a test fails when it is stale (`go test . -run TestTheIdentifie
 its five required sections (in order, outside code fences, none empty), or when a page has no
 rule.
 
-The project's own actionlint configuration (`.github/actionlint.yaml`) is never applied: an ignore
-there would suppress findings with no recorded justification, so the lane hands actionlint an empty
-configuration. (actionlint still parses the file while locating the project, so a malformed one
-fails the lane.) Suppression belongs in the project record, which this build reads and checks but does not
+Of the project's own actionlint configuration (`.github/actionlint.yaml`, or `.yml`), only the
+`self-hosted-runner` labels are applied, so `runs-on` is judged against the runners the project
+declares. An ignore there would suppress findings with no recorded justification, so the lane hands
+actionlint a configuration it writes itself, holding those labels and nothing else. A malformed
+file fails the lane. Suppression belongs in the project record, which this build reads and checks but does not
 yet apply, so a finding is fixed. The lane must be run from the repository root, which holds `.git` and
 `.github/workflows`, and refuses to run anywhere else: actionlint resolves local actions and
 reusable workflows from the project it finds, and from a directory without both it would find a

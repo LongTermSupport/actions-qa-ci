@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Changed
+
+- `actionsqaci.actionlint.runner-label` accepts the custom self-hosted runner labels the project
+  declares under `self-hosted-runner: labels:` in `.github/actionlint.yaml` (or `.yml`). A project
+  on a self-hosted pool declares its labels once instead of seeing every job reported. The file's
+  ignores and configuration variables are still not applied.
+
 ## 0.1.0 — 2026-11-18
 
 ### Added

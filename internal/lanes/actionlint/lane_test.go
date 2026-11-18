@@ -162,6 +162,77 @@ func TestAProjectsOwnActionlintConfigDoesNotSuppressAFinding(t *testing.T) {
 	}
 }
 
+// selfHostedWorkflow runs one job on a self-hosted runner carrying the given custom label.
+func selfHostedWorkflow(label string) string {
+	return "name: x\non: push\njobs:\n  a:\n    runs-on: [self-hosted, " + label + "]\n" + runHi
+}
+
+func TestAProjectsDeclaredSelfHostedLabelsAreKnownToTheRunnerLabelRule(t *testing.T) {
+	for _, name := range []string{"actionlint.yaml", "actionlint.yml"} {
+		t.Run(name, func(t *testing.T) {
+			target := inProject(t, fixture{target: workflowPath, files: map[string]string{
+				workflowPath:      selfHostedWorkflow("pool-a"),
+				".github/" + name: "self-hosted-runner:\n  labels:\n    - pool-a\n",
+			}})
+
+			found, err := actionlint.Lint(target)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(found) != 0 {
+				t.Errorf("a label the project declares in .github/%s was reported: %+v", name, found)
+			}
+		})
+	}
+}
+
+func TestALabelTheProjectDidNotDeclareIsStillReported(t *testing.T) {
+	target := inProject(t, fixture{target: workflowPath, files: map[string]string{
+		workflowPath:              selfHostedWorkflow("pool-b"),
+		".github/actionlint.yaml": "self-hosted-runner:\n  labels:\n    - pool-a\n",
+	}})
+
+	found, err := actionlint.Lint(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(kindsOf(found), ",") != "runner-label" {
+		t.Errorf("an undeclared label was not reported as runner-label: %+v", found)
+	}
+}
+
+func TestWithNoProjectConfigACustomLabelIsReported(t *testing.T) {
+	target := inProject(t, fixture{target: workflowPath, files: map[string]string{
+		workflowPath: selfHostedWorkflow("pool-a"),
+	}})
+
+	found, err := actionlint.Lint(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(kindsOf(found), ",") != "runner-label" {
+		t.Errorf("a custom label with no declaration was not reported as runner-label: %+v", found)
+	}
+}
+
+func TestDeclaredLabelsDoNotBringTheConfigsIgnoresOrVariablesWithThem(t *testing.T) {
+	target := inProject(t, fixture{target: workflowPath, files: map[string]string{
+		workflowPath: "name: x\non: push\njobs:\n  a:\n    runs-on: [self-hosted, pool-a]\n    unexpected: 1\n" +
+			"    steps:\n      - run: echo ${{ vars.UNDECLARED }}\n",
+		".github/actionlint.yaml": "self-hosted-runner:\n  labels:\n    - pool-a\n" +
+			"config-variables: [DECLARED]\n" +
+			"paths:\n  \".github/workflows/**/*.yml\":\n    ignore:\n      - 'unexpected key'\n",
+	}})
+
+	found, err := actionlint.Lint(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(kindsOf(found), ",") != "syntax-check" {
+		t.Errorf("want only the syntax-check finding the ignore names, unsuppressed, and no config-variables judgement: %+v", found)
+	}
+}
+
 func TestFindingsCarryTheLaneIdentity(t *testing.T) {
 	target := inProject(t, fixtures["glob"].red)
 
