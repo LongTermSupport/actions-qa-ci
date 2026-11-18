@@ -66,7 +66,8 @@ on:
 ```
 
 A project whose documentation is part of the build (pages embedded in a program, a changelog a
-release is cut from) re-includes those paths in the same way, and declares them as inputs. When a
+release is cut from) re-includes those paths in the same way (`- "README.md"` after the
+`"!**.md"` line, for a README a test reads), and declares them as inputs. When a
 docs-only change also touches other files (plan folders, say), or pull requests should skip
 documentation too, the record adds them; a workflow that must see every push is exempt:
 
