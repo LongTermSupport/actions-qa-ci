@@ -12,8 +12,21 @@ its `branches-ignore` does not leave `main` out, or it has neither. A push filte
 does not count. One finding is reported per workflow: at the push trigger when there is no
 `concurrency`, at `concurrency` when it has no group or a per-run one.
 
-`cancel-in-progress` is not judged. Whether a superseded run on `main` is cancelled, or finishes
-while GitHub keeps only the newest pending run behind it, is the repository's decision.
+`cancel-in-progress` is not judged for a group without a per-run value. Whether a superseded run
+on `main` is cancelled, or finishes while GitHub keeps only the newest pending run behind it, is
+the repository's decision.
+
+One shape with a per-run value is accepted: a run per push, a shared group per pull request. The
+group's per-run value sits only in the second arm of
+`github.event_name == 'pull_request' && <shared value> || <per-run value>`, the first arm and the
+rest of the group hold no per-run value, and `cancel-in-progress` is exactly
+`${{ github.event_name == 'pull_request' }}`. A pull request's runs then share a group and cancel
+each other, while every run of any other event, a push to `main` among them, has its own group
+and runs to the end. The shape states in the workflow that every commit on `main` is built,
+which is what an exception would otherwise state. A group written as a plain string, a
+`cancel-in-progress` of anything else, a condition on another event or on `!=`, or a per-run
+value anywhere outside that arm is judged as above. The expression is matched as text with its
+whitespace removed, not evaluated (`dbf.json`, `push-concurrency-condition-not-evaluated`).
 
 ## Hazard
 
@@ -38,11 +51,20 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 ```
 
+To build every commit on `main` while a pull request's runs still collapse, use the accepted
+per-run shape:
+
+```yaml
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+```
+
 ## Exceptions
 
-A workflow whose every push must be built separately (one that publishes an artefact per commit,
-say) takes an exception for this identifier and the workflow's path, stating why a superseded
-run still has to finish.
+A workflow whose every push must be built separately writes the per-run shape above. One that
+needs a per-run group in any other form takes an exception for this identifier and the
+workflow's path, stating why a superseded run still has to finish.
 
 ## Upstream
 

@@ -43,6 +43,10 @@
       "description": "actionsqaci.pushConcurrency takes a push to main to be a push to the default branch. The repository's real default branch is not read, so a workflow that pushes only to a default branch with another name is not checked."
     },
     {
+      "id": "push-concurrency-condition-not-evaluated",
+      "description": "actionsqaci.pushConcurrency accepts a per-run value in a concurrency group only in the second arm of github.event_name == 'pull_request' && <shared> || <per run>, with cancel-in-progress exactly ${{ github.event_name == 'pull_request' }}. Both are matched as text with whitespace removed, not evaluated, so an equivalent expression written another way is reported, and a first arm that is falsy at run time (making a pull request's group per run too) is not."
+    },
+    {
       "id": "workflow-run-condition-not-evaluated",
       "description": "actionsqaci.workflowRunFanout reads a job's if: as text: a comparison of github.event.workflow_run.conclusion with == or contains() is an allowlist and one with != or !contains() a denylist. The expression is not evaluated, so a condition that names the conclusion with == and is still true for a cancelled run through another branch of an || is taken as gated."
     },

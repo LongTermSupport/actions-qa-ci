@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### Changed
+
+- `actionsqaci.pushConcurrency` accepts a run per push beside a shared group per pull request:
+  a group whose per-run value sits only in the second arm of
+  `github.event_name == 'pull_request' && <shared value> || <per-run value>`, with
+  `cancel-in-progress: ${{ github.event_name == 'pull_request' }}`. A per-run group in any other
+  form, or with any other `cancel-in-progress`, is still reported, and the finding now names the
+  accepted shape. The expression is matched as text, not evaluated (a new known gap in
+  `dbf.json`).
+
 ## 0.1.1 — 2026-11-18
 
 ### Changed
