@@ -11,6 +11,8 @@
   by its path there. `--format json` gives `id`, `path`, `line`, `col`, `severity`, `message`,
   `excepted` and `exceptionKey` for each finding. A file in no repository is refused with exit 2.
 
+## 0.1.2 — 2026-11-18
+
 ### Changed
 
 - `actionsqaci.pushConcurrency` accepts a run per push beside a shared group per pull request:
