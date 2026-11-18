@@ -63,6 +63,36 @@ jobs:
     steps:
       - run: "true"
 `
+	redConcurrencyPerRun = `on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "%%.md"
+      - "docs/%%"
+concurrency:
+  group: ci-${{ github.run_id }}
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - run: "true"
+`
+	greenPerRunOnPush = `on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "%%.md"
+      - "docs/%%"
+  pull_request:
+concurrency:
+  group: qa-${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - run: "true"
+`
 	redFanout = `on:
   workflow_run:
     workflows: [CI]
@@ -113,6 +143,13 @@ jobs:
 `
 )
 
+// prGroup and prCancel are the per-run-on-push shape: a pull request's runs share a group and
+// cancel each other, and every other event's run has its own group and is never cancelled.
+const (
+	prGroup  = "qa-${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.run_id }}"
+	prCancel = "${{ github.event_name == 'pull_request' }}"
+)
+
 const oneJob = "jobs:\n  a:\n    runs-on: ubuntu-latest\n    steps:\n      - run: \"true\"\n"
 
 func everything(string) bool { return true }
@@ -153,21 +190,27 @@ func runRule(t *testing.T, check func(string) ([]finding.Finding, error), files 
 // The discrimination proof: each red fixture draws findings from its own rule and from no other,
 // and the green fixtures draw none.
 func TestEachTriggerRuleFiresOnItsOwnFixtureAlone(t *testing.T) {
-	fixtures := map[string]string{
-		"green":                      greenWorkflow,
-		firstparty.DocsOnlyPush:      redDocsOnly,
-		firstparty.PushConcurrency:   redConcurrency,
-		firstparty.WorkflowRunFanout: redFanout,
-		firstparty.ScheduleBudget:    redSchedule,
-		"green fanout":               greenFanout,
-		"green schedule":             greenSchedule,
+	fixtures := []struct {
+		name  string
+		text  string
+		fires string // the one rule the fixture breaks, or empty for a green fixture
+	}{
+		{"green", greenWorkflow, ""},
+		{"red docs only", redDocsOnly, firstparty.DocsOnlyPush},
+		{"red no concurrency", redConcurrency, firstparty.PushConcurrency},
+		{"red group per run", redConcurrencyPerRun, firstparty.PushConcurrency},
+		{"red fanout", redFanout, firstparty.WorkflowRunFanout},
+		{"red schedule", redSchedule, firstparty.ScheduleBudget},
+		{"green fanout", greenFanout, ""},
+		{"green schedule", greenSchedule, ""},
+		{"green per run on push only", greenPerRunOnPush, ""},
 	}
 
-	for fixture, text := range fixtures {
+	for _, fixture := range fixtures {
 		for id, check := range triggerRules() {
-			got := runRule(t, check, map[string]string{workflow: text})
-			if want := fixture == id; (len(got) > 0) != want {
-				t.Errorf("rule %s on the %s fixture: %d findings %v, want findings = %v", id, fixture, len(got), got, want)
+			got := runRule(t, check, map[string]string{workflow: fixture.text})
+			if want := fixture.fires == id; (len(got) > 0) != want {
+				t.Errorf("rule %s on the %s fixture: %d findings %v, want findings = %v", id, fixture.name, len(got), got, want)
 			}
 			for _, f := range got {
 				if f.ID != id {
@@ -263,20 +306,32 @@ func TestPushConcurrencyRequiresAGroupThatCollapsesRunsOnMain(t *testing.T) {
 		findings int
 		mention  string
 	}{
-		"no concurrency":                 {"on:\n  push:\n    branches: [main]\n" + oneJob, 1, "no concurrency"},
-		"push to every branch":           {"on: push\n" + oneJob, 1, "no concurrency"},
-		"a group per commit":             {"on:\n  push:\n    branches: [main]\nconcurrency:\n  group: ci-push-${{ github.sha }}\n" + oneJob, 1, "github.sha"},
-		"a group per run":                {"on: push\nconcurrency: ci-${{ github.run_id }}\n" + oneJob, 1, "github.run_id"},
-		"a group by ref":                 {"on: push\nconcurrency:\n  group: ci-${{ github.ref }}\n" + oneJob, 0, ""},
-		"a group as a plain string":      {"on: push\nconcurrency: ci-${{ github.ref }}\n" + oneJob, 0, ""},
-		"cancel stays the repo's choice": {"on: push\nconcurrency:\n  group: ci-${{ github.ref }}\n  cancel-in-progress: ${{ github.event_name == 'pull_request' }}\n" + oneJob, 0, ""},
-		"a concurrency with no group":    {"on: push\nconcurrency:\n  cancel-in-progress: true\n" + oneJob, 1, "no group"},
-		"pushes to other branches only":  {"on:\n  push:\n    branches: ['release/v1']\n" + oneJob, 0, ""},
-		"main ignored":                   {"on:\n  push:\n    branches-ignore: [main]\n" + oneJob, 0, ""},
-		"main taken back":                {"on:\n  push:\n    branches: ['%%', '!main']\n" + oneJob, 0, ""},
-		"tags only":                      {"on:\n  push:\n    tags: ['v*']\n" + oneJob, 0, ""},
-		"no push":                        {"on: pull_request\n" + oneJob, 0, ""},
-		"every job has a group":          {"on: push\njobs:\n  a:\n    concurrency: a-${{ github.ref }}\n    runs-on: ubuntu-latest\n    steps:\n      - run: \"true\"\n", 0, ""},
+		"no concurrency":                     {"on:\n  push:\n    branches: [main]\n" + oneJob, 1, "no concurrency"},
+		"push to every branch":               {"on: push\n" + oneJob, 1, "no concurrency"},
+		"a group per commit":                 {"on:\n  push:\n    branches: [main]\nconcurrency:\n  group: ci-push-${{ github.sha }}\n" + oneJob, 1, "github.sha"},
+		"a group per run":                    {"on: push\nconcurrency: ci-${{ github.run_id }}\n" + oneJob, 1, "github.run_id"},
+		"a group by ref":                     {"on: push\nconcurrency:\n  group: ci-${{ github.ref }}\n" + oneJob, 0, ""},
+		"a group as a plain string":          {"on: push\nconcurrency: ci-${{ github.ref }}\n" + oneJob, 0, ""},
+		"cancel stays the repo's choice":     {"on: push\nconcurrency:\n  group: ci-${{ github.ref }}\n  cancel-in-progress: ${{ github.event_name == 'pull_request' }}\n" + oneJob, 0, ""},
+		"a concurrency with no group":        {"on: push\nconcurrency:\n  cancel-in-progress: true\n" + oneJob, 1, "no group"},
+		"pushes to other branches only":      {"on:\n  push:\n    branches: ['release/v1']\n" + oneJob, 0, ""},
+		"main ignored":                       {"on:\n  push:\n    branches-ignore: [main]\n" + oneJob, 0, ""},
+		"main taken back":                    {"on:\n  push:\n    branches: ['%%', '!main']\n" + oneJob, 0, ""},
+		"tags only":                          {"on:\n  push:\n    tags: ['v*']\n" + oneJob, 0, ""},
+		"no push":                            {"on: pull_request\n" + oneJob, 0, ""},
+		"every job has a group":              {"on: push\njobs:\n  a:\n    concurrency: a-${{ github.ref }}\n    runs-on: ubuntu-latest\n    steps:\n      - run: \"true\"\n", 0, ""},
+		"per run on push, per PR on PR":      {"on: [push, pull_request]\nconcurrency:\n  group: " + prGroup + "\n  cancel-in-progress: " + prCancel + "\n" + oneJob, 0, ""},
+		"per-run fallback, spaced":           {"on: push\nconcurrency:\n  group: ci-${{github.event_name=='pull_request'&&github.ref||github.run_id}}\n  cancel-in-progress: ${{ github.event_name   ==   'pull_request' }}\n" + oneJob, 0, ""},
+		"per-run fallback, cancel true":      {"on: push\nconcurrency:\n  group: " + prGroup + "\n  cancel-in-progress: true\n" + oneJob, 1, "github.run_id"},
+		"per-run fallback, no cancel":        {"on: push\nconcurrency:\n  group: " + prGroup + "\n" + oneJob, 1, "github.run_id"},
+		"per-run fallback as a string":       {"on: push\nconcurrency: " + prGroup + "\n" + oneJob, 1, "github.run_id"},
+		"per-run value in the PR arm":        {"on: push\nconcurrency:\n  group: ci-${{ github.event_name == 'pull_request' && github.sha || github.run_id }}\n  cancel-in-progress: " + prCancel + "\n" + oneJob, 1, "github.sha"},
+		"condition on !=":                    {"on: push\nconcurrency:\n  group: ci-${{ github.event_name != 'pull_request' && github.ref || github.run_id }}\n  cancel-in-progress: " + prCancel + "\n" + oneJob, 1, "github.run_id"},
+		"condition on another event":         {"on: push\nconcurrency:\n  group: ci-${{ github.event_name == 'push' && github.ref || github.run_id }}\n  cancel-in-progress: " + prCancel + "\n" + oneJob, 1, "github.run_id"},
+		"per-run value outside the arms":     {"on: push\nconcurrency:\n  group: ci-${{ github.run_number }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}\n  cancel-in-progress: " + prCancel + "\n" + oneJob, 1, "github.run_number"},
+		"cancel on another condition":        {"on: push\nconcurrency:\n  group: " + prGroup + "\n  cancel-in-progress: ${{ github.event_name == 'push' }}\n" + oneJob, 1, "github.run_id"},
+		"every job has the fallback":         {"on: push\njobs:\n  a:\n    concurrency:\n      group: " + prGroup + "\n      cancel-in-progress: " + prCancel + "\n    runs-on: ubuntu-latest\n    steps:\n      - run: \"true\"\n", 0, ""},
+		"a job with the fallback, no cancel": {"on: push\njobs:\n  a:\n    concurrency:\n      group: " + prGroup + "\n    runs-on: ubuntu-latest\n    steps:\n      - run: \"true\"\n", 1, "no concurrency"},
 	}
 
 	for name, c := range cases {

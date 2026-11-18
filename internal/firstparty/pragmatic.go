@@ -281,6 +281,31 @@ func groupOf(concurrency *yaml.Node) (string, bool) {
 	return group.Value, true
 }
 
+// perRunOnPushOnly matches, in a group with its whitespace removed, the expression that keys a
+// pull request's runs on the first arm and every other event's run on the second:
+// github.event_name == 'pull_request' && <shared> || <per run>. The first arm holds no ||
+// and does not leave the expression.
+var perRunOnPushOnly = regexp.MustCompile(`\$\{\{github\.event_name=='pull_request'&&((?:[^|}]|\}[^|}])+?)\|\|[^|}]+\}\}`)
+
+// cancelOnPullRequestOnly is the cancel-in-progress, whitespace removed, that cancels a
+// superseded run of a pull request and never a run of any other event.
+const cancelOnPullRequestOnly = "${{github.event_name=='pull_request'}}"
+
+// perRunOf names the per-run context a concurrency value's group is built from, or is empty.
+// A per-run value in the fallback arm of perRunOnPushOnly is not counted when the value also
+// cancels on pull_request alone: then a pull request's runs collapse and every push's run is
+// built to the end, which is that workflow's stated choice.
+func perRunOf(concurrency *yaml.Node, group string) string {
+	compact := strings.Join(strings.Fields(group), "")
+	_, cancel := entry(concurrency, "cancel-in-progress")
+	if concurrency != nil && concurrency.Kind == yaml.MappingNode && cancel != nil && cancel.Kind == yaml.ScalarNode &&
+		strings.Join(strings.Fields(cancel.Value), "") == cancelOnPullRequestOnly {
+		compact = perRunOnPushOnly.ReplaceAllString(compact, "$1")
+	}
+
+	return perRun(compact)
+}
+
 // perRun names the per-run context a group is built from, or is empty.
 func perRun(group string) string {
 	compact := strings.Join(strings.Fields(group), "")
@@ -292,6 +317,8 @@ func perRun(group string) string {
 
 	return ""
 }
+
+const perRunOnPushFix = "a run per push is kept only in the shape group: \"...${{ github.event_name == 'pull_request' && <shared value> || github.run_id }}\" with cancel-in-progress: \"${{ github.event_name == 'pull_request' }}\""
 
 const concurrencyFix = "add at the top of the workflow concurrency: {group: \"${{ github.workflow }}-${{ github.ref }}\"}; cancel-in-progress stays this repository's choice (true cancels a superseded run, false lets the running one finish and keeps only the newest pending run)"
 
@@ -320,8 +347,8 @@ func CheckPushConcurrency(file string) ([]finding.Finding, error) {
 		message = "pushes to main start this workflow and it has no concurrency, so every push runs to the end however many follow it; " + concurrencyFix
 	case !grouped:
 		message, line = "pushes to main start this workflow and its concurrency has no group, so nothing collapses; "+concurrencyFix, key.Line
-	case perRun(group) != "":
-		message, line = fmt.Sprintf("pushes to main start this workflow and its concurrency group is built from %s, which differs in every run, so no two runs share it and nothing collapses; %s", perRun(group), concurrencyFix), key.Line
+	case perRunOf(concurrency, group) != "":
+		message, line = fmt.Sprintf("pushes to main start this workflow and its concurrency group is built from %s, which differs in every run, so no two runs share it and nothing collapses; %s; %s", perRunOf(concurrency, group), concurrencyFix, perRunOnPushFix), key.Line
 	default:
 		return nil, nil
 	}
@@ -344,7 +371,7 @@ func everyJobHasAGroup(top *yaml.Node) bool {
 	for i := 0; i+1 < len(jobs.Content); i += 2 {
 		_, concurrency := entry(jobs.Content[i+1], "concurrency")
 		group, grouped := groupOf(concurrency)
-		if !grouped || perRun(group) != "" {
+		if !grouped || perRunOf(concurrency, group) != "" {
 			return false
 		}
 	}
