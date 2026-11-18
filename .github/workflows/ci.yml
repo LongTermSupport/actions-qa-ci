@@ -5,6 +5,17 @@ on:
   push:
     branches:
       - main
+    # A push of documentation alone starts no run on main. The Markdown this program embeds or
+    # a release is cut from, and the files agents read as instructions, are code here.
+    paths:
+      - "**"
+      - "!**.md"
+      - "!docs/**"
+      - "docs/rules/**"
+      - "CHANGELOG.md"
+      - "**/CLAUDE.md"
+      - "**/AGENTS.md"
+      - ".github/**"
 
 permissions: {}
 

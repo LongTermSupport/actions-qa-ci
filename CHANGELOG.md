@@ -108,6 +108,24 @@
   findings, exiting 1 when it fires.
 - The `text`, `agent` and `json` output formats, and the finding model with its identifier
   scheme.
+- Four trigger-hygiene checks on every workflow, each reported at the workflow with the fix:
+  - `actionsqaci.docsOnlyPush`: a push that changes only documentation starts no run. The push
+    trigger's `paths` or `paths-ignore` filter is read as GitHub reads it (in order, `!`
+    negation, last match wins) and must leave out each file of a docs-only change; re-including
+    instruction Markdown such as `CLAUDE.md` is fine. The record's `docsOnly` section names those
+    files (default `README.md`, nested Markdown and anything under `docs/`) and may add
+    `pull_request` to the events checked, which are `push` alone by default.
+  - `actionsqaci.pushConcurrency`: a workflow a push to `main` starts has a concurrency group, at
+    the top or on every job, not built from a per-run value such as `github.sha`;
+    `cancel-in-progress` stays the repository's choice.
+  - `actionsqaci.workflowRunFanout`: a job started by `workflow_run` on a completed run gates on
+    an allowlist of the watched run's conclusions, or inherits a gated job's skip, so a cancelled
+    run starts nothing. A job that must see every conclusion takes an exception in the record.
+  - `actionsqaci.scheduleBudget`: a workflow's crons start no more runs a day than the record's
+    `scheduleBudget.maxRunsPerDay` (hourly unless stated; it cannot be raised above hourly, so a
+    faster schedule takes an exception with its reason), and a cron that cannot be read is a
+    finding.
+- This repository's own CI no longer runs on a push to `main` that changes only documentation.
 
 ### Changed
 

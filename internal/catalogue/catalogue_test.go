@@ -125,6 +125,15 @@ func TestTheShippedLanesSelectExactlyWhatTheyAnalyse(t *testing.T) {
 		{"inlineSuppression", ".github/dependabot.yml", false},
 		{"inlineSuppression", ".github/actions-qa-ci.yml", false},
 		{"inlineSuppression", "zizmor.yml", false},
+		{"docsOnlyPush", ".github/workflows/ci.yml", true},
+		{"docsOnlyPush", ".github/actions-qa-ci.yml", false},
+		{"docsOnlyPush", "action.yml", false},
+		{"pushConcurrency", ".github/workflows/ci.yaml", true},
+		{"pushConcurrency", ".github/workflows/sub/ci.yml", false},
+		{"workflowRunFanout", ".github/workflows/watch.yml", true},
+		{"workflowRunFanout", "other/.github/workflows/ci.yml", false},
+		{"scheduleBudget", ".github/workflows/nightly.yml", true},
+		{"scheduleBudget", ".github/dependabot.yml", false},
 		{"nativeSuppressionConfig", "zizmor.yml", true},
 		{"nativeSuppressionConfig", ".github/actionlint.yaml", true},
 		{"nativeSuppressionConfig", ".pinact.yaml", true},
@@ -136,7 +145,7 @@ func TestTheShippedLanesSelectExactlyWhatTheyAnalyse(t *testing.T) {
 			t.Errorf("lane %s selects %s = %v, want %v", c.lane, c.path, got, c.want)
 		}
 	}
-	if len(lanes) != 8 {
+	if len(lanes) != 12 {
 		t.Errorf("lanes = %d; a lane added here needs cases above", len(lanes))
 	}
 }

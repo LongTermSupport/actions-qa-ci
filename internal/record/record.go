@@ -62,6 +62,9 @@ type document struct {
 	Templates  []*Template      `yaml:"templates"`
 	Required   []*RequiredCheck `yaml:"requiredChecks"`
 	Exceptions []*Exception     `yaml:"exceptions"`
+
+	DocsOnly       *docsOnlyDocument       `yaml:"docsOnly"`
+	ScheduleBudget *scheduleBudgetDocument `yaml:"scheduleBudget"`
 }
 
 // maxSize bounds a record: a file a person wrote is nowhere near it.
@@ -79,6 +82,10 @@ type Record struct {
 	// RequiredChecks are the status check contexts the project requires before a merge.
 	RequiredChecks []RequiredCheck `yaml:"requiredChecks"`
 	Exceptions     []Exception     `yaml:"exceptions"`
+	// DocsOnly says what a docs-only change is, for actionsqaci.docsOnlyPush.
+	DocsOnly DocsOnly `yaml:"-"`
+	// ScheduleBudget bounds a scheduled workflow's runs a day, for actionsqaci.scheduleBudget.
+	ScheduleBudget ScheduleBudget `yaml:"-"`
 }
 
 // Template is a source file and the copies of it the project keeps, each of which has to be
@@ -200,7 +207,9 @@ func Parse(data []byte, known func(id string) bool) (*Record, error) {
 			Unanalysed: make([]Unanalysed, 0, len(doc.Analyse.Unanalysed)),
 		},
 	}
-	var faults []string
+	rec.DocsOnly = docsOnlyFrom(doc.DocsOnly)
+	budget, faults := scheduleBudgetFrom(doc.ScheduleBudget, layout.scheduleBudgetWritten)
+	rec.ScheduleBudget = budget
 	if layout.versionTag != "" && layout.versionTag != "!!int" && layout.versionTag != "!!str" {
 		faults = append(faults, fmt.Sprintf("version must be a whole number or text, not %s", layout.versionTag))
 	}
@@ -283,6 +292,8 @@ type layout struct {
 	// tree can say that one was written.
 	templateCopies []int
 	versionTag     string
+	// scheduleBudgetWritten says the scheduleBudget key is there, even with nothing under it.
+	scheduleBudgetWritten bool
 }
 
 // writtenCopies is the number of entries in a template's copies list as written, or -1.
@@ -319,6 +330,8 @@ func readLayout(data []byte) (layout, error) {
 			if top[i+1].Kind == yaml.ScalarNode {
 				found.versionTag = top[i+1].ShortTag()
 			}
+		case "scheduleBudget":
+			found.scheduleBudgetWritten = true
 		case "analyse":
 			found.unanalysedLines = writtenEntries(top[i+1], "unanalysed")
 			found.includeLines = writtenEntries(top[i+1], "include")
@@ -409,6 +422,7 @@ func (r *Record) faults(known func(id string) bool) []string {
 	faults = append(faults, includeFaults(r.Analyse.Include)...)
 	faults = append(faults, templateFaults(r.Templates)...)
 	faults = append(faults, requiredCheckFaults(r.RequiredChecks)...)
+	faults = append(faults, triggerFaults(r.DocsOnly, r.ScheduleBudget)...)
 
 	for i, e := range r.Exceptions {
 		if e.null {

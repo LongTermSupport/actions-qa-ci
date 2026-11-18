@@ -80,6 +80,31 @@ func Lanes(reg *registry.Registry) []check.Lane {
 			Guard:   true,
 		},
 		{
+			// What starts a workflow, and how often: the trigger-hygiene checks.
+			Name:    "docsOnlyPush",
+			Selects: check.IsWorkflow,
+			Run:     firstparty.CheckDocsOnlyPush(known),
+			Covers:  check.Workflows,
+		},
+		{
+			Name:    "pushConcurrency",
+			Selects: check.IsWorkflow,
+			Run:     firstparty.CheckPushConcurrency,
+			Covers:  check.Workflows,
+		},
+		{
+			Name:    "workflowRunFanout",
+			Selects: check.IsWorkflow,
+			Run:     firstparty.CheckWorkflowRunFanout,
+			Covers:  check.Workflows,
+		},
+		{
+			Name:    "scheduleBudget",
+			Selects: check.IsWorkflow,
+			Run:     firstparty.CheckScheduleBudget(known),
+			Covers:  check.Workflows,
+		},
+		{
 			Name:    "nativeSuppressionConfig",
 			Selects: check.IsNativeSuppressionConfig,
 			Run:     firstparty.CheckNativeSuppressionConfig,

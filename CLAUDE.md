@@ -123,13 +123,17 @@ its page offline.
 - `actionsqaci.actionlint.syntax-check` — A workflow file is valid GitHub Actions workflow syntax
 - `actionsqaci.actionlint.workflow-call` — A reusable-workflow call passes the inputs and secrets the callee declares
 - `actionsqaci.agentSummaryCurrent` — The generated region of CLAUDE.md or AGENTS.md lists the defences this build has and what the project record narrows
+- `actionsqaci.docsOnlyPush` — A push that changes only documentation starts no run: every push-triggered workflow has a paths or paths-ignore filter that leaves docs out
 - `actionsqaci.inlineSuppression` — No comment tells zizmor, ratchet or ShellCheck to leave a finding out
 - `actionsqaci.lintCoverage` — Every git-tracked file that is workflow-shaped or action-shaped is analysed, or declared unanalysed with a justification
 - `actionsqaci.nativeSuppressionConfig` — No tool's own configuration file suppresses a finding: zizmor's file, an actionlint ignore, a pinact ignore_actions
+- `actionsqaci.pushConcurrency` — A workflow triggered by a push to main has a concurrency group keyed so that runs on main collapse
 - `actionsqaci.requiredChecks` — Every status check the project record requires is the name of a job in a workflow triggered on pull_request
+- `actionsqaci.scheduleBudget` — A workflow's cron schedules start no more runs a day than the budget, hourly unless the project record states less
 - `actionsqaci.shellcheck.SC<nnnn>` — Shell in a run: step has no ShellCheck error or warning
 - `actionsqaci.staleException` — Every exception in the project record matches a finding in a full run
 - `actionsqaci.templateDrift` — Each declared copy of a template is byte-identical to its source, and a missing source or copy is a finding
 - `actionsqaci.unjustifiedException` — Every exception in the project record states a hazard, a scope and a decision, and every unanalysed file a hazard and a scope, none of them generic
+- `actionsqaci.workflowRunFanout` — A job started by workflow_run gates on an allowlist of the watched run's conclusions, so a cancelled run starts nothing
 
 <!-- actions-qa-ci:end -->
