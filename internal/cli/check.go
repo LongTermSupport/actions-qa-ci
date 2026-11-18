@@ -25,7 +25,74 @@ func checkCommand(env Env, args []string, stdout, stderr io.Writer) int {
 	if problem != "" {
 		return usageError(stderr, problem)
 	}
+	if arguments.file == "" {
+		return runCheck(env, arguments, stdout, stderr)
+	}
 
+	return checkOneFile(env, arguments, stdout, stderr)
+}
+
+// checkOneFile is `check --file`: the run is made from the root of the repository that holds
+// the file, so that repository's record and tool configuration apply and the file is reported
+// by its path in it, and the working directory is put back afterwards.
+func checkOneFile(env Env, arguments checkArguments, stdout, stderr io.Writer) int {
+	back, err := os.Getwd()
+	if err != nil {
+		return fault(stderr, fmt.Errorf("cannot find the working directory: %w", err))
+	}
+	root, file, problem := enclosingRepository(arguments.file)
+	if problem != "" {
+		return refusal(stderr, problem)
+	}
+	if err := os.Chdir(root); err != nil {
+		return fault(stderr, fmt.Errorf("cannot enter the repository %s: %w", root, err))
+	}
+	arguments.files = []string{file}
+	code := runCheck(env, arguments, stdout, stderr)
+	if err := os.Chdir(back); err != nil {
+		return fault(stderr, fmt.Errorf("cannot return to the working directory %s: %w", back, err))
+	}
+
+	return code
+}
+
+// enclosingRepository is the root of the nearest repository holding the file, found by walking
+// up from the file to a directory with a .git entry (a directory, or the file a worktree or
+// submodule has), and the file's path with its links resolved. The third result says why the
+// file cannot be checked.
+func enclosingRepository(typed string) (string, string, string) {
+	absolute, err := filepath.Abs(typed)
+	if err != nil {
+		return "", "", fmt.Sprintf("cannot use --file %s: %v", typed, err)
+	}
+	resolved, err := filepath.EvalSymlinks(absolute)
+	if err != nil {
+		return "", "", fmt.Sprintf("cannot use --file %s: %v", typed, err)
+	}
+	info, err := os.Stat(resolved)
+	if err != nil {
+		return "", "", fmt.Sprintf("cannot use --file %s: %v", typed, err)
+	}
+	if !info.Mode().IsRegular() {
+		return "", "", fmt.Sprintf("--file %s is not a file", typed)
+	}
+
+	for dir := filepath.Dir(resolved); ; dir = filepath.Dir(dir) {
+		marker, err := os.Lstat(filepath.Join(dir, ".git"))
+		switch {
+		case err == nil && (marker.IsDir() || marker.Mode().IsRegular()):
+			return dir, resolved, ""
+		case err != nil && !errors.Is(err, os.ErrNotExist) && !errors.Is(err, syscall.ENOTDIR):
+			return "", "", fmt.Sprintf("cannot look for the repository of --file %s: %v", typed, err)
+		}
+		if filepath.Dir(dir) == dir {
+			return "", "", fmt.Sprintf("--file %s is in no repository: no .git in its directory or any above it", typed)
+		}
+	}
+}
+
+// runCheck is the check run from the repository root.
+func runCheck(env Env, arguments checkArguments, stdout, stderr io.Writer) int {
 	format, problem := checkFormat(env, arguments)
 	if problem != "" {
 		return usageError(stderr, problem)
@@ -136,10 +203,27 @@ type checkArguments struct {
 	sarif  string
 	online bool
 	files  []string
+	// file is the one file `--file` names, as typed; the run is then made from its repository.
+	file string
 }
 
-// parseCheckArguments reads `[-t lane[,lane…]]… [--format F] [--sarif file] [--] [path…]`.
+// parseCheckArguments reads `[-t lane[,lane…]]… [--format F] [--sarif file] [--online]
+// ([--] [path…] | --file path)`.
 func parseCheckArguments(args []string) (checkArguments, string) {
+	parsed, problem := parseCheckFlags(args)
+	switch {
+	case problem != "":
+		return checkArguments{}, problem
+	case parsed.file != "" && len(parsed.files) > 0:
+		return checkArguments{}, "--file names the one file to check and takes no other path"
+	case parsed.file != "" && parsed.online:
+		return checkArguments{}, "--file checks one file and cannot be given with --online, which compares the whole project"
+	}
+
+	return parsed, ""
+}
+
+func parseCheckFlags(args []string) (checkArguments, string) {
 	var parsed checkArguments
 
 	for len(args) > 0 {
@@ -148,6 +232,15 @@ func parseCheckArguments(args []string) (checkArguments, string) {
 			parsed.files = append(parsed.files, args[1:]...)
 
 			return parsed, ""
+		case args[0] == "--file":
+			if len(args) < 2 || args[1] == "" {
+				return checkArguments{}, "--file needs the path of the file to check"
+			}
+			if parsed.file != "" {
+				return checkArguments{}, "--file is given once"
+			}
+			parsed.file = args[1]
+			args = args[2:]
 		case args[0] == "-t":
 			if len(args) < 2 {
 				return checkArguments{}, "-t needs a lane name"

@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Added
+
+- `check --file <path>` checks one file from any working directory. The path is absolute or
+  relative to the working directory, and the repository is the nearest directory above the file
+  holding `.git` (a directory, or a worktree's or submodule's `.git` file). The run uses that
+  repository's project record and `.github/actionlint.yaml` runner labels, and reports the file
+  by its path there. `--format json` gives `id`, `path`, `line`, `col`, `severity`, `message`,
+  `excepted` and `exceptionKey` for each finding. A file in no repository is refused with exit 2.
+
 ### Changed
 
 - `actionsqaci.pushConcurrency` accepts a run per push beside a shared group per pull request:

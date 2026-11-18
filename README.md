@@ -87,7 +87,8 @@ integration is not enabled.
 ShellCheck's findings; `firstParty`, which checks the record; and two guards against suppression,
 `inlineSuppression` and `nativeSuppressionConfig`, described below) over the files the project
 has and prints every finding. It must be run from the repository root, which holds `.git`: from
-anywhere else it would find nothing and read as clean, so it refuses.
+anywhere else it would find nothing and read as clean, so it refuses. `--file` is the one
+exception: it finds the root itself.
 
 - **Files.** By default: the workflows directly in `.github/workflows`, every `action.yml` or
   `action.yaml` under `.github/actions` and at the root, `.github/dependabot.yml` or
@@ -105,6 +106,17 @@ anywhere else it would find nothing and read as clean, so it refuses.
   `.github/actions-qa-ci.yaml` is refused with exit 2: the record has one name. Every diagnostic is escaped as it is written, and a project record's faults are
   listed one escaped line each, so a name or a line from the repository cannot forge a line or
   move the terminal; a diagnostic that cannot be written is exit 3.
+- **`--file path`** checks one file from any working directory, for an editor or a hook that
+  lints the file just written. The path is absolute or relative to the working directory. The
+  repository is the nearest directory above the file that holds `.git`, whether a directory or
+  the file a worktree or submodule has. The run is made from that root, so its project record's
+  exceptions and its `.github/actionlint.yaml` runner labels apply, and the file is reported by
+  its path in that repository. Only that file is analysed, so no exception is judged stale. A
+  file in no repository, one that does not exist, `--file` given twice or with another path, and
+  `--file` with `--online` are refused with exit 2. With `--format json` the output is a JSON
+  list with one object per finding. Each object carries `id` (the rule), `path` (relative to the
+  repository root), `line`, `col`, `severity`, `message`, `excepted` and `exceptionKey`. The
+  exit codes are those below.
 - **`-t lane[,lane]`** runs only the named lanes (repeatable); an unknown name is refused with
   the lanes there are.
 - **`--format text|agent|json|github`.** With none given, `ACTIONS_QA_FORMAT`, else `text` on a
