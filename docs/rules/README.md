@@ -32,5 +32,5 @@ Generated from the registry; do not edit. Regenerate it with
 | `actionsqaci.shellcheck.SC<nnnn>` | Shell in a run: step has no ShellCheck error or warning | [page](actionsqaci.shellcheck.md) |
 | `actionsqaci.staleException` | Every exception in the project record matches a finding in a full run | [page](actionsqaci.staleException.md) |
 | `actionsqaci.templateDrift` | Each declared copy of a template is byte-identical to its source, and a missing source or copy is a finding | [page](actionsqaci.templateDrift.md) |
-| `actionsqaci.unjustifiedException` | Every exception in the project record states a hazard, a scope and a decision, and every unanalysed file a hazard and a scope, none of them generic | [page](actionsqaci.unjustifiedException.md) |
+| `actionsqaci.unjustifiedException` | Every exception in the project record states a hazard, a scope and a decision, every unanalysed file a hazard and a scope, and every docsOnly input and exempt workflow a reason, none of them generic | [page](actionsqaci.unjustifiedException.md) |
 | `actionsqaci.workflowRunFanout` | A job started by workflow_run gates on an allowlist of the watched run's conclusions, so a cancelled run starts nothing | [page](actionsqaci.workflowRunFanout.md) |

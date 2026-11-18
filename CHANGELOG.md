@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### Added
+
+- The project record's `docsOnly.inputs` and `docsOnly.exempt` lists for
+  `actionsqaci.docsOnlyPush`, each entry with a `reason`. An input (`path`, a path or pattern)
+  names a documentation file the build or the tests read: it is no longer treated as
+  documentation, so a workflow's filter may take it back in. An exempt entry (`workflow`, a file
+  directly in `.github/workflows`) opts one workflow out of the check. A missing or generic reason
+  is an `actionsqaci.unjustifiedException` finding. An input that matches no tracked file, and an
+  exempt entry naming no tracked workflow or one a docs-only change does not start, is an
+  `actionsqaci.docsOnlyPush` finding at the record. An empty list, a duplicate, an input that
+  names a `docsOnly.paths` file or leaves nothing to probe, and an exempt entry outside
+  `.github/workflows` are refused.
+
 ## 0.2.0 — 2026-11-18
 
 ### Added

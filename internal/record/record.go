@@ -196,6 +196,10 @@ func Parse(data []byte, known func(id string) bool) (*Record, error) {
 			len(doc.Exceptions), len(doc.Templates), len(doc.Required), len(doc.Analyse.Unanalysed), len(doc.Analyse.Include),
 			len(layout.lines), len(layout.templateLines), len(layout.requiredLines), len(layout.unanalysedLines), len(layout.includeLines)))
 	}
+	if len(layout.docsOnlyInputLines) != doc.DocsOnly.writtenInputs() || len(layout.docsOnlyExemptLines) != doc.DocsOnly.writtenExempt() {
+		return nil, invalid(fmt.Sprintf("cannot match %d docsOnly inputs and %d exempt entries to their %d and %d lines",
+			doc.DocsOnly.writtenInputs(), doc.DocsOnly.writtenExempt(), len(layout.docsOnlyInputLines), len(layout.docsOnlyExemptLines)))
+	}
 
 	rec := &Record{
 		Version:        doc.Version,
@@ -207,9 +211,11 @@ func Parse(data []byte, known func(id string) bool) (*Record, error) {
 			Unanalysed: make([]Unanalysed, 0, len(doc.Analyse.Unanalysed)),
 		},
 	}
-	rec.DocsOnly = docsOnlyFrom(doc.DocsOnly)
 	budget, faults := scheduleBudgetFrom(doc.ScheduleBudget, layout.scheduleBudgetWritten)
 	rec.ScheduleBudget = budget
+	docsOnly, nullEntries := docsOnlyFrom(doc.DocsOnly, layout.docsOnlyInputLines, layout.docsOnlyExemptLines)
+	rec.DocsOnly = docsOnly
+	faults = append(faults, nullEntries...)
 	if layout.versionTag != "" && layout.versionTag != "!!int" && layout.versionTag != "!!str" {
 		faults = append(faults, fmt.Sprintf("version must be a whole number or text, not %s", layout.versionTag))
 	}
@@ -287,6 +293,9 @@ type layout struct {
 	unanalysedLines []int
 	// includeLines are the lines of the entries of analyse.include.
 	includeLines []int
+	// docsOnlyInputLines and docsOnlyExemptLines are the lines of the entries of docsOnly.inputs
+	// and docsOnly.exempt.
+	docsOnlyInputLines, docsOnlyExemptLines []int
 	// templateCopies is how many entries each template's copies list is written with, or -1
 	// where it is not a list. The decoder turns a null entry into nothing, so only the node
 	// tree can say that one was written.
@@ -335,6 +344,9 @@ func readLayout(data []byte) (layout, error) {
 		case "analyse":
 			found.unanalysedLines = writtenEntries(top[i+1], "unanalysed")
 			found.includeLines = writtenEntries(top[i+1], "include")
+		case "docsOnly":
+			found.docsOnlyInputLines = writtenEntries(top[i+1], "inputs")
+			found.docsOnlyExemptLines = writtenEntries(top[i+1], "exempt")
 		case "exceptions":
 			if top[i+1].Kind != yaml.SequenceNode {
 				continue

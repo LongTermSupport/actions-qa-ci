@@ -130,8 +130,8 @@ func includeFaults(entries []Included) []string {
 	return faults
 }
 
-// writtenEntries is the lines of the entries of a list under analyse (include or unanalysed) as
-// written.
+// writtenEntries is the lines of the entries of a list under a section of the record (analyse's
+// include or unanalysed, docsOnly's inputs or exempt) as written.
 func writtenEntries(analyse *yaml.Node, key string) []int {
 	var lines []int
 	if analyse.Kind != yaml.MappingNode {

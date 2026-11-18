@@ -87,6 +87,12 @@ func Lanes(reg *registry.Registry) []check.Lane {
 			Covers:  check.Workflows,
 		},
 		{
+			// The record's docsOnly inputs and exempt entries each name something real.
+			Name:    "docsOnlyRecord",
+			Selects: func(path string) bool { return path == record.Path },
+			Run:     firstparty.CheckDocsOnlyPush(known),
+		},
+		{
 			Name:    "pushConcurrency",
 			Selects: check.IsWorkflow,
 			Run:     firstparty.CheckPushConcurrency,

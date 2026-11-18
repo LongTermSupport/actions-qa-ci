@@ -26,6 +26,9 @@ Every entry of `analyse.unanalysed` (see `actionsqaci.lintCoverage`) states a `h
 `scope` in its `justification`, held to the same standard as an exception's: it leaves files out
 of the analysis, which is a suppression as much as an exception is. It has no `decision`.
 
+Every entry of `docsOnly.inputs` and `docsOnly.exempt` (see `actionsqaci.docsOnlyPush`) states a
+`reason`, held to the standard of a `hazard`: each narrows what that check holds a workflow to.
+
 The check cannot tell whether a sentence is true. It refuses the sentences that could be written
 without knowing anything, so that a reviewer is left with something to judge. An exception that
 passes is applied by `check`: the finding it covers stays in the output as excepted, counted and

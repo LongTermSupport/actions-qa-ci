@@ -128,6 +128,9 @@ func TestTheShippedLanesSelectExactlyWhatTheyAnalyse(t *testing.T) {
 		{"docsOnlyPush", ".github/workflows/ci.yml", true},
 		{"docsOnlyPush", ".github/actions-qa-ci.yml", false},
 		{"docsOnlyPush", "action.yml", false},
+		{"docsOnlyRecord", ".github/actions-qa-ci.yml", true},
+		{"docsOnlyRecord", ".github/workflows/ci.yml", false},
+		{"docsOnlyRecord", "sub/.github/actions-qa-ci.yml", false},
 		{"pushConcurrency", ".github/workflows/ci.yaml", true},
 		{"pushConcurrency", ".github/workflows/sub/ci.yml", false},
 		{"workflowRunFanout", ".github/workflows/watch.yml", true},
@@ -145,7 +148,7 @@ func TestTheShippedLanesSelectExactlyWhatTheyAnalyse(t *testing.T) {
 			t.Errorf("lane %s selects %s = %v, want %v", c.lane, c.path, got, c.want)
 		}
 	}
-	if len(lanes) != 12 {
+	if len(lanes) != 13 {
 		t.Errorf("lanes = %d; a lane added here needs cases above", len(lanes))
 	}
 }

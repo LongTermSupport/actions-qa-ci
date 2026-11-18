@@ -230,8 +230,9 @@ started by `workflow_run` runs only on the conclusions it names) and `actionsqac
 (a schedule starts at most hourly runs). The record's `docsOnly` section adds files a docs-only
 change touches (`paths`) and events to check (`events`, `pull_request` beside `push`) to the
 defaults, and its `scheduleBudget.maxRunsPerDay` lowers the budget from 24; neither can narrow a
-check, so a workflow that must run anyway is an exception with its reason. Each page says what is
-read and how.
+check. `docsOnly.inputs` names documentation files the build or the tests read, which a filter
+may take back in, and `docsOnly.exempt` names a workflow that must run for documentation; each
+entry states its reason and must name a tracked file. Each page says what is read and how.
 
 The other sections the design gives the record arrive with the checks that use them.
 

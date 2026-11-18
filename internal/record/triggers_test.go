@@ -59,7 +59,7 @@ func TestARecordStatesItsDocsOnlyChangeAndScheduleBudget(t *testing.T) {
 	}
 }
 
-func TestTheRecordCanWidenTheDocsOnlyCheckButNeverNarrowIt(t *testing.T) {
+func TestDocsOnlyEventsAndPathsWidenTheCheckAndNeverNarrowIt(t *testing.T) {
 	rec, err := record.Parse([]byte("version: 1\ndocsOnly:\n  events: [pull_request]\n  paths: [guide/usage.md]\n"), everythingIsKnown)
 	if err != nil {
 		t.Fatal(err)
