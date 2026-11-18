@@ -15,6 +15,33 @@ shell in `run:` steps. The remaining backends and the first-party checks arrive 
 
 - Go, to build from source. A released bundle needs nothing on the host.
 
+## Adopt it in a workflow
+
+One step runs it. Pin the action to the full commit of a release tag; that commit's `VERSION`
+file names the release it installs, and the release's `install.sh` checks the bundle against the
+sha256 written into it before anything runs:
+
+```yaml
+      - uses: actions/checkout@<sha> # with persist-credentials: false
+      - uses: LongTermSupport/actions-qa-ci@<commit of the release tag> # vX.Y.Z
+```
+
+The inputs are `version` (empty: the release the `VERSION` file names) and `args` (default
+`check --format github`, split on whitespace). Setting `ACTIONS_QA_CI_BUNDLE` and
+`ACTIONS_QA_CI_INSTALL_SCRIPT` in the step's `env` installs from local files instead of the
+release download. Outside Actions, download a release's `install.sh`, read it, and run
+`sh install.sh [--prefix DIR]`.
+
+## Releases
+
+A release is cut from `CHANGELOG.md`, never by hand. A push to `main` that changes the changelog
+runs `.github/workflows/release.yml`, which runs the gate and then either opens (or refreshes) the
+`Release vX.Y.Z` pull request from `chore/release`, cutting the Unreleased entries into the next
+version and writing it to `VERSION`, or, once that pull request is merged, publishes the release
+at the merge: the `linux_amd64` and `linux_arm64` bundles, `checksums.txt` and `install.sh`.
+Merging the release pull request is the decision to release. `actions-qa-dev release
+next|cut|pending|notes` makes every decision; its package comment states the version policy.
+
 ## Use
 
 ```bash

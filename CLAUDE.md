@@ -27,7 +27,8 @@ its rule backends. This file holds the binding floor; the depth is one link away
 - **Releases come from the changelog**: never choose a version or cut a tag by hand. A change a
   consumer can notice carries an `## Unreleased` entry in `CHANGELOG.md`.
 - **The repository passes its own checks**: every workflow has `permissions: {}` at the top
-  with per-job grants, `concurrency` with cancel-in-progress, `uses:` pinned to a full commit
+  with per-job grants, `concurrency` with cancel-in-progress (except `release.yml`, whose runs are
+  serialised and never cancelled, so a release is never half published), `uses:` pinned to a full commit
   SHA, and `persist-credentials: false` on checkout.
 - **Public by default**: this repository is public. No secret, credential, internal host or
   private path belongs in a file, a commit message or an issue.
@@ -89,6 +90,11 @@ branch named `feature/…`, `bugfix/…` or `chore/…`; the default branch is `
   `install.sh`, tested by running it with `sh` against real bundles; `actions-qa-dev
   install-script` fills the version and the checksums from `checksums.txt` into it and refuses
   a set of checksums that could not verify both platforms.
+- Releasing: `internal/release` decides the version from `CHANGELOG.md` (its package comment is
+  the policy) and `actions-qa-dev release` exposes it; `scripts/build-release.sh` builds every
+  asset of a release, `.github/workflows/release.yml` proposes and publishes, and CI builds a trial
+  release and runs the root `action.yml` against it on every pull request. `licences/` holds each
+  pinned tool's licence at its pinned tag; the program's is `LICENSE`.
 - The only code that reaches the network is `internal/branchprotection`, and only under `check
   --online`: it reads the required status checks of a branch from the GitHub API, sends the token
   nowhere but the given https address, follows no redirect and never prints the token.

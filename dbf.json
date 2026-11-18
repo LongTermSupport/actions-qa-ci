@@ -47,6 +47,18 @@
       "description": "actionsqaci.workflowRunFanout reads a job's if: as text: a comparison of github.event.workflow_run.conclusion with == or contains() is an allowlist and one with != or !contains() a denylist. The expression is not evaluated, so a condition that names the conclusion with == and is still true for a cancelled run through another branch of an || is taken as gated."
     },
     {
+      "id": "release-sbom-absent",
+      "description": "A release publishes the two bundles, checksums.txt and install.sh, but no SBOM: the bundle's contents are named only by the manifest the program embeds and the licences it carries."
+    },
+    {
+      "id": "release-attestation-absent",
+      "description": "A release's bundles carry no GitHub artifact attestation, so `gh attestation verify` has nothing to check; a bundle is verified by the sha256 that install.sh holds, which comes from the same release."
+    },
+    {
+      "id": "version-pin-not-checked",
+      "description": "actionsqaci.versionPin, the check that the project record's version equals the running program's, is not built: the program does not know its own release, and the composite action installs the release named by its VERSION file or its version input instead."
+    },
+    {
       "id": "conformance-reading-unconfirmed",
       "description": "That actions-qa-ci is the Detector and zizmor and actionlint are bundled rule backends is a reading of toolchain 4.1 the specification does not spell out; it stands until the Owner confirms it."
     }

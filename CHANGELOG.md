@@ -126,6 +126,15 @@
     faster schedule takes an exception with its reason), and a cron that cannot be read is a
     finding.
 - This repository's own CI no longer runs on a push to `main` that changes only documentation.
+- Releases, and a one-step way to adopt one. A release publishes a bundle for `linux_amd64` and
+  `linux_arm64` (`actions-qa`, the pinned tools and their licences, with ShellCheck's source
+  named), `checksums.txt` and an `install.sh` that verifies the bundle before installing it.
+  The composite action at the repository root (`uses: LongTermSupport/actions-qa-ci@<commit of a
+  release tag>`) installs the release its `VERSION` file names, or the `version` input, and runs
+  `actions-qa check --format github` (the `args` input). The version is decided from this
+  changelog by `actions-qa-dev release next|cut|pending|notes`, and `actions-qa-dev fetch
+  --platform` fetches another platform's tools. No SBOM or attestation is published yet
+  (`dbf.json`).
 
 ### Changed
 

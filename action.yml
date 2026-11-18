@@ -1,0 +1,66 @@
+name: actions-qa-ci
+description: Check the repository's GitHub Actions workflows and actions with actions-qa, installed from a release bundle verified against its checksum.
+author: LongTermSupport
+
+# Pin the action to the commit of a release tag; that commit's VERSION file names the release the
+# action installs. The install script is the release's own, and it refuses a bundle whose sha256
+# differs from the one written into it. ACTIONS_QA_CI_BUNDLE and ACTIONS_QA_CI_INSTALL_SCRIPT,
+# set in the calling step's env, install from local files instead of downloading.
+
+inputs:
+  version:
+    description: The release to install, as X.Y.Z. Empty installs the release named by the VERSION file of the action's commit.
+    required: false
+    default: ""
+  args:
+    description: The actions-qa command line, split on whitespace.
+    required: false
+    default: check --format github
+
+runs:
+  using: composite
+  steps:
+    - name: Install actions-qa-ci
+      shell: bash
+      env:
+        INPUT_VERSION: ${{ inputs.version }}
+        ACTION_PATH: ${{ github.action_path }}
+      run: |
+        set -euo pipefail
+        version="$INPUT_VERSION"
+        if [ -z "$version" ]; then
+          if [ ! -f "$ACTION_PATH/VERSION" ]; then
+            echo "::error title=actions-qa-ci::This commit of the action has no VERSION file, so it names no release. Pin the action to the commit of a release tag, or set the version input."
+            exit 1
+          fi
+          version="$(tr -d '[:space:]' < "$ACTION_PATH/VERSION")"
+        fi
+        if ! [[ "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+          echo "::error title=actions-qa-ci::'$version' is not a release version of the form 1.2.3."
+          exit 1
+        fi
+        prefix="$RUNNER_TEMP/actions-qa-ci-$version"
+        if [ ! -x "$prefix/bin/actions-qa" ]; then
+          script="$RUNNER_TEMP/actions-qa-ci-install-$version.sh"
+          if [ -n "${ACTIONS_QA_CI_INSTALL_SCRIPT:-}" ]; then
+            cp -- "$ACTIONS_QA_CI_INSTALL_SCRIPT" "$script"
+          else
+            url="https://github.com/LongTermSupport/actions-qa-ci/releases/download/v$version/install.sh"
+            if ! curl --fail --silent --show-error --location --output "$script" "$url"; then
+              echo "::error title=actions-qa-ci::Cannot download $url; is $version a published release?"
+              exit 1
+            fi
+          fi
+          sh "$script" --prefix "$prefix"
+        fi
+        echo "$prefix/bin" >> "$GITHUB_PATH"
+
+    - name: Run actions-qa
+      shell: bash
+      working-directory: ${{ github.workspace }}
+      env:
+        INPUT_ARGS: ${{ inputs.args }}
+      run: |
+        set -euo pipefail
+        read -r -a argv <<< "$INPUT_ARGS"
+        actions-qa "${argv[@]}"
