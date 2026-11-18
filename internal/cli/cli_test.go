@@ -116,8 +116,8 @@ func TestHelpListsEveryOutputFormatForCheckAndRule(t *testing.T) {
 	code, stdout, stderr := run(t, "help")
 
 	want := "[--format " + strings.Join(output.FormatNames(), "|") + "]"
-	if code != cli.ExitOK || stderr != "" || strings.Count(stdout, want) != 2 {
-		t.Errorf("exit %d, stderr %q; help should show %q for check and for rule:\n%s", code, stderr, want, stdout)
+	if code != cli.ExitOK || stderr != "" || strings.Count(stdout, want) != 3 || !strings.Contains(stdout, "--file <path>") {
+		t.Errorf("exit %d, stderr %q; help should show %q for check, check --file <path> and rule:\n%s", code, stderr, want, stdout)
 	}
 }
 

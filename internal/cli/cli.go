@@ -45,6 +45,9 @@ commands:
   rule-doc <id>      print the page for a rule identifier, offline
   check [-t lane[,lane…]] [--format FORMATS] [--sarif file] [--online] [--] [path…]
                      run the lanes over the project's files, or over the files named
+  check [-t lane[,lane…]] [--format FORMATS] [--sarif file] --file <path>
+                     check one file from any directory, in the repository above it;
+                     exit 0 clean, 1 findings, 2 refused, 3 toolchain fault, 4 no verdict
   rule [--format FORMATS] <id> <path>
                      run one rule on one file and print only its findings
   help               print this text
