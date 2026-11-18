@@ -235,13 +235,18 @@ func TestDocsOnlyPushReadsTheRecordForItsEventsAndPaths(t *testing.T) {
 		t.Errorf("with pull_request in the record's events: %v, want one finding about pull_request", got)
 	}
 
-	readmeOnly := "on:\n  push:\n    paths: ['%%', '!README.md']\n" + oneJob
-	recordReadme := "version: 1\ndocsOnly:\n  paths: [README.md]\n"
-	if got := runRule(t, firstparty.CheckDocsOnlyPush(everything), map[string]string{workflow: readmeOnly, record.Path: recordReadme}); len(got) != 0 {
-		t.Errorf("with the record's own docs paths: %v, want none", got)
+	docsLeftOut := "on:\n  push:\n    paths: ['%%', '!%%.md', '!docs/%%']\n" + oneJob
+	recordPlan := "version: 1\ndocsOnly:\n  paths: [CLAUDE/Plan/00001-example/run.bash]\n"
+	if got := runRule(t, firstparty.CheckDocsOnlyPush(everything), map[string]string{workflow: docsLeftOut}); len(got) != 0 {
+		t.Errorf("with the default docs paths: %v, want none", got)
 	}
-	if got := runRule(t, firstparty.CheckDocsOnlyPush(everything), map[string]string{workflow: readmeOnly}); len(got) != 1 {
-		t.Errorf("with the default docs paths: %v, want one", got)
+	got = runRule(t, firstparty.CheckDocsOnlyPush(everything), map[string]string{workflow: docsLeftOut, record.Path: recordPlan})
+	if len(got) != 1 || !strings.Contains(got[0].Message, "CLAUDE/Plan/00001-example/run.bash") || strings.Contains(got[0].Message, "README.md") {
+		t.Errorf("with a plan folder added to the docs paths: %v, want one naming the plan file alone", got)
+	}
+	planLeftOut := "on:\n  push:\n    paths: ['%%', '!%%.md', '!docs/%%', '!CLAUDE/Plan/[0-9][0-9][0-9][0-9][0-9]-*/%%']\n" + oneJob
+	if got := runRule(t, firstparty.CheckDocsOnlyPush(everything), map[string]string{workflow: planLeftOut, record.Path: recordPlan}); len(got) != 0 {
+		t.Errorf("with plan folders left out: %v, want none", got)
 	}
 }
 

@@ -12,9 +12,10 @@ starting with `!` takes back what earlier ones matched and the last match decide
 leaves a file out when any of its patterns matches. One finding is reported for each trigger that
 lets such a file through, at the trigger, naming the files.
 
-The files are the project record's `docsOnly.paths`, or by default `README.md`,
-`notes/design.md`, `docs/guide/install.md` and `docs/images/diagram.png`: Markdown at the root
-and deeper, and anything under `docs/`. A `push` filtered to tags alone is not checked, since a
+The files are `README.md`, `notes/design.md`, `docs/guide/install.md` and
+`docs/images/diagram.png` (Markdown at the root and deeper, and anything under `docs/`), and any
+the project record's `docsOnly.paths` adds. The record can add files and events and never remove
+the defaults: a workflow that should run for documentation is an exception, with its reason. A `push` filtered to tags alone is not checked, since a
 branch push never starts it and GitHub applies no path filter to a tag.
 
 Only `push` is checked unless the record's `docsOnly.events` adds `pull_request`. A path filter on
@@ -47,14 +48,15 @@ on:
 ```
 
 A project whose documentation is part of the build (pages embedded in a program, a changelog a
-release is cut from) re-includes those paths in the same way. When what a docs-only change is
-differs from the defaults, the record says so:
+release is cut from) re-includes those paths in the same way. When a docs-only change also
+touches other files (plan folders, say), or pull requests should skip documentation too, the
+record adds them:
 
 ```yaml
 version: 1
 docsOnly:
-  paths: [README.md, guide/usage.md, CLAUDE/Plan/00001-example/notes.txt]
-  events: [push]
+  paths: [CLAUDE/Plan/00001-example/notes.txt]
+  events: [pull_request]
 ```
 
 `paths-ignore: ["**.md", "docs/**"]` is enough when nothing needs re-including.

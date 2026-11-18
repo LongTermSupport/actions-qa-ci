@@ -181,8 +181,19 @@ Its `analyse.include` section lists patterns of tracked `.yml` and `.yaml` files
 default set that the project wants analysed, such as a template it ships. Each file a pattern
 names is linted by actionlint and guarded against inline suppression as a workflow, or only
 guarded as an action when it is named `action.yml` or `action.yaml`. A pattern that names no
-such file is an `actionsqaci.lintCoverage` finding. The other sections the design gives the
-record arrive with the checks that use them.
+such file is an `actionsqaci.lintCoverage` finding.
+
+Four checks on every workflow hold what starts it, and how often, to a pragmatic CI:
+`actionsqaci.docsOnlyPush` (a push of documentation alone starts no run),
+`actionsqaci.pushConcurrency` (runs on `main` collapse), `actionsqaci.workflowRunFanout` (a job
+started by `workflow_run` runs only on the conclusions it names) and `actionsqaci.scheduleBudget`
+(a schedule starts at most hourly runs). The record's `docsOnly` section adds files a docs-only
+change touches (`paths`) and events to check (`events`, `pull_request` beside `push`) to the
+defaults, and its `scheduleBudget.maxRunsPerDay` lowers the budget from 24; neither can narrow a
+check, so a workflow that must run anyway is an exception with its reason. Each page says what is
+read and how.
+
+The other sections the design gives the record arrive with the checks that use them.
 
 ### Exit codes
 

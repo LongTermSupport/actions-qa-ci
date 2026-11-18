@@ -112,9 +112,9 @@
   - `actionsqaci.docsOnlyPush`: a push that changes only documentation starts no run. The push
     trigger's `paths` or `paths-ignore` filter is read as GitHub reads it (in order, `!`
     negation, last match wins) and must leave out each file of a docs-only change; re-including
-    instruction Markdown such as `CLAUDE.md` is fine. The record's `docsOnly` section names those
-    files (default `README.md`, nested Markdown and anything under `docs/`) and may add
-    `pull_request` to the events checked, which are `push` alone by default.
+    instruction Markdown such as `CLAUDE.md` is fine. The files are `README.md`, nested Markdown
+    and anything under `docs/`, and the events `push`; the record's `docsOnly` section can add
+    files (`paths`) and `pull_request` (`events`) but never remove a default.
   - `actionsqaci.pushConcurrency`: a workflow a push to `main` starts has a concurrency group, at
     the top or on every job, not built from a per-run value such as `github.sha`;
     `cancel-in-progress` stays the repository's choice.

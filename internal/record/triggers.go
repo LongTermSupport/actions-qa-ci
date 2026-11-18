@@ -17,13 +17,13 @@ const DefaultMaxRunsPerDay = 24
 // workflow.
 var docsOnlyEvents = []string{"push", "pull_request"}
 
-// DocsOnly says what a docs-only change is for actionsqaci.docsOnlyPush: the events on which a
-// workflow must not run for one, and example files such a change touches, each of which must
-// start no run on its own.
+// DocsOnly says what a docs-only change is for actionsqaci.docsOnlyPush: the events, beyond push,
+// on which a workflow must not run for one, and files, beyond DefaultDocsOnlyPaths, such a change
+// touches, each of which must start no run on its own.
 type DocsOnly struct {
-	// Events are the trigger events checked; push when not stated.
+	// Events are the trigger events checked as well as push.
 	Events []string
-	// Paths are repository-relative files; DefaultDocsOnlyPaths when not stated.
+	// Paths are repository-relative files checked as well as the defaults.
 	Paths []string
 
 	eventsStated, pathsStated bool
@@ -36,22 +36,28 @@ type docsOnlyDocument struct {
 	Paths  *[]string `yaml:"paths"`
 }
 
-// EffectiveEvents are the events checked.
+// EffectiveEvents are the events checked: push always, and those the record adds. The record can
+// widen the check and never narrow it; a workflow it should not hold is an exception.
 func (d DocsOnly) EffectiveEvents() []string {
-	if !d.eventsStated {
-		return []string{"push"}
-	}
-
-	return d.Events
+	return union([]string{"push"}, d.Events)
 }
 
-// EffectivePaths are the files a docs-only change touches.
+// EffectivePaths are the files a docs-only change touches: the defaults, and those the record
+// adds.
 func (d DocsOnly) EffectivePaths() []string {
-	if !d.pathsStated {
-		return slices.Clone(DefaultDocsOnlyPaths)
+	return union(DefaultDocsOnlyPaths, d.Paths)
+}
+
+// union is a followed by each value of b not already in it.
+func union(a, b []string) []string {
+	out := slices.Clone(a)
+	for _, v := range b {
+		if !slices.Contains(out, v) {
+			out = append(out, v)
+		}
 	}
 
-	return d.Paths
+	return out
 }
 
 // ScheduleBudget bounds how often a scheduled workflow runs, for actionsqaci.scheduleBudget.
@@ -109,7 +115,7 @@ func triggerFaults(d DocsOnly, s ScheduleBudget) []string {
 
 	if d.eventsStated {
 		if len(d.Events) == 0 {
-			faults = append(faults, "docsOnly: events is empty, which would check no workflow; leave it out for push, or name push or pull_request")
+			faults = append(faults, "docsOnly: events is empty; leave it out to check push alone, or add pull_request")
 		}
 		for i, event := range d.Events {
 			switch {
@@ -122,7 +128,7 @@ func triggerFaults(d DocsOnly, s ScheduleBudget) []string {
 	}
 	if d.pathsStated {
 		if len(d.Paths) == 0 {
-			faults = append(faults, "docsOnly: paths is empty, which would check nothing; leave it out for the defaults, or name the files a docs-only change touches")
+			faults = append(faults, "docsOnly: paths is empty; leave it out for the defaults, or name the files a docs-only change touches beyond them")
 		}
 		for i, p := range d.Paths {
 			switch problem := pathProblem(p); {

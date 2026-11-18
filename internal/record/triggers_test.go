@@ -51,11 +51,26 @@ func TestARecordStatesItsDocsOnlyChangeAndScheduleBudget(t *testing.T) {
 	if got := rec.DocsOnly.EffectiveEvents(); !slices.Equal(got, []string{"push", "pull_request"}) {
 		t.Errorf("events = %q", got)
 	}
-	if got := rec.DocsOnly.EffectivePaths(); !slices.Equal(got, []string{"README.md", "guide/usage.md"}) {
-		t.Errorf("paths = %q", got)
+	if got, want := rec.DocsOnly.EffectivePaths(), append(slices.Clone(record.DefaultDocsOnlyPaths), "guide/usage.md"); !slices.Equal(got, want) {
+		t.Errorf("paths = %q, want the defaults and the record's own, once each: %q", got, want)
 	}
 	if got := rec.ScheduleBudget.EffectiveMaxRunsPerDay(); got != 4 {
 		t.Errorf("maxRunsPerDay = %d, want 4", got)
+	}
+}
+
+func TestTheRecordCanWidenTheDocsOnlyCheckButNeverNarrowIt(t *testing.T) {
+	rec, err := record.Parse([]byte("version: 1\ndocsOnly:\n  events: [pull_request]\n  paths: [guide/usage.md]\n"), everythingIsKnown)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := rec.DocsOnly.EffectiveEvents(); !slices.Equal(got, []string{"push", "pull_request"}) {
+		t.Errorf("events = %q; push is always checked", got)
+	}
+	for _, p := range record.DefaultDocsOnlyPaths {
+		if !slices.Contains(rec.DocsOnly.EffectivePaths(), p) {
+			t.Errorf("paths %q lack the default %s", rec.DocsOnly.EffectivePaths(), p)
+		}
 	}
 }
 
