@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.1.1 — 2026-11-18
+
 ### Changed
 
 - `actionsqaci.actionlint.runner-label` accepts the custom self-hosted runner labels the project
