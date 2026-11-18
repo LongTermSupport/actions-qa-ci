@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.2.0 — 2026-11-18
+
 ### Added
 
 - `check --file <path>` checks one file from any working directory. The path is absolute or
