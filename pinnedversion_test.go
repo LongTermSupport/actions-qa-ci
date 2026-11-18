@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/LongTermSupport/actions-qa-ci/internal/release"
 	"github.com/LongTermSupport/actions-qa-ci/internal/toolchain"
 )
 
@@ -93,10 +94,36 @@ func TestTheChangelogsUnreleasedAddedEntriesSpellNoPinnedVersion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	added := unreleasedAdded(string(changelog))
-	if added == "" {
-		t.Fatal("the changelog has no Unreleased Added section to check")
+	checkUnreleasedAdded(t, string(changelog), versions)
+}
+
+// Every check on the changelog runs on main after a release is cut too, when Unreleased holds
+// nothing; a check that only holds while there are entries turns main red at the release.
+func TestTheChangelogChecksHoldAfterARelease(t *testing.T) {
+	changelog, err := os.ReadFile("CHANGELOG.md")
+	if err != nil {
+		t.Fatal(err)
 	}
+	cut := changelog
+	if next, err := release.Next(changelog); err != nil {
+		t.Fatal(err)
+	} else if next != "" {
+		if cut, err = release.Cut(changelog, next, "2026-01-31"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	checkUnreleasedAdded(t, string(cut), map[string]string{"anytool": "v9.9.9"})
+}
+
+// checkUnreleasedAdded fails when the Unreleased Added entries spell one of the versions. An
+// Unreleased section with no Added heading has nothing to check; a changelog with no Unreleased
+// section at all is a fault, so a misread file never passes as empty.
+func checkUnreleasedAdded(t *testing.T, changelog string, versions map[string]string) {
+	t.Helper()
+	if !regexp.MustCompile(`(?m)^## Unreleased$`).MatchString(changelog) {
+		t.Fatal("the changelog has no Unreleased section to check")
+	}
+	added := unreleasedAdded(changelog)
 	for name, version := range versions {
 		spelling := regexp.MustCompile(`(^|[^0-9.])v?` + regexp.QuoteMeta(strings.TrimPrefix(version, "v")) + `([^0-9]|$)`)
 		if spelling.MatchString(added) {
