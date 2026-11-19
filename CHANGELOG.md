@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.3.0 — 2026-11-19
+
 ### Added
 
 - The project record's `docsOnly.inputs` and `docsOnly.exempt` lists for
