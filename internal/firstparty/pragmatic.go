@@ -15,6 +15,8 @@ import (
 
 	"github.com/LongTermSupport/actions-qa-ci/internal/finding"
 	"github.com/LongTermSupport/actions-qa-ci/internal/ghfilter"
+	"github.com/LongTermSupport/actions-qa-ci/internal/gitindex"
+	"github.com/LongTermSupport/actions-qa-ci/internal/glob"
 	"github.com/LongTermSupport/actions-qa-ci/internal/record"
 	"github.com/LongTermSupport/actions-qa-ci/internal/registry"
 )
@@ -181,58 +183,144 @@ func loadRecord(known func(id string) bool) (*record.Record, error) {
 
 // CheckDocsOnlyPush is the check on one workflow: a finding for each event of the record's
 // docsOnly.events (push unless stated) on which a change touching only one of the record's
-// docsOnly.paths would start the workflow, judged through its paths or paths-ignore filter as
-// GitHub reads it.
+// docsOnly.paths, less its inputs, would start the workflow, judged through its paths or
+// paths-ignore filter as GitHub reads it. A workflow the record exempts has none. Given the
+// project record itself, it is the check on the record's inputs and exempt entries
+// (checkDocsOnlyRecord).
 func CheckDocsOnlyPush(known func(id string) bool) func(file string) ([]finding.Finding, error) {
 	return func(file string) ([]finding.Finding, error) {
+		if file == record.Path {
+			return checkDocsOnlyRecord(known, file)
+		}
+
 		rec, err := loadRecord(known)
 		if err != nil {
 			return nil, err
 		}
-		top, err := readWorkflow(file)
-		if err != nil || top == nil {
+		if rec.DocsOnly.Exempts(file) {
+			return nil, nil
+		}
+
+		return docsOnlyFindings(rec, file)
+	}
+}
+
+// docsOnlyFindings are the findings of the check on one workflow, exempt or not.
+func docsOnlyFindings(rec *record.Record, file string) ([]finding.Finding, error) {
+	top, err := readWorkflow(file)
+	if err != nil || top == nil {
+		return nil, err
+	}
+
+	on := triggers(top)
+	var found []finding.Finding
+	for _, event := range rec.DocsOnly.EffectiveEvents() {
+		t, ok := on[event]
+		if !ok || (event == "push" && tagsOnly(t.config)) {
+			continue
+		}
+
+		paths, filtered := list(t.config, "paths")
+		ignore, ignoring := list(t.config, "paths-ignore")
+		var runs []string
+		for _, p := range rec.DocsOnly.EffectivePaths() {
+			switch {
+			case filtered && !ghfilter.Included(paths, p):
+			case !filtered && ignoring && ghfilter.Ignored(ignore, p):
+			default:
+				runs = append(runs, p)
+			}
+		}
+		if len(runs) == 0 {
+			continue
+		}
+
+		why := "its " + event + " trigger has no paths or paths-ignore filter. Add one that leaves documentation out and keeps instruction Markdown in"
+		if filtered || ignoring {
+			why = "its " + event + " filter lets it through. Make the filter leave documentation out"
+		}
+		message := fmt.Sprintf("a %s that changes only documentation (%s) runs this workflow in full: %s, for example %s. In %s, docsOnly.paths adds what a docs-only change touches, docsOnly.inputs names a documentation file the build or the tests read, and docsOnly.exempt names a workflow that must run for documentation, each input and exemption with its reason",
+			event, strings.Join(runs, ", "), why, docsFilterExample, record.Path)
+		f, err := newFinding(DocsOnlyPush, file, t.line, 1, message)
+		if err != nil {
 			return nil, err
 		}
+		found = append(found, f)
+	}
+	finding.Sort(found)
 
-		on := triggers(top)
-		var found []finding.Finding
-		for _, event := range rec.DocsOnly.EffectiveEvents() {
-			t, ok := on[event]
-			if !ok || (event == "push" && tagsOnly(t.config)) {
-				continue
-			}
+	return found, nil
+}
 
-			paths, filtered := list(t.config, "paths")
-			ignore, ignoring := list(t.config, "paths-ignore")
-			var runs []string
-			for _, p := range rec.DocsOnly.EffectivePaths() {
-				switch {
-				case filtered && !ghfilter.Included(paths, p):
-				case !filtered && ignoring && ghfilter.Ignored(ignore, p):
-				default:
-					runs = append(runs, p)
-				}
-			}
-			if len(runs) == 0 {
-				continue
-			}
+// checkDocsOnlyRecord is the check on the record's docsOnly inputs and exempt entries: a finding
+// at each input that matches no tracked file, and at each exempt entry that names no tracked
+// workflow or one the check would not report anyway. An entry that names nothing would narrow
+// the check for a file added later without anyone deciding.
+func checkDocsOnlyRecord(known func(id string) bool, recordFile string) ([]finding.Finding, error) {
+	rec, err := record.Load(recordFile, known)
+	if err != nil {
+		return nil, err
+	}
+	d := rec.DocsOnly
+	if len(d.Inputs) == 0 && len(d.Exempt) == 0 {
+		return nil, nil
+	}
 
-			why := "its " + event + " trigger has no paths or paths-ignore filter. Add one that leaves documentation out and keeps instruction Markdown in"
-			if filtered || ignoring {
-				why = "its " + event + " filter lets it through. Make the filter leave documentation out"
-			}
-			message := fmt.Sprintf("a %s that changes only documentation (%s) runs this workflow in full: %s, for example %s; what a docs-only change is can be stated in %s (docsOnly.paths)",
-				event, strings.Join(runs, ", "), why, docsFilterExample, record.Path)
-			f, err := newFinding(DocsOnlyPush, file, t.line, 1, message)
-			if err != nil {
-				return nil, err
-			}
+	root, err := workingRoot()
+	if err != nil {
+		return nil, err
+	}
+	index, err := gitindex.Read(root)
+	if err != nil {
+		return nil, err
+	}
+	var tracked []string
+	for _, entry := range index {
+		if entry.IsRegular() {
+			tracked = append(tracked, entry.Path)
+		}
+	}
+
+	var found []finding.Finding
+	report := func(line int, message string) error {
+		f, err := newFinding(DocsOnlyPush, recordFile, max(line, 1), 1, message)
+		if err == nil {
 			found = append(found, f)
 		}
-		finding.Sort(found)
 
-		return found, nil
+		return err
 	}
+
+	for i, input := range d.Inputs {
+		if slices.ContainsFunc(tracked, func(p string) bool { return glob.Match(input.Path, p) }) {
+			continue
+		}
+		if err := report(input.Line, fmt.Sprintf("docsOnly input %d (%s) matches no tracked file; remove it, or name the documentation file the build or the tests read", i+1, input.Path)); err != nil {
+			return nil, err
+		}
+	}
+
+	for i, e := range d.Exempt {
+		if !slices.Contains(tracked, e.Workflow) {
+			if err := report(e.Line, fmt.Sprintf("docsOnly exempt entry %d names %s, and there is no tracked workflow there; remove it, or name the workflow that must run for documentation", i+1, e.Workflow)); err != nil {
+				return nil, err
+			}
+
+			continue
+		}
+		would, err := docsOnlyFindings(rec, e.Workflow)
+		if err != nil {
+			return nil, err
+		}
+		if len(would) == 0 {
+			if err := report(e.Line, fmt.Sprintf("docsOnly exempt entry %d (%s) excuses nothing: a docs-only change does not start that workflow; remove it", i+1, e.Workflow)); err != nil {
+				return nil, err
+			}
+		}
+	}
+	finding.Sort(found)
+
+	return found, nil
 }
 
 // defaultBranches are the branches a push to which is a push to main. The default branch of the

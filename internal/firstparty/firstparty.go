@@ -24,7 +24,7 @@ const (
 func Rules(known func(id string) bool) []registry.Rule {
 	rules := []registry.Rule{{
 		ID:      UnjustifiedException,
-		Summary: "Every exception in the project record states a hazard, a scope and a decision, and every unanalysed file a hazard and a scope, none of them generic",
+		Summary: "Every exception in the project record states a hazard, a scope and a decision, every unanalysed file a hazard and a scope, and every docsOnly input and exempt workflow a reason, none of them generic",
 		Check:   CheckRecord(known),
 	}, {
 		// Reported by `check` when it has run every lane over every file: an exception can be
@@ -93,6 +93,24 @@ func CheckRecord(known func(id string) bool) func(path string) ([]finding.Findin
 				}
 				if err := f.Validate(); err != nil {
 					return nil, fmt.Errorf("the justification check produced a finding that cannot be reported: %w", err)
+				}
+				found = append(found, f)
+			}
+		}
+		for i, input := range rec.DocsOnly.Inputs {
+			for _, fault := range input.Faults() {
+				f, err := newFinding(UnjustifiedException, path, input.Line, 1, fmt.Sprintf("%s of docsOnly input %d (%s) %s", fault.Field, i+1, input.Path, fault.Reason))
+				if err != nil {
+					return nil, err
+				}
+				found = append(found, f)
+			}
+		}
+		for i, e := range rec.DocsOnly.Exempt {
+			for _, fault := range e.Faults() {
+				f, err := newFinding(UnjustifiedException, path, e.Line, 1, fmt.Sprintf("%s of docsOnly exempt entry %d (%s) %s", fault.Field, i+1, e.Workflow, fault.Reason))
+				if err != nil {
+					return nil, err
 				}
 				found = append(found, f)
 			}
